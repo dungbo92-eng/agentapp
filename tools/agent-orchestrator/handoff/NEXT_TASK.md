@@ -1,10 +1,10 @@
 # NEXT_TASK
 
-- Generated: 2026-05-09T13:13:58.058Z
-- Selected task: 안전 작업/보류 작업을 분류하는 dry-run 명령 추가
+- Generated: 2026-05-09T21:11:44.091Z
+- Selected task: worker별 프롬프트 템플릿 생성 명령 추가
 - Selection source: task-queue
-- Task id: safe-dry-run
-- Task priority: 60
+- Task id: worker-prompt-templates
+- Task priority: 55
 - Workspace: E:\agentApp
 - Policy: tools/agent-orchestrator/approval-policy.yaml
 
@@ -25,7 +25,7 @@
 
 다음 작업을 진행한다:
 
-> 안전 작업/보류 작업을 분류하는 dry-run 명령 추가
+> worker별 프롬프트 템플릿 생성 명령 추가
 
 ## Execution Rules
 

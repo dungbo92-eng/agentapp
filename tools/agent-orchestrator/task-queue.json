@@ -81,7 +81,7 @@
       "title": "안전 작업/보류 작업을 분류하는 dry-run 명령 추가",
       "phase": "phase-2",
       "priority": 60,
-      "status": "pending",
+      "status": "done",
       "depends_on": ["agent-next-priority"],
       "blocked_by": [],
       "reason": "실행 전에 allow/hold/deny 분류를 확인해야 한다."

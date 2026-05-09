@@ -42,6 +42,7 @@
 
 ```bash
 pnpm agent:status
+pnpm agent:dry-run -- --operation "pnpm validate"
 pnpm agent:doctor
 pnpm agent:sync
 pnpm agent:next

@@ -84,6 +84,18 @@
 - 개발 구현/문서/테스트/로컬 검증은 추가 확인 없이 계속 진행한다.
 - `hold_for_user` 또는 `deny` 작업만 decision queue로 넘긴다.
 
+## Safety dry-run CLI
+
+`pnpm agent:dry-run`은 실행하려는 작업 설명이나 명령을 `approval-policy.yaml` 기준으로 `auto_allowed`, `hold_for_user`, `deny` 중 하나로 분류한다.
+
+```bash
+pnpm agent:dry-run -- --operation "pnpm validate"
+pnpm agent:dry-run -- --operation "git push" --json
+pnpm agent:dry-run -- --operation "bypass quota"
+```
+
+분류 결과가 `hold_for_user` 또는 `deny`이면 작업을 실행하지 않고, 차단 범위가 있으면 `handoff/DECISIONS_REQUIRED.md`에 남긴다.
+
 ## Model routing CLI
 
 `pnpm agent:route`는 작업 설명과 난이도를 받아 모델/계정 별칭을 추천한다.

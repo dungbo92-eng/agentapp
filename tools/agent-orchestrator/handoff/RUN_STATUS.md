@@ -132,3 +132,12 @@ NEXT_TASK.md 템플릿 확정: agent-next 생성물을 Required Reads, Execution
 - Git: pending commit/push
 - Decisions: none
 - Next: 안전 작업/보류 작업을 분류하는 dry-run 명령 추가
+
+## 2026-05-09T21:11:52.142Z
+
+- Status: completed
+- Summary: 안전 작업/보류 작업 dry-run 분류 CLI(agent:dry-run)를 추가하고 approval-policy 기반으로 auto_allowed/hold_for_user/deny 판정을 검증했다.
+- Verification: pnpm validate 통과; pnpm agent:dry-run auto/hold/deny 예시 통과; pnpm agent:progress=51%
+- Git: pending commit/push
+- Decisions: none
+- Next: worker별 프롬프트 템플릿 생성 명령 추가
