@@ -1,6 +1,6 @@
 import React from "react";
 import { createRoot } from "react-dom/client";
-import { AlertCircle, CheckCircle2, ClipboardList, Gauge, GitBranch, TimerReset } from "lucide-react";
+import { AlertCircle, CheckCircle2, ClipboardList, FileText, Gauge, GitBranch, TimerReset } from "lucide-react";
 import "./styles.css";
 
 type Phase = {
@@ -38,6 +38,18 @@ type Snapshot = {
     verification: string;
     next: string;
   };
+  handoff_documents: {
+    id: string;
+    title: string;
+    path: string;
+    heading: string;
+    status: string;
+    next: string;
+    generated: string;
+    decision_count: number;
+    line_count: number;
+    excerpt: string;
+  }[];
   task_queue: {
     total: number;
     statuses: Record<string, number>;
@@ -253,6 +265,41 @@ function App() {
           ) : (
             <p className="empty">No run status recorded.</p>
           )}
+        </div>
+
+        <div className="panel wide">
+          <div className="sectionTitle">
+            <h2>Handoff Viewer</h2>
+            <span>{snapshot.handoff_documents.length} docs</span>
+          </div>
+          <div className="handoffList">
+            {snapshot.handoff_documents.map((document) => (
+              <article className="handoffDoc" key={document.id}>
+                <header>
+                  <FileText aria-hidden="true" size={16} />
+                  <div>
+                    <strong>{document.title}</strong>
+                    <span>{document.path}</span>
+                  </div>
+                </header>
+                <dl>
+                  <div>
+                    <dt>Status</dt>
+                    <dd>{document.status || "n/a"}</dd>
+                  </div>
+                  <div>
+                    <dt>Next</dt>
+                    <dd>{document.next || document.generated || "n/a"}</dd>
+                  </div>
+                  <div>
+                    <dt>Lines</dt>
+                    <dd>{document.line_count}</dd>
+                  </div>
+                </dl>
+                <pre>{document.excerpt || "No content."}</pre>
+              </article>
+            ))}
+          </div>
         </div>
 
         <div className="panel wide">

@@ -26,16 +26,16 @@ Auth: user-managed only
 
 ## Current Task
 
-- Selected task: handoff viewer
-- Task id: dashboard-handoff-viewer
-- Priority: 36
-- Generated: 2026-05-09T21:49:30.452Z
+- Selected task: 승인 필요 큐 화면
+- Task id: dashboard-approval-queue
+- Priority: 34
+- Generated: 2026-05-09T21:54:53.871Z
 
 위 Required Reads를 먼저 읽고 시작한다.
 
 다음 작업을 진행한다:
 
-> handoff viewer
+> 승인 필요 큐 화면
 
 ## Claude Code Adapter
 
@@ -49,7 +49,7 @@ Use this prompt when opening Claude Code from a terminal at the repository root.
 - Keep all implementation, docs, tests, validation, handoff updates, commit, and approved push moving without asking.
 - Do not rely on terminal history or unstated local context; read the required files first.
 - Before any unclear operation, run `pnpm agent:dry-run -- --operation "<operation>"`.
-- Use `pnpm agent:route -- --task "handoff viewer" --provider claude` before expensive reasoning work.
+- Use `pnpm agent:route -- --task "승인 필요 큐 화면" --provider claude` before expensive reasoning work.
 
 ### Claude Code Completion Output
 
@@ -74,7 +74,7 @@ Quality is first. Use efficient models for routine reading, setup, and simple do
 Before heavy work, run:
 
 ```bash
-pnpm agent:route -- --task "handoff viewer"
+pnpm agent:route -- --task "승인 필요 큐 화면"
 ```
 
 ## Safety Rules

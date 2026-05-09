@@ -217,7 +217,8 @@ select {
 
 .decisionList,
 .queueList,
-.workerGrid {
+.workerGrid,
+.handoffList {
   display: grid;
   gap: 12px;
   margin: 0;
@@ -321,6 +322,78 @@ select {
   gap: 10px;
 }
 
+.handoffDoc {
+  display: grid;
+  gap: 12px;
+  padding: 14px;
+  border: 1px solid #e2e9ec;
+  border-radius: 8px;
+  background: #fbfcfd;
+}
+
+.handoffDoc header {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+}
+
+.handoffDoc header svg {
+  flex: 0 0 auto;
+  margin-top: 2px;
+  color: #2f7f6f;
+}
+
+.handoffDoc strong {
+  display: block;
+  color: #20333c;
+  font-size: 0.95rem;
+}
+
+.handoffDoc span {
+  color: #607883;
+  font-size: 0.82rem;
+  overflow-wrap: anywhere;
+}
+
+.handoffDoc dl {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 10px;
+  margin: 0;
+}
+
+.handoffDoc dt,
+.handoffDoc dd {
+  margin: 0;
+}
+
+.handoffDoc dt {
+  color: #607883;
+  font-size: 0.76rem;
+}
+
+.handoffDoc dd {
+  color: #21343d;
+  font-size: 0.84rem;
+  font-weight: 700;
+  overflow-wrap: anywhere;
+}
+
+.handoffDoc pre {
+  max-height: 260px;
+  overflow: auto;
+  margin: 0;
+  padding: 12px;
+  border-radius: 6px;
+  background: #eef4f5;
+  color: #17272f;
+  font-family: "Cascadia Mono", "SFMono-Regular", Consolas, monospace;
+  font-size: 0.78rem;
+  line-height: 1.55;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+
 .notice {
   display: flex;
   align-items: center;
@@ -369,5 +442,9 @@ select {
 
   .wide {
     grid-column: span 1;
+  }
+
+  .handoffDoc dl {
+    grid-template-columns: 1fr;
   }
 }

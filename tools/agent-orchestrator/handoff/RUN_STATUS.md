@@ -222,3 +222,12 @@ NEXT_TASK.md 템플릿 확정: agent-next 생성물을 Required Reads, Execution
 - Git: pending commit/push
 - Decisions: none
 - Next: handoff viewer
+
+## 2026-05-09T21:54:52.576Z
+
+- Status: completed
+- Summary: 대시보드에 handoff viewer를 추가했다. snapshot 생성 시 NEXT_TASK, RUN_STATUS, DECISIONS_REQUIRED를 읽어 문서별 상태, 다음 항목, 줄 수, excerpt를 제공하고 UI에서 읽기 전용으로 확인할 수 있게 했다.
+- Verification: pnpm validate 통과; pnpm dashboard:build 통과; handoff_documents=3; pnpm agent:progress=74%
+- Git: pending commit/push
+- Decisions: none
+- Next: 승인 필요 큐 화면

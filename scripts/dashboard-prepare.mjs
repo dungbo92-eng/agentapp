@@ -111,6 +111,37 @@ function parseLatestRunStatus(markdown) {
   };
 }
 
+function compactExcerpt(markdown, mode = "head", limit = 2200) {
+  const normalized = markdown.trim();
+  if (normalized.length <= limit) return normalized;
+  const slice = mode === "tail" ? normalized.slice(-limit) : normalized.slice(0, limit);
+  return mode === "tail" ? `...${slice}` : `${slice}...`;
+}
+
+function summarizeHandoffDocuments(documents) {
+  return documents.map((document) => {
+    const lines = document.markdown.split(/\r?\n/).filter(Boolean);
+    const heading = lines.find((line) => line.startsWith("#"))?.replace(/^#+\s*/, "") || document.title;
+    const status = document.status ?? getMeta(document.markdown, "Status");
+    const next = document.next ?? getMeta(document.markdown, "Next");
+    const generated = document.generated ?? getMeta(document.markdown, "Generated");
+    const decisionCount = document.decisionCount ?? document.markdown.match(/^###\s+DEC-.+$/gm)?.length ?? 0;
+
+    return {
+      id: document.id,
+      title: document.title,
+      path: path.relative(REPO_ROOT, document.file).replace(/\\/g, "/"),
+      heading,
+      status,
+      next,
+      generated,
+      decision_count: decisionCount,
+      line_count: lines.length,
+      excerpt: compactExcerpt(document.markdown, document.mode),
+    };
+  });
+}
+
 function summarizeTaskQueue(taskQueue) {
   const tasks = Array.isArray(taskQueue?.tasks) ? taskQueue.tasks : [];
   const statuses = tasks.reduce((acc, task) => {
@@ -223,6 +254,37 @@ const snapshot = {
   next_task: parseNextTask(nextTask),
   pending_decisions: parsePendingDecisions(decisions),
   latest_run: parseLatestRunStatus(runStatus),
+  handoff_documents: summarizeHandoffDocuments([
+    {
+      id: "next-task",
+      title: "NEXT_TASK.md",
+      file: FILES.nextTask,
+      markdown: nextTask,
+      mode: "head",
+      status: parseNextTask(nextTask).source || "handoff",
+      next: parseNextTask(nextTask).title,
+      generated: parseNextTask(nextTask).generated,
+    },
+    {
+      id: "run-status",
+      title: "RUN_STATUS.md",
+      file: FILES.runStatus,
+      markdown: runStatus,
+      mode: "tail",
+      status: parseLatestRunStatus(runStatus)?.status || "",
+      next: parseLatestRunStatus(runStatus)?.next || "",
+      generated: parseLatestRunStatus(runStatus)?.at || "",
+    },
+    {
+      id: "decisions",
+      title: "DECISIONS_REQUIRED.md",
+      file: FILES.decisions,
+      markdown: decisions,
+      mode: "head",
+      status: `${parsePendingDecisions(decisions).length} pending`,
+      decisionCount: parsePendingDecisions(decisions).length,
+    },
+  ]),
   task_queue: summarizeTaskQueue(taskQueue),
   usage_budget: summarizeUsageBudget(usageBudget),
   workers: summarizeWorkers(parseWorkers(workersText), runStates),
