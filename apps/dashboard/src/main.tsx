@@ -31,6 +31,26 @@ type Snapshot = {
     category: string;
     blocks: string;
   }[];
+  approval_queue: {
+    pending_decisions: {
+      title: string;
+      priority: string;
+      category: string;
+      blocks: string;
+    }[];
+    held_tasks: {
+      id: string;
+      title: string;
+      status: string;
+      blocked_by: string[];
+      reason: string;
+    }[];
+    policy: {
+      hold_for_user: { id: string; description: string }[];
+      deny: { id: string; description: string }[];
+      user_required: { id: string; description: string }[];
+    };
+  };
   latest_run: null | {
     at: string;
     status: string;
@@ -134,6 +154,7 @@ function App() {
 
   const pendingCount = snapshot.pending_decisions.length;
   const phaseCount = snapshot.progress.phases.length;
+  const approvalCount = snapshot.approval_queue.pending_decisions.length + snapshot.approval_queue.held_tasks.length;
 
   return (
     <main className="shell">
@@ -148,7 +169,7 @@ function App() {
       <section className="overview">
         <Stat label="Progress" value={`${snapshot.progress.percent}%`} icon={Gauge} />
         <Stat label="Completed" value={`${snapshot.progress.done}/${snapshot.progress.total}`} icon={CheckCircle2} />
-        <Stat label="Pending Decisions" value={String(pendingCount)} icon={AlertCircle} />
+        <Stat label="Approval Queue" value={String(approvalCount)} icon={AlertCircle} />
         <Stat label="Queue Items" value={String(snapshot.task_queue.total)} icon={ClipboardList} />
       </section>
 
@@ -248,6 +269,62 @@ function App() {
                 <small>{worker.latest_reason}</small>
               </article>
             ))}
+          </div>
+        </div>
+
+        <div className="panel wide">
+          <div className="sectionTitle">
+            <h2>Approval Queue</h2>
+            <span>{approvalCount} waiting</span>
+          </div>
+          <div className="approvalSummary">
+            <div>
+              <strong>{snapshot.approval_queue.pending_decisions.length}</strong>
+              <span>pending decisions</span>
+            </div>
+            <div>
+              <strong>{snapshot.approval_queue.held_tasks.length}</strong>
+              <span>held tasks</span>
+            </div>
+            <div>
+              <strong>{snapshot.approval_queue.policy.hold_for_user.length}</strong>
+              <span>hold rules</span>
+            </div>
+            <div>
+              <strong>{snapshot.approval_queue.policy.deny.length}</strong>
+              <span>deny rules</span>
+            </div>
+          </div>
+          <div className="approvalGrid">
+            <section>
+              <h3>Waiting Decisions</h3>
+              {snapshot.approval_queue.pending_decisions.length === 0 ? (
+                <p className="empty">No pending decisions.</p>
+              ) : (
+                <ul>
+                  {snapshot.approval_queue.pending_decisions.map((decision) => (
+                    <li key={decision.title}>
+                      <strong>{decision.title}</strong>
+                      <span>
+                        {decision.priority} / {decision.category}
+                      </span>
+                      {decision.blocks ? <p>{decision.blocks}</p> : null}
+                    </li>
+                  ))}
+                </ul>
+              )}
+            </section>
+            <section>
+              <h3>Policy Boundaries</h3>
+              <ul>
+                {[...snapshot.approval_queue.policy.hold_for_user, ...snapshot.approval_queue.policy.deny].slice(0, 8).map((rule) => (
+                  <li key={rule.id}>
+                    <strong>{rule.id}</strong>
+                    <span>{rule.description}</span>
+                  </li>
+                ))}
+              </ul>
+            </section>
           </div>
         </div>
 

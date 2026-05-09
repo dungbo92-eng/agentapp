@@ -13,6 +13,7 @@ const FILES = {
   projectState: path.join(REPO_ROOT, ".claude-sync", "memory", "project_state.md"),
   nextTask: path.join(REPO_ROOT, "tools", "agent-orchestrator", "handoff", "NEXT_TASK.md"),
   decisions: path.join(REPO_ROOT, "tools", "agent-orchestrator", "handoff", "DECISIONS_REQUIRED.md"),
+  approvalPolicy: path.join(REPO_ROOT, "tools", "agent-orchestrator", "approval-policy.yaml"),
   runStatus: path.join(REPO_ROOT, "tools", "agent-orchestrator", "handoff", "RUN_STATUS.md"),
   taskQueue: path.join(REPO_ROOT, "tools", "agent-orchestrator", "task-queue.json"),
   usageBudget: path.join(REPO_ROOT, "tools", "agent-orchestrator", "usage-budget.example.json"),
@@ -159,6 +160,45 @@ function summarizeTaskQueue(taskQueue) {
   };
 }
 
+function parsePolicyItems(text, sectionName) {
+  const section = text.match(new RegExp(`(?:^|\\n)${sectionName}:\\n([\\s\\S]*?)(?=\\n[a-z_]+:|$)`))?.[1] || "";
+  const items = [];
+  const matches = [...section.matchAll(/^  - id:\s*(.+?)\s*$(?:\r?\n    description:\s*"(.+?)")?/gm)];
+
+  for (const match of matches) {
+    items.push({
+      id: match[1].trim(),
+      description: (match[2] || "").trim(),
+    });
+  }
+
+  return items;
+}
+
+function summarizeApprovalQueue(decisions, taskQueue, approvalPolicy) {
+  const tasks = Array.isArray(taskQueue?.tasks) ? taskQueue.tasks : [];
+  const pendingDecisions = parsePendingDecisions(decisions);
+  const heldTasks = tasks
+    .filter((task) => task.status === "hold" || task.status === "blocked" || task.blocked_by?.some((blocker) => String(blocker).startsWith("DEC-")))
+    .map((task) => ({
+      id: task.id,
+      title: task.title,
+      status: task.status,
+      blocked_by: task.blocked_by || [],
+      reason: task.reason || "",
+    }));
+
+  return {
+    pending_decisions: pendingDecisions,
+    held_tasks: heldTasks,
+    policy: {
+      hold_for_user: parsePolicyItems(approvalPolicy, "hold_for_user"),
+      deny: parsePolicyItems(approvalPolicy, "deny"),
+      user_required: parsePolicyItems(approvalPolicy, "user_required"),
+    },
+  };
+}
+
 function summarizeUsageBudget(usageBudget) {
   const accounts = Array.isArray(usageBudget?.accounts) ? usageBudget.accounts : [];
   return {
@@ -235,11 +275,12 @@ function summarizeWorkers(workers, runStates) {
   });
 }
 
-const [roadmap, projectState, nextTask, decisions, runStatus, taskQueue, usageBudget, workersText, runStates] = await Promise.all([
+const [roadmap, projectState, nextTask, decisions, approvalPolicy, runStatus, taskQueue, usageBudget, workersText, runStates] = await Promise.all([
   readText(FILES.roadmap),
   readText(FILES.projectState),
   readText(FILES.nextTask),
   readText(FILES.decisions),
+  readText(FILES.approvalPolicy),
   readText(FILES.runStatus),
   readJson(FILES.taskQueue),
   readJson(FILES.usageBudget),
@@ -254,6 +295,7 @@ const snapshot = {
   next_task: parseNextTask(nextTask),
   pending_decisions: parsePendingDecisions(decisions),
   latest_run: parseLatestRunStatus(runStatus),
+  approval_queue: summarizeApprovalQueue(decisions, taskQueue, approvalPolicy),
   handoff_documents: summarizeHandoffDocuments([
     {
       id: "next-task",

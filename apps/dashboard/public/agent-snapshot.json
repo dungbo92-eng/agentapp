@@ -1,9 +1,9 @@
 {
-  "generated_at": "2026-05-09T21:55:50.070Z",
+  "generated_at": "2026-05-09T21:59:04.117Z",
   "repo_root": "E:\\agentApp",
   "progress": {
-    "percent": 74,
-    "done": 32,
+    "percent": 77,
+    "done": 33,
     "total": 43,
     "phases": [
       {
@@ -155,7 +155,7 @@
       },
       {
         "title": "Phase 5 — Dashboard",
-        "done": 4,
+        "done": 5,
         "total": 6,
         "items": [
           {
@@ -176,7 +176,7 @@
           },
           {
             "title": "승인 필요 큐 화면",
-            "done": false
+            "done": true
           },
           {
             "title": "주간 사용량/주말 예비분/모델 추천 화면",
@@ -237,11 +237,11 @@
     ]
   },
   "next_task": {
-    "generated": "2026-05-09T21:54:53.871Z",
-    "title": "승인 필요 큐 화면",
+    "generated": "2026-05-09T21:58:45.517Z",
+    "title": "주간 사용량/주말 예비분/모델 추천 화면",
     "source": "task-queue",
-    "id": "dashboard-approval-queue",
-    "priority": "34"
+    "id": "dashboard-usage-budget-view",
+    "priority": "32"
   },
   "pending_decisions": [
     {
@@ -252,11 +252,122 @@
     }
   ],
   "latest_run": {
-    "at": "2026-05-09T21:54:52.576Z",
+    "at": "2026-05-09T21:58:44.172Z",
     "status": "completed",
-    "summary": "대시보드에 handoff viewer를 추가했다. snapshot 생성 시 NEXT_TASK, RUN_STATUS, DECISIONS_REQUIRED를 읽어 문서별 상태, 다음 항목, 줄 수, excerpt를 제공하고 UI에서 읽기 전용으로 확인할 수 있게 했다.",
-    "verification": "pnpm validate 통과; pnpm dashboard:build 통과; handoff_documents=3; pnpm agent:progress=74%",
-    "next": "승인 필요 큐 화면"
+    "summary": "대시보드에 승인 필요 큐 화면을 추가했다. approval-policy.yaml의 hold_for_user/deny/user_required 경계와 DECISIONS_REQUIRED 대기 항목, hold/blocked task를 snapshot에 모아 UI에서 확인할 수 있게 했다.",
+    "verification": "pnpm validate 통과; pnpm dashboard:build 통과; approval pending=1 holdRules=10 denyRules=3; pnpm agent:progress=77%",
+    "next": "주간 사용량/주말 예비분/모델 추천 화면"
+  },
+  "approval_queue": {
+    "pending_decisions": [
+      {
+        "title": "DEC-20260509-003 — 주간 사용량 입력 방식",
+        "priority": "high",
+        "category": "usage_budget",
+        "blocks": "사용량 예산/모델 라우팅 CLI 구현"
+      }
+    ],
+    "held_tasks": [],
+    "policy": {
+      "hold_for_user": [
+        {
+          "id": "external_writes",
+          "description": "POST, PUT, PATCH, DELETE against external or production services."
+        },
+        {
+          "id": "deployment",
+          "description": "Deploy to production, change DNS, publish packages, or release artifacts."
+        },
+        {
+          "id": "billing_payments",
+          "description": "Payments, billing, paid plan changes, or usage quota changes."
+        },
+        {
+          "id": "secrets",
+          "description": "Create, reveal, rotate, or store API keys, passwords, tokens, or credentials."
+        },
+        {
+          "id": "destructive_git",
+          "description": "git reset --hard, force push, branch deletion, history rewrite."
+        },
+        {
+          "id": "destructive_filesystem",
+          "description": "Recursive deletion or irreversible file operations outside clearly scoped generated output."
+        },
+        {
+          "id": "account_automation",
+          "description": "Automatic login, account switching to bypass limits, approval dialog auto-clicking, captcha or security bypass."
+        },
+        {
+          "id": "usage_source_setup",
+          "description": "Connect or change an external usage source, browser session, or account metadata source."
+        },
+        {
+          "id": "git_remote_setup",
+          "description": "Add, change, or remove git remotes."
+        },
+        {
+          "id": "git_push",
+          "description": "Push commits or tags to a remote repository."
+        }
+      ],
+      "deny": [
+        {
+          "id": "quota_bypass",
+          "description": "Use extra accounts, automated switching, or approval bypass to evade platform limits instead of planning normal user-owned usage."
+        },
+        {
+          "id": "credential_capture",
+          "description": "Capture, persist, print, or exfiltrate credentials, cookies, tokens, or secrets."
+        },
+        {
+          "id": "unattended_security_bypass",
+          "description": "Bypass captcha, MFA, security prompts, consent screens, or paid-plan gates."
+        }
+      ],
+      "user_required": [
+        {
+          "id": "external_writes",
+          "description": "Compatibility alias for hold_for_user.external_writes."
+        },
+        {
+          "id": "deployment",
+          "description": "Compatibility alias for hold_for_user.deployment."
+        },
+        {
+          "id": "billing_payments",
+          "description": "Compatibility alias for hold_for_user.billing_payments."
+        },
+        {
+          "id": "secrets",
+          "description": "Compatibility alias for hold_for_user.secrets."
+        },
+        {
+          "id": "destructive_git",
+          "description": "Compatibility alias for hold_for_user.destructive_git."
+        },
+        {
+          "id": "destructive_filesystem",
+          "description": "Compatibility alias for hold_for_user.destructive_filesystem."
+        },
+        {
+          "id": "account_automation",
+          "description": "Compatibility alias for hold_for_user.account_automation."
+        },
+        {
+          "id": "usage_source_setup",
+          "description": "Compatibility alias for hold_for_user.usage_source_setup."
+        },
+        {
+          "id": "git_remote_setup",
+          "description": "Compatibility alias for hold_for_user.git_remote_setup."
+        },
+        {
+          "id": "git_push",
+          "description": "Compatibility alias for hold_for_user.git_push."
+        }
+      ]
+    }
   },
   "handoff_documents": [
     {
@@ -265,11 +376,11 @@
       "path": "tools/agent-orchestrator/handoff/NEXT_TASK.md",
       "heading": "NEXT_TASK",
       "status": "task-queue",
-      "next": "승인 필요 큐 화면",
-      "generated": "2026-05-09T21:54:53.871Z",
+      "next": "주간 사용량/주말 예비분/모델 추천 화면",
+      "generated": "2026-05-09T21:58:45.517Z",
       "decision_count": 0,
       "line_count": 498,
-      "excerpt": "# NEXT_TASK\n\n- Generated: 2026-05-09T21:54:53.871Z\n- Selected task: 승인 필요 큐 화면\n- Selection source: task-queue\n- Task id: dashboard-approval-queue\n- Task priority: 34\n- Workspace: E:\\agentApp\n- Policy: tools/agent-orchestrator/approval-policy.yaml\n\n## Required Reads\n\n1. AGENTS.md\n2. .claude-sync/memory/project_state.md\n3. .claude-sync/plans/agent-orchestrator-roadmap.md\n4. tools/agent-orchestrator/approval-policy.yaml\n5. docs/usage-budget-model-routing.md\n6. docs/handoff-completion-protocol.md\n7. tools/agent-orchestrator/task-queue.json\n8. tools/agent-orchestrator/workers.example.yaml\n\n## Agent Prompt\n\n위 Required Reads를 먼저 읽고 시작한다.\n\n다음 작업을 진행한다:\n\n> 승인 필요 큐 화면\n\n## Execution Rules\n\n- `auto_allowed`에 해당하는 로컬 작업은 바로 진행한다.\n- `hold_for_user` 또는 `user_required`에 해당하는 작업은 실행하지 말고 DECISIONS_REQUIRED.md에 남긴다.\n- `deny`에 해당하는 작업은 구현하지 않는다.\n- 비밀값, 계정 정보, 토큰, 쿠키, 운영 인증 정보는 파일/로그/문서에 남기지 않는다.\n- 작업 범위가 섞여 있으면 안전한 로컬 부분만 완료하고 보류 항목을 기록한다.\n- 개발 구현, 문서화, 테스트, 로컬 검증, handoff 갱신, commit/push는 추가 확인 없이 계속 진행한다.\n\n## Completion Checklist\n\n- pnpm validate\n- pnpm agent:doctor\n- pnpm agent:progress\n- pnpm agent:next\n- pnpm agent:sync\n- git status 확인\n- 검증된 변경 commit\n- 승인된 remote가 있으면 push\n\n## Handoff Updates\n\n- tools/agent-orchestrator/handoff/RUN_STATUS.md: 수행 내용과 검증 결과 추가\n- tools/agent-orchestrator/handoff/DECISIONS_REQUIRED.md: 사용자 결정 필요 항목 추가/해결 처리\n- .claude-sync/memory/project_state.md: 의미 있는 진행 반영\n- .claude-sync/plans/agent-orchestrator-roadmap.md: 완료된 roadmap 체크박스 갱신\n\n## Context Snapshot\n\n### Project State\n\n```md\n# Project State\n\nLast updated: 2026-05-09\n\n## 프로젝트 한 줄\n\nAgentApp은 여러 AI 개발 에이전트가 같은 memory/plan/handoff를 공유하며 안전한 작업을 이어받게 하는 멀티 에이전트 개발 오케스트레이터다.\n\n## 현재 상태\n\n- `AGENTS.md`, `CLAUDE.md` 공통 규칙 초안 생성.\n- `.claude-sync` memory/plan 동기화 구조 생성.\n- `scripts/claude-sync.mjs`, `install-hooks.mjs` 생성.\n- `scripts/agent-doctor.mjs`, `agent-next.mjs`, `agent-progress.mjs`, `agent-report.mjs` 생성.\n- `tools/agent-orchestrator` 아래 승인 정책, worker 예시, handoff 초안 생성.\n- `git init`, `pnpm install`, hook 설치 완료.\n- `pnpm validate`, `pnpm agent:doctor`, `pnpm agent:progress`, `pnpm agent:next`, `pnpm agent:status` 검증 완료.\n- 새 PC/새 에이전트 세션에서 `pnpm agent:doctor`로 Node/pnpm/git, hooks, `.claude-sync`, 로컬 `~..."
+      "excerpt": "# NEXT_TASK\n\n- Generated: 2026-05-09T21:58:45.517Z\n- Selected task: 주간 사용량/주말 예비분/모델 추천 화면\n- Selection source: task-queue\n- Task id: dashboard-usage-budget-view\n- Task priority: 32\n- Workspace: E:\\agentApp\n- Policy: tools/agent-orchestrator/approval-policy.yaml\n\n## Required Reads\n\n1. AGENTS.md\n2. .claude-sync/memory/project_state.md\n3. .claude-sync/plans/agent-orchestrator-roadmap.md\n4. tools/agent-orchestrator/approval-policy.yaml\n5. docs/usage-budget-model-routing.md\n6. docs/handoff-completion-protocol.md\n7. tools/agent-orchestrator/task-queue.json\n8. tools/agent-orchestrator/workers.example.yaml\n\n## Agent Prompt\n\n위 Required Reads를 먼저 읽고 시작한다.\n\n다음 작업을 진행한다:\n\n> 주간 사용량/주말 예비분/모델 추천 화면\n\n## Execution Rules\n\n- `auto_allowed`에 해당하는 로컬 작업은 바로 진행한다.\n- `hold_for_user` 또는 `user_required`에 해당하는 작업은 실행하지 말고 DECISIONS_REQUIRED.md에 남긴다.\n- `deny`에 해당하는 작업은 구현하지 않는다.\n- 비밀값, 계정 정보, 토큰, 쿠키, 운영 인증 정보는 파일/로그/문서에 남기지 않는다.\n- 작업 범위가 섞여 있으면 안전한 로컬 부분만 완료하고 보류 항목을 기록한다.\n- 개발 구현, 문서화, 테스트, 로컬 검증, handoff 갱신, commit/push는 추가 확인 없이 계속 진행한다.\n\n## Completion Checklist\n\n- pnpm validate\n- pnpm agent:doctor\n- pnpm agent:progress\n- pnpm agent:next\n- pnpm agent:sync\n- git status 확인\n- 검증된 변경 commit\n- 승인된 remote가 있으면 push\n\n## Handoff Updates\n\n- tools/agent-orchestrator/handoff/RUN_STATUS.md: 수행 내용과 검증 결과 추가\n- tools/agent-orchestrator/handoff/DECISIONS_REQUIRED.md: 사용자 결정 필요 항목 추가/해결 처리\n- .claude-sync/memory/project_state.md: 의미 있는 진행 반영\n- .claude-sync/plans/agent-orchestrator-roadmap.md: 완료된 roadmap 체크박스 갱신\n\n## Context Snapshot\n\n### Project State\n\n```md\n# Project State\n\nLast updated: 2026-05-09\n\n## 프로젝트 한 줄\n\nAgentApp은 여러 AI 개발 에이전트가 같은 memory/plan/handoff를 공유하며 안전한 작업을 이어받게 하는 멀티 에이전트 개발 오케스트레이터다.\n\n## 현재 상태\n\n- `AGENTS.md`, `CLAUDE.md` 공통 규칙 초안 생성.\n- `.claude-sync` memory/plan 동기화 구조 생성.\n- `scripts/claude-sync.mjs`, `install-hooks.mjs` 생성.\n- `scripts/agent-doctor.mjs`, `agent-next.mjs`, `agent-progress.mjs`, `agent-report.mjs` 생성.\n- `tools/agent-orchestrator` 아래 승인 정책, worker 예시, handoff 초안 생성.\n- `git init`, `pnpm install`, hook 설치 완료.\n- `pnpm validate`, `pnpm agent:doctor`, `pnpm agent:progress`, `pnpm agent:next`, `pnpm agent:status` 검증 완료.\n- 새 PC/새 에이전트 세션에서 `pnpm agent:doctor`로 Node/pnpm/git, h..."
     },
     {
       "id": "run-status",
@@ -277,11 +388,11 @@
       "path": "tools/agent-orchestrator/handoff/RUN_STATUS.md",
       "heading": "RUN_STATUS",
       "status": "completed",
-      "next": "승인 필요 큐 화면",
-      "generated": "2026-05-09T21:54:52.576Z",
+      "next": "주간 사용량/주말 예비분/모델 추천 화면",
+      "generated": "2026-05-09T21:58:44.172Z",
       "decision_count": 0,
-      "line_count": 175,
-      "excerpt": "... pnpm agent:progress=63%\n- Git: pending commit/push\n- Decisions: none\n- Next: worker가 직접 실행할 수 없는 경우 handoff만 남기는 fallback 구현\n\n## 2026-05-09T21:36:19.496Z\n\n- Status: completed\n- Summary: 직접 실행 불가 환경에서 worker를 실행하지 않고 handoff-only 상태를 남기는 agent:fallback CLI를 추가했다. dry-run 검증으로 HANDOFF_ONLY/run-state/RUN_STATUS 생성 내용을 확인했다.\n- Verification: pnpm validate 통과; pnpm agent:fallback -- --worker codex --reason tool_error --summary 현재환경직접실행불가 --dry-run --json 통과; pnpm agent:progress=65% Phase3=100%\n- Git: pending commit/push\n- Decisions: none\n- Next: 로컬 웹 대시보드 기술 선택\n\n## 2026-05-09T21:40:15.005Z\n\n- Status: completed\n- Summary: 로컬 웹 대시보드 기술을 Vite + React + TypeScript read-only SPA로 결정하고 docs/dashboard-technology.md에 근거와 초기 구조를 기록했다. 첫 UI 결정도 로컬 대시보드 착수로 해결 처리하고 task queue를 다음 화면 작업으로 열었다.\n- Verification: pnpm validate 통과; pnpm agent:progress=67%; pnpm agent:next=진행률/다음 작업/보류 결정 화면; pnpm agent:dry-run 로컬 대시보드 파일 생성 auto_allowed 확인\n- Git: pending commit/push\n- Decisions: DEC-20260509-001 resolved\n- Next: 진행률/다음 작업/보류 결정 화면\n\n## 2026-05-09T21:47:06.047Z\n\n- Status: completed\n- Summary: 진행률/다음 작업/보류 결정 화면을 위한 Vite + React + TypeScript 로컬 대시보드 MVP를 추가하고, dashboard snapshot 생성 스크립트로 progress/next task/decisions/latest run/task queue/usage budget을 표시하도록 구현했다.\n- Verification: pnpm validate 통과; pnpm dashboard:build 통과; dev server http://127.0.0.1:5173 응답 200; pnpm agent:progress=70%\n- Git: pending commit/push\n- Decisions: none\n- Next: worker 상태 화면\n\n## 2026-05-09T21:49:55.286Z\n\n- Status: completed\n- Summary: 대시보드에 worker 상태 화면을 추가했다. snapshot 생성 시 workers.example.yaml과 worker run-state 예시/기록을 합쳐 worker별 최신 상태, 이유, 최근 task를 표시한다.\n- Verification: pnpm validate 통과; pnpm dashboard:build 통과; snapshot workers=4 next=handoff viewer; pnpm agent:progress=72%\n- Git: pending commit/push\n- Decisions: none\n- Next: handoff viewer\n\n## 2026-05-09T21:54:52.576Z\n\n- Status: completed\n- Summary: 대시보드에 handoff viewer를 추가했다. snapshot 생성 시 NEXT_TASK, RUN_STATUS, DECISIONS_REQUIRED를 읽어 문서별 상태, 다음 항목, 줄 수, excerpt를 제공하고 UI에서 읽기 전용으로 확인할 수 있게 했다.\n- Verification: pnpm validate 통과; pnpm dashboard:build 통과; handoff_documents=3; pnpm agent:progress=74%\n- Git: pending commit/push\n- Decisions: none\n- Next: 승인 필요 큐 화면"
+      "line_count": 182,
+      "excerpt": "...y 현재환경직접실행불가 --dry-run --json 통과; pnpm agent:progress=65% Phase3=100%\n- Git: pending commit/push\n- Decisions: none\n- Next: 로컬 웹 대시보드 기술 선택\n\n## 2026-05-09T21:40:15.005Z\n\n- Status: completed\n- Summary: 로컬 웹 대시보드 기술을 Vite + React + TypeScript read-only SPA로 결정하고 docs/dashboard-technology.md에 근거와 초기 구조를 기록했다. 첫 UI 결정도 로컬 대시보드 착수로 해결 처리하고 task queue를 다음 화면 작업으로 열었다.\n- Verification: pnpm validate 통과; pnpm agent:progress=67%; pnpm agent:next=진행률/다음 작업/보류 결정 화면; pnpm agent:dry-run 로컬 대시보드 파일 생성 auto_allowed 확인\n- Git: pending commit/push\n- Decisions: DEC-20260509-001 resolved\n- Next: 진행률/다음 작업/보류 결정 화면\n\n## 2026-05-09T21:47:06.047Z\n\n- Status: completed\n- Summary: 진행률/다음 작업/보류 결정 화면을 위한 Vite + React + TypeScript 로컬 대시보드 MVP를 추가하고, dashboard snapshot 생성 스크립트로 progress/next task/decisions/latest run/task queue/usage budget을 표시하도록 구현했다.\n- Verification: pnpm validate 통과; pnpm dashboard:build 통과; dev server http://127.0.0.1:5173 응답 200; pnpm agent:progress=70%\n- Git: pending commit/push\n- Decisions: none\n- Next: worker 상태 화면\n\n## 2026-05-09T21:49:55.286Z\n\n- Status: completed\n- Summary: 대시보드에 worker 상태 화면을 추가했다. snapshot 생성 시 workers.example.yaml과 worker run-state 예시/기록을 합쳐 worker별 최신 상태, 이유, 최근 task를 표시한다.\n- Verification: pnpm validate 통과; pnpm dashboard:build 통과; snapshot workers=4 next=handoff viewer; pnpm agent:progress=72%\n- Git: pending commit/push\n- Decisions: none\n- Next: handoff viewer\n\n## 2026-05-09T21:54:52.576Z\n\n- Status: completed\n- Summary: 대시보드에 handoff viewer를 추가했다. snapshot 생성 시 NEXT_TASK, RUN_STATUS, DECISIONS_REQUIRED를 읽어 문서별 상태, 다음 항목, 줄 수, excerpt를 제공하고 UI에서 읽기 전용으로 확인할 수 있게 했다.\n- Verification: pnpm validate 통과; pnpm dashboard:build 통과; handoff_documents=3; pnpm agent:progress=74%\n- Git: pending commit/push\n- Decisions: none\n- Next: 승인 필요 큐 화면\n\n## 2026-05-09T21:58:44.172Z\n\n- Status: completed\n- Summary: 대시보드에 승인 필요 큐 화면을 추가했다. approval-policy.yaml의 hold_for_user/deny/user_required 경계와 DECISIONS_REQUIRED 대기 항목, hold/blocked task를 snapshot에 모아 UI에서 확인할 수 있게 했다.\n- Verification: pnpm validate 통과; pnpm dashboard:build 통과; approval pending=1 holdRules=10 denyRules=3; pnpm agent:progress=77%\n- Git: pending commit/push\n- Decisions: none\n- Next: 주간 사용량/주말 예비분/모델 추천 화면"
     },
     {
       "id": "decisions",
@@ -297,17 +408,17 @@
     }
   ],
   "task_queue": {
-    "total": 19,
+    "total": 20,
     "statuses": {
-      "done": 18,
+      "done": 19,
       "pending": 1
     },
     "next": [
       {
-        "id": "dashboard-approval-queue",
-        "title": "승인 필요 큐 화면",
+        "id": "dashboard-usage-budget-view",
+        "title": "주간 사용량/주말 예비분/모델 추천 화면",
         "phase": "phase-5",
-        "priority": 34
+        "priority": 32
       }
     ]
   },

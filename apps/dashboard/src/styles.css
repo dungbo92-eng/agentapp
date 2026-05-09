@@ -218,7 +218,8 @@ select {
 .decisionList,
 .queueList,
 .workerGrid,
-.handoffList {
+.handoffList,
+.approvalGrid ul {
   display: grid;
   gap: 12px;
   margin: 0;
@@ -228,7 +229,8 @@ select {
 
 .decisionList li,
 .queueList li,
-.workerRow {
+.workerRow,
+.approvalGrid li {
   display: grid;
   gap: 4px;
   padding-top: 12px;
@@ -237,14 +239,16 @@ select {
 
 .decisionList li:first-child,
 .queueList li:first-child,
-.workerRow:first-child {
+.workerRow:first-child,
+.approvalGrid li:first-child {
   padding-top: 0;
   border-top: 0;
 }
 
 .decisionList strong,
 .queueList strong,
-.workerRow strong {
+.workerRow strong,
+.approvalGrid strong {
   color: #20333c;
   font-size: 0.95rem;
 }
@@ -252,6 +256,8 @@ select {
 .decisionList span,
 .queueList span,
 .workerRow span,
+.approvalGrid span,
+.approvalGrid p,
 .run span,
 .run small,
 .budget span,
@@ -264,7 +270,8 @@ select {
 .decisionList p,
 .budget p,
 .run p,
-.workerRow p {
+.workerRow p,
+.approvalGrid p {
   margin: 0;
 }
 
@@ -320,6 +327,49 @@ select {
 .run {
   display: grid;
   gap: 10px;
+}
+
+.approvalSummary {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 10px;
+  margin-bottom: 16px;
+}
+
+.approvalSummary div {
+  min-height: 82px;
+  padding: 14px;
+  border: 1px solid #e2e9ec;
+  border-radius: 8px;
+  background: #fbfcfd;
+}
+
+.approvalSummary strong {
+  display: block;
+  color: #13242c;
+  font-size: 1.55rem;
+  line-height: 1.1;
+}
+
+.approvalSummary span {
+  color: #607883;
+  font-size: 0.82rem;
+}
+
+.approvalGrid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 14px;
+}
+
+.approvalGrid section {
+  min-width: 0;
+}
+
+.approvalGrid h3 {
+  margin: 0 0 12px;
+  color: #172026;
+  font-size: 0.92rem;
 }
 
 .handoffDoc {
@@ -442,6 +492,11 @@ select {
 
   .wide {
     grid-column: span 1;
+  }
+
+  .approvalSummary,
+  .approvalGrid {
+    grid-template-columns: 1fr;
   }
 
   .handoffDoc dl {

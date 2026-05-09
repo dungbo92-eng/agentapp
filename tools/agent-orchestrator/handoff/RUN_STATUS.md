@@ -231,3 +231,12 @@ NEXT_TASK.md 템플릿 확정: agent-next 생성물을 Required Reads, Execution
 - Git: pending commit/push
 - Decisions: none
 - Next: 승인 필요 큐 화면
+
+## 2026-05-09T21:58:44.172Z
+
+- Status: completed
+- Summary: 대시보드에 승인 필요 큐 화면을 추가했다. approval-policy.yaml의 hold_for_user/deny/user_required 경계와 DECISIONS_REQUIRED 대기 항목, hold/blocked task를 snapshot에 모아 UI에서 확인할 수 있게 했다.
+- Verification: pnpm validate 통과; pnpm dashboard:build 통과; approval pending=1 holdRules=10 denyRules=3; pnpm agent:progress=77%
+- Git: pending commit/push
+- Decisions: none
+- Next: 주간 사용량/주말 예비분/모델 추천 화면

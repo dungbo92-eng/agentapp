@@ -25,16 +25,16 @@ Auth: user-managed only
 
 ## Current Task
 
-- Selected task: 승인 필요 큐 화면
-- Task id: dashboard-approval-queue
-- Priority: 34
-- Generated: 2026-05-09T21:54:53.871Z
+- Selected task: 주간 사용량/주말 예비분/모델 추천 화면
+- Task id: dashboard-usage-budget-view
+- Priority: 32
+- Generated: 2026-05-09T21:58:45.517Z
 
 위 Required Reads를 먼저 읽고 시작한다.
 
 다음 작업을 진행한다:
 
-> 승인 필요 큐 화면
+> 주간 사용량/주말 예비분/모델 추천 화면
 
 ## Cursor Adapter
 
@@ -49,7 +49,7 @@ Use this prompt when opening the repository in Cursor.
 - Use Cursor for local code, docs, tests, validation, handoff updates, commit, and approved push only.
 - Do not store secrets in Cursor settings, prompts, files, comments, or logs.
 - Before any unclear operation, run `pnpm agent:dry-run -- --operation "<operation>"`.
-- Use `pnpm agent:route -- --task "승인 필요 큐 화면"` before expensive reasoning work.
+- Use `pnpm agent:route -- --task "주간 사용량/주말 예비분/모델 추천 화면"` before expensive reasoning work.
 
 ### Cursor Completion Output
 
@@ -74,7 +74,7 @@ Quality is first. Use efficient models for routine reading, setup, and simple do
 Before heavy work, run:
 
 ```bash
-pnpm agent:route -- --task "승인 필요 큐 화면"
+pnpm agent:route -- --task "주간 사용량/주말 예비분/모델 추천 화면"
 ```
 
 ## Safety Rules

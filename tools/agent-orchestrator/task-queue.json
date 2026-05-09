@@ -191,10 +191,20 @@
       "title": "승인 필요 큐 화면",
       "phase": "phase-5",
       "priority": 34,
-      "status": "pending",
+      "status": "done",
       "depends_on": ["dashboard-handoff-viewer"],
       "blocked_by": [],
       "reason": "hold_for_user 또는 deny로 분류되는 작업과 대기 중 decision을 더 명확히 추적해야 한다."
+    },
+    {
+      "id": "dashboard-usage-budget-view",
+      "title": "주간 사용량/주말 예비분/모델 추천 화면",
+      "phase": "phase-5",
+      "priority": 32,
+      "status": "pending",
+      "depends_on": ["dashboard-approval-queue"],
+      "blocked_by": [],
+      "reason": "품질 우선 모델 라우팅과 주말 예비 사용량을 대시보드에서 확인할 수 있어야 한다."
     }
   ]
 }
