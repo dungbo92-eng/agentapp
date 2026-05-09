@@ -131,7 +131,7 @@
       "title": "실패/중단/quota 감지 상태 모델 정의",
       "phase": "phase-3",
       "priority": 52,
-      "status": "pending",
+      "status": "done",
       "depends_on": ["worker-prompt-templates"],
       "blocked_by": [],
       "reason": "worker가 멈춘 이유를 공통 상태로 기록해야 다음 에이전트가 안전하게 이어받는다."

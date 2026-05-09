@@ -177,3 +177,12 @@ NEXT_TASK.md 템플릿 확정: agent-next 생성물을 Required Reads, Execution
 - Git: pending commit/push
 - Decisions: none
 - Next: 실패/중단/quota 감지 상태 모델 정의
+
+## 2026-05-09T21:29:52.172Z
+
+- Status: completed
+- Summary: worker 실행/중단/실패/quota 상태 모델을 JSON schema와 예시 파일로 정의하고, validate-configs에서 상태/이유/비밀값 금지/정책 판정을 검증하도록 추가했다.
+- Verification: pnpm validate 통과; worker-run-state.example status=blocked reason=hold_for_user contains_secrets=false 확인; pnpm agent:progress=63%
+- Git: pending commit/push
+- Decisions: none
+- Next: worker가 직접 실행할 수 없는 경우 handoff만 남기는 fallback 구현

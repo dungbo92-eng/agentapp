@@ -1,0 +1,203 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "AgentApp worker run state",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "version",
+    "run_id",
+    "worker_id",
+    "worker_kind",
+    "workspace",
+    "task",
+    "status",
+    "reason",
+    "timestamps",
+    "handoff",
+    "safety"
+  ],
+  "properties": {
+    "version": {
+      "type": "integer",
+      "const": 1
+    },
+    "run_id": {
+      "type": "string",
+      "pattern": "^run-[0-9]{8}T[0-9]{6}Z-[a-z0-9-]+$"
+    },
+    "worker_id": {
+      "type": "string",
+      "minLength": 1
+    },
+    "worker_kind": {
+      "type": "string",
+      "enum": ["codex", "claude-code", "cursor", "gemini-cli", "other"]
+    },
+    "workspace": {
+      "type": "string",
+      "minLength": 1
+    },
+    "task": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["id", "title", "source"],
+      "properties": {
+        "id": {
+          "type": "string"
+        },
+        "title": {
+          "type": "string",
+          "minLength": 1
+        },
+        "source": {
+          "type": "string",
+          "enum": ["task-queue", "roadmap", "manual", "handoff"]
+        }
+      }
+    },
+    "status": {
+      "type": "string",
+      "enum": [
+        "queued",
+        "running",
+        "completed",
+        "interrupted",
+        "blocked",
+        "failed",
+        "quota_limited",
+        "needs_user"
+      ]
+    },
+    "reason": {
+      "type": "string",
+      "enum": [
+        "not_started",
+        "in_progress",
+        "completed",
+        "user_stopped",
+        "session_timeout",
+        "quota_exhausted",
+        "missing_credentials",
+        "hold_for_user",
+        "deny_policy",
+        "validation_failed",
+        "tool_error",
+        "merge_conflict",
+        "unknown"
+      ]
+    },
+    "timestamps": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["started_at", "updated_at"],
+      "properties": {
+        "started_at": {
+          "type": "string",
+          "format": "date-time"
+        },
+        "updated_at": {
+          "type": "string",
+          "format": "date-time"
+        },
+        "completed_at": {
+          "type": "string",
+          "format": "date-time"
+        }
+      }
+    },
+    "usage": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "provider": {
+          "type": "string",
+          "enum": ["codex", "claude", "cursor", "gemini", "other"]
+        },
+        "budget_status": {
+          "type": "string",
+          "enum": ["unknown", "ok", "low", "reserved", "exhausted"]
+        },
+        "model_tier": {
+          "type": "string"
+        },
+        "reasoning_effort": {
+          "type": "string"
+        }
+      }
+    },
+    "verification": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "commands": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "result": {
+          "type": "string",
+          "enum": ["not_run", "passed", "failed", "partial"]
+        }
+      }
+    },
+    "handoff": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["summary", "next_step", "files"],
+      "properties": {
+        "summary": {
+          "type": "string"
+        },
+        "next_step": {
+          "type": "string"
+        },
+        "files": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "decision_id": {
+          "type": "string"
+        }
+      }
+    },
+    "git": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "branch": {
+          "type": "string"
+        },
+        "commit": {
+          "type": "string"
+        },
+        "pushed": {
+          "type": "boolean"
+        },
+        "dirty": {
+          "type": "boolean"
+        }
+      }
+    },
+    "safety": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["contains_secrets", "external_write", "policy_action"],
+      "properties": {
+        "contains_secrets": {
+          "type": "boolean",
+          "const": false
+        },
+        "external_write": {
+          "type": "boolean"
+        },
+        "policy_action": {
+          "type": "string",
+          "enum": ["auto_allowed", "hold_for_user", "deny"]
+        }
+      }
+    }
+  }
+}

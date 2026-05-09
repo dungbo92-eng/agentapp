@@ -11,6 +11,8 @@
 | `task-queue.json` | 우선순위/의존성/보류 상태를 가진 작업 큐 |
 | `usage-budget.schema.json` | 주간 사용량 예산 설정 스키마 |
 | `usage-budget.example.json` | 비밀값 없는 주간 사용량 예시 설정 |
+| `worker-run-state.schema.json` | worker 실행/중단/실패/quota 상태 모델 |
+| `worker-run-state.example.json` | 비밀값 없는 worker 상태 예시 |
 | `roadmap.yaml` | 기계가 읽기 쉬운 로드맵 초안 |
 | `handoff/NEXT_TASK.md` | 다음 에이전트가 수행할 작업 |
 | `handoff/RUN_STATUS.md` | 최근 실행 결과 |
@@ -24,6 +26,17 @@
 - `capabilities.auto_allowed`는 `approval-policy.yaml`의 안전 작업 id만 참조한다.
 - `capabilities.hold_for_user`와 `capabilities.denied`는 자동 실행하지 않는다.
 - 작업 완료 시 memory/plan/handoff 갱신, 검증, commit, 승인된 remote push를 수행한다.
+
+## Worker run state
+
+`worker-run-state.schema.json`은 worker가 멈췄거나 이어받기를 남겨야 할 때 공통으로 기록할 상태 계약이다.
+
+- `status`: `queued`, `running`, `completed`, `interrupted`, `blocked`, `failed`, `quota_limited`, `needs_user`
+- `reason`: `session_timeout`, `quota_exhausted`, `missing_credentials`, `hold_for_user`, `deny_policy`, `validation_failed`, `tool_error`, `merge_conflict` 등
+- `handoff`: 요약, 다음 단계, 관련 파일, 필요 시 decision id
+- `safety`: 비밀값 포함 여부는 항상 `false`, 외부 쓰기 여부, 정책 판정
+
+이 모델은 사용량 제한 우회를 위한 자동 계정 전환이 아니라, 정상 보유 세션에서 작업이 멈춘 이유를 다음 worker가 안전하게 해석하기 위한 기록이다.
 
 ## NEXT_TASK template
 

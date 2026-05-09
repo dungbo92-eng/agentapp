@@ -1,0 +1,48 @@
+{
+  "version": 1,
+  "run_id": "run-20260509T213000Z-codex",
+  "worker_id": "codex",
+  "worker_kind": "codex",
+  "workspace": "E:\\agentApp",
+  "task": {
+    "id": "worker-state-model",
+    "title": "Define worker stop and quota state model",
+    "source": "task-queue"
+  },
+  "status": "blocked",
+  "reason": "hold_for_user",
+  "timestamps": {
+    "started_at": "2026-05-09T21:30:00Z",
+    "updated_at": "2026-05-09T21:35:00Z"
+  },
+  "usage": {
+    "provider": "codex",
+    "budget_status": "ok",
+    "model_tier": "balanced",
+    "reasoning_effort": "high"
+  },
+  "verification": {
+    "commands": ["pnpm validate"],
+    "result": "partial"
+  },
+  "handoff": {
+    "summary": "Local implementation is complete, but remote deployment is held by policy.",
+    "next_step": "Record the deployment request in DECISIONS_REQUIRED.md and continue local tasks.",
+    "files": [
+      "tools/agent-orchestrator/handoff/RUN_STATUS.md",
+      "tools/agent-orchestrator/handoff/DECISIONS_REQUIRED.md"
+    ],
+    "decision_id": "DEC-20260509-001"
+  },
+  "git": {
+    "branch": "main",
+    "commit": "pending",
+    "pushed": false,
+    "dirty": true
+  },
+  "safety": {
+    "contains_secrets": false,
+    "external_write": false,
+    "policy_action": "hold_for_user"
+  }
+}
