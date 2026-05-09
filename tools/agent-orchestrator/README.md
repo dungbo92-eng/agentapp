@@ -91,6 +91,15 @@ pnpm agent:route -- --task "자동매매 로직 설계" --complexity complex
 
 이 명령은 실제 계정을 전환하지 않고 `usage-budget.example.json` 형태의 로컬 예산 설정을 기반으로 추천만 출력한다.
 
+## Usage budget CLI
+
+`pnpm agent:budget`은 reset day까지 남은 기간과 주말 예비분을 기준으로 오늘 권장 사용량을 계산한다.
+
+```bash
+pnpm agent:budget
+pnpm agent:budget -- --date 2026-05-09 --json
+```
+
 ## 원칙
 
 - 이 디렉터리는 계정 제한 우회용이 아니다.

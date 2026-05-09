@@ -73,6 +73,13 @@ today_budget = weekday_budget / max(1, weekday_days_left)
 
 계정 수가 많으면 같은 provider 안에서 사용량이 적게 남은 계정보다 여유 있는 계정을 우선 추천한다. 계정 수가 적으면 routine 작업을 더 강하게 절약 모드로 보내고, complex 작업은 큐에 남기거나 사용자에게 예산 사용 승인을 요청한다.
 
+```bash
+pnpm agent:budget
+pnpm agent:budget -- --date 2026-05-09 --json
+```
+
+`agent:budget`은 reset day까지 남은 일수, 주말 예비분, 오늘 권장 사용량, provider별 남은 단위를 계산한다.
+
 ## 라우팅 로직 초안
 
 ```text

@@ -96,3 +96,12 @@ NEXT_TASK.md 템플릿 확정: agent-next 생성물을 Required Reads, Execution
 - Git: pending commit/push
 - Decisions: none
 - Next: 토요일/일요일 예비 사용량을 남기는 주간 예산 계산 로직 구현
+
+## 2026-05-09T13:06:29.959Z
+
+- Status: completed
+- Summary: 주간 예산 계산 로직 구현: pnpm agent:budget 추가, reset day/주말 예비분/오늘 권장 사용량/provider별 잔여 단위 계산.
+- Verification: pnpm validate 통과; pnpm agent:budget -- --date 2026-05-09 실행 통과; pnpm agent:progress=42%
+- Git: pending commit/push
+- Decisions: none
+- Next: 사용량 부족 시 작업 분해 또는 사용자 결정 요청 handoff 구현

@@ -35,6 +35,7 @@ pnpm agent:next
 ```bash
 pnpm agent:sync      # repo와 로컬 Claude memory/plan mtime 기준 동기화
 pnpm agent:status    # 동기화 차이 확인
+pnpm agent:budget    # 주말 예비분을 고려한 오늘 사용량 예산 계산
 pnpm agent:doctor    # git/hooks/Claude sync 환경 점검
 pnpm agent:next      # 다음 에이전트 작업 프롬프트 생성
 pnpm agent:progress  # 로드맵 진행률 계산
