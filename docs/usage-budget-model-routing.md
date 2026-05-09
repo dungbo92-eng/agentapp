@@ -100,6 +100,24 @@ choose_model(task, accounts):
   return recommendation(account_id, provider, model, reasoning_effort, why)
 ```
 
+## CLI 초안
+
+```bash
+pnpm agent:route -- --task "Docker 설치 방법 정리"
+pnpm agent:route -- --task "자동매매 로직 설계" --complexity complex
+pnpm agent:route -- --task "AI 모델 연동 보안 설계" --complexity critical --json
+```
+
+CLI는 `tools/agent-orchestrator/usage-budget.example.json` 형식의 설정을 읽고 아래를 추천한다.
+
+- account id: 비밀값이 아닌 로컬 별칭
+- provider
+- model tier
+- reasoning effort
+- estimated units
+- weekend reserve 상태
+- 추천 사유
+
 ## 출력 예시
 
 ```yaml

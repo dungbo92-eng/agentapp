@@ -87,3 +87,12 @@ NEXT_TASK.md 템플릿 확정: agent-next 생성물을 Required Reads, Execution
 - Git: pending commit/push
 - Decisions: usage 입력 방식 DEC-20260509-003은 대기 유지, MVP는 수동 입력 가능한 스키마부터 진행
 - Next: 작업 난이도별 모델 추천 CLI 초안 작성
+
+## 2026-05-09T13:03:12.571Z
+
+- Status: completed
+- Summary: 작업 난이도별 모델 추천 CLI 초안 작성: pnpm agent:route 추가, routine/standard/complex/critical 분류와 품질 우선 추천, 예산/주말 예비분 경고 출력 구현.
+- Verification: pnpm validate 통과; routine/complex/critical route 예시 실행 통과
+- Git: pending commit/push
+- Decisions: none
+- Next: 토요일/일요일 예비 사용량을 남기는 주간 예산 계산 로직 구현

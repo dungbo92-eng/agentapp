@@ -31,10 +31,20 @@
       "title": "작업 난이도별 모델 추천 CLI 초안 작성",
       "phase": "phase-4",
       "priority": 90,
-      "status": "pending",
+      "status": "done",
       "depends_on": ["usage-budget-schema"],
       "blocked_by": [],
       "reason": "계정/예산 스키마가 있어야 추천 로직이 안정적으로 동작한다."
+    },
+    {
+      "id": "weekly-budget-calculator",
+      "title": "토요일/일요일 예비 사용량을 남기는 주간 예산 계산 로직 구현",
+      "phase": "phase-4",
+      "priority": 85,
+      "status": "pending",
+      "depends_on": ["usage-budget-schema", "model-routing-cli"],
+      "blocked_by": [],
+      "reason": "모델 추천이 주말 예비분을 더 정확히 반영하려면 날짜 기반 예산 계산이 필요하다."
     },
     {
       "id": "agent-progress-by-phase",

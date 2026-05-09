@@ -80,6 +80,17 @@
 - 개발 구현/문서/테스트/로컬 검증은 추가 확인 없이 계속 진행한다.
 - `hold_for_user` 또는 `deny` 작업만 decision queue로 넘긴다.
 
+## Model routing CLI
+
+`pnpm agent:route`는 작업 설명과 난이도를 받아 모델/계정 별칭을 추천한다.
+
+```bash
+pnpm agent:route -- --task "Docker 설치 방법 정리"
+pnpm agent:route -- --task "자동매매 로직 설계" --complexity complex
+```
+
+이 명령은 실제 계정을 전환하지 않고 `usage-budget.example.json` 형태의 로컬 예산 설정을 기반으로 추천만 출력한다.
+
 ## 원칙
 
 - 이 디렉터리는 계정 제한 우회용이 아니다.

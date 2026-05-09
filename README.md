@@ -38,6 +38,8 @@ pnpm agent:status    # 동기화 차이 확인
 pnpm agent:doctor    # git/hooks/Claude sync 환경 점검
 pnpm agent:next      # 다음 에이전트 작업 프롬프트 생성
 pnpm agent:progress  # 로드맵 진행률 계산
+pnpm agent:route -- --task "Docker 설치 방법 정리"
+pnpm agent:route -- --task "자동매매 로직 설계" --complexity complex
 pnpm agent:report -- "작업 요약"
 pnpm agent:report -- --status completed --summary "작업 요약" --verify "pnpm validate"
 pnpm validate        # 로컬 스크립트 문법 검증
