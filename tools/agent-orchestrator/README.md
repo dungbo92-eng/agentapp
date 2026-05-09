@@ -51,7 +51,7 @@
 
 ## RUN_STATUS template
 
-`pnpm agent:report`는 `handoff/RUN_STATUS.md`에 아래 필드를 가진 실행 로그를 추가한다.
+`pnpm agent:report`는 `handoff/RUN_STATUS.md`에 아래 필드를 가진 실행 로그를 추가하고, `.claude-sync/memory/project_state.md`의 `최근 보고` 섹션도 갱신한다.
 
 - Status: `completed`, `blocked`, `in_progress` 중 하나
 - Summary: 수행 내용

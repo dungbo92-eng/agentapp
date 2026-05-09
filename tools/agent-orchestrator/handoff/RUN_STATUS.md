@@ -123,3 +123,12 @@ NEXT_TASK.md 템플릿 확정: agent-next 생성물을 Required Reads, Execution
 - Git: pending commit/push
 - Decisions: none
 - Next: agent-report가 project_state까지 갱신하도록 개선
+
+## 2026-05-09T13:13:16.014Z
+
+- Status: completed
+- Summary: agent-report project_state 갱신 개선: RUN_STATUS 추가와 동시에 project_state.md 최근 보고 섹션을 갱신하도록 구현.
+- Verification: pnpm validate 통과; pnpm agent:progress=49%
+- Git: pending commit/push
+- Decisions: none
+- Next: 안전 작업/보류 작업을 분류하는 dry-run 명령 추가

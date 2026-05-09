@@ -1,12 +1,13 @@
 #!/usr/bin/env node
 
-import { appendFile, mkdir } from "node:fs/promises";
+import { appendFile, mkdir, readFile, writeFile } from "node:fs/promises";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 
 const REPO_ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 const HANDOFF_DIR = path.join(REPO_ROOT, "tools", "agent-orchestrator", "handoff");
 const RUN_STATUS = path.join(HANDOFF_DIR, "RUN_STATUS.md");
+const PROJECT_STATE = path.join(REPO_ROOT, ".claude-sync", "memory", "project_state.md");
 
 const args = process.argv.slice(2);
 const options = new Map();
@@ -47,9 +48,10 @@ const verification = options.get("verify") || options.get("verification") || "no
 const git = options.get("git") || "not recorded";
 const next = options.get("next") || "See tools/agent-orchestrator/handoff/NEXT_TASK.md";
 const decisions = options.get("decisions") || "none";
+const generatedAt = new Date().toISOString();
 
 const entry = `
-## ${new Date().toISOString()}
+## ${generatedAt}
 
 - Status: ${status}
 - Summary: ${summary}
@@ -59,6 +61,34 @@ const entry = `
 - Next: ${next}
 `;
 
+function latestReportSection() {
+  return `## 최근 보고
+
+- Updated: ${generatedAt}
+- Status: ${status}
+- Summary: ${summary}
+- Verification: ${verification}
+- Git: ${git}
+- Decisions: ${decisions}
+- Next: ${next}
+`;
+}
+
+async function updateProjectState() {
+  const current = await readFile(PROJECT_STATE, "utf8");
+  const section = latestReportSection();
+  const pattern = /\n## 최근 보고\n[\s\S]*?(?=\n## |\n?$)/;
+
+  if (pattern.test(current)) {
+    await writeFile(PROJECT_STATE, current.replace(pattern, `\n${section}`), "utf8");
+    return;
+  }
+
+  await writeFile(PROJECT_STATE, `${current.trimEnd()}\n\n${section}`, "utf8");
+}
+
 await mkdir(HANDOFF_DIR, { recursive: true });
 await appendFile(RUN_STATUS, entry, "utf8");
+await updateProjectState();
 console.log(`reported=${RUN_STATUS}`);
+console.log(`project_state_updated=${PROJECT_STATE}`);

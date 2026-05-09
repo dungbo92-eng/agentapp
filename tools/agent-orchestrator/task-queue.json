@@ -71,7 +71,7 @@
       "title": "`agent-report`가 project_state까지 갱신하도록 개선",
       "phase": "phase-2",
       "priority": 65,
-      "status": "pending",
+      "status": "done",
       "depends_on": ["agent-progress-by-phase"],
       "blocked_by": [],
       "reason": "보고와 상태 갱신을 한 번에 묶어 handoff 누락을 줄인다."
