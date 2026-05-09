@@ -42,3 +42,21 @@ NEXT_TASK.md 템플릿 확정: agent-next 생성물을 Required Reads, Execution
 - Git: pending commit/push
 - Decisions: 사용량 입력 방식은 수동 우선인지 read-only 화면 값 허용인지 추후 결정
 - Next: DECISIONS_REQUIRED.md 템플릿 확정
+
+## 2026-05-09T12:45:02.452Z
+
+- Status: completed
+- Summary: DECISIONS_REQUIRED.md 템플릿 확정: decision queue를 ID/상태/우선순위/카테고리/차단 범위/옵션/권장안/결정 후 작업 구조로 정리.
+- Verification: pending final validation
+- Git: pending commit/push
+- Decisions: 기존 대기 항목 3개를 새 템플릿으로 유지
+- Next: 작업 종료 시 memory/plan/handoff 갱신 규칙 정리
+
+## 2026-05-09T12:45:39.066Z
+
+- Status: completed
+- Summary: DECISIONS_REQUIRED.md 템플릿 검증 완료: 대기/해결 decision queue 구조 확정.
+- Verification: pnpm validate 통과; pnpm agent:doctor 통과(변경분 경고만 존재); pnpm agent:status in-sync
+- Git: pending commit/push
+- Decisions: 대기 항목 3개 유지
+- Next: 작업 종료 시 memory/plan/handoff 갱신 규칙 정리

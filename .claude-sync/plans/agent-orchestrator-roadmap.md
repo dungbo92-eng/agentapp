@@ -18,7 +18,7 @@
 - [x] `workers.example.yaml` worker registry 예시 확정
 - [x] `NEXT_TASK.md` 템플릿 확정
 - [x] `RUN_STATUS.md` 템플릿 확정
-- [ ] `DECISIONS_REQUIRED.md` 템플릿 확정
+- [x] `DECISIONS_REQUIRED.md` 템플릿 확정
 - [ ] 작업 종료 시 memory/plan/handoff 갱신 규칙 정리
 
 ## Phase 2 — CLI MVP

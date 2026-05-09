@@ -43,6 +43,20 @@
 - Decisions: 새로 생긴 사용자 결정 필요 항목
 - Next: 다음 작업 또는 `NEXT_TASK.md` 참조
 
+## DECISIONS_REQUIRED template
+
+`handoff/DECISIONS_REQUIRED.md`는 사용자가 결정해야만 진행 가능한 항목을 관리한다.
+
+- Status: `pending`, `resolved`, `blocked`
+- Priority: `high`, `medium`, `low`
+- Category: `product`, `safety`, `git`, `usage_budget`, `worker`, `deployment`, `other`
+- Blocks: 막히는 작업
+- Context: 결정이 필요한 이유
+- Options: 사용자가 고를 수 있는 선택지와 영향
+- Recommended: 에이전트 권장안
+- Decision needed: 사용자에게 물을 질문
+- After decision: 결정 후 이어갈 작업
+
 ## 원칙
 
 - 이 디렉터리는 계정 제한 우회용이 아니다.

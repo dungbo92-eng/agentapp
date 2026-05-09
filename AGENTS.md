@@ -130,6 +130,7 @@ New-ItemProperty -Path HKCU:\Console -Name VirtualTerminalLevel -PropertyType DW
 - 신규 구조는 기존 문서와 스크립트 패턴을 따른다.
 - 비밀값은 코드, 주석, 로그, 문서에 평문으로 남기지 않는다.
 - 불확실한 운영/계정/결제/외부 쓰기 작업은 `DECISIONS_REQUIRED.md`에 남긴다.
+- `DECISIONS_REQUIRED.md` 항목은 ID, 상태, 우선순위, 차단 범위, 선택지, 권장안, 결정 후 작업을 포함한다.
 - 검증은 최소 `pnpm validate`를 수행한다.
 - 완료된 변경은 git status/diff 확인 후 commit한다.
 
