@@ -26,16 +26,40 @@ Auth: user-managed only
 
 ## Current Task
 
-- Selected task: Claude Code 작업 프롬프트 생성 어댑터
-- Task id: claude-code-prompt-adapter
-- Priority: 56
-- Generated: 2026-05-09T21:22:05.786Z
+- Selected task: Cursor 작업 프롬프트 생성 어댑터
+- Task id: cursor-prompt-adapter
+- Priority: 54
+- Generated: 2026-05-09T21:24:26.130Z
 
 위 Required Reads를 먼저 읽고 시작한다.
 
 다음 작업을 진행한다:
 
-> Claude Code 작업 프롬프트 생성 어댑터
+> Cursor 작업 프롬프트 생성 어댑터
+
+## Claude Code Adapter
+
+Use this prompt when opening Claude Code from a terminal at the repository root.
+
+### Claude Code Run Contract
+
+- Start from `E:\agentApp`; Claude Code should naturally load `CLAUDE.md`.
+- Still read `AGENTS.md` because it is the shared policy for every agent.
+- Use `tools/agent-orchestrator/handoff/NEXT_TASK.md` as the active handoff.
+- Keep all implementation, docs, tests, validation, handoff updates, commit, and approved push moving without asking.
+- Do not rely on terminal history or unstated local context; read the required files first.
+- Before any unclear operation, run `pnpm agent:dry-run -- --operation "<operation>"`.
+- Use `pnpm agent:route -- --task "Cursor 작업 프롬프트 생성 어댑터" --provider claude` before expensive reasoning work.
+
+### Claude Code Completion Output
+
+When finished, report:
+
+- Files or modules changed
+- Validation commands and results
+- Commit hash and push status
+- Any held decision in `DECISIONS_REQUIRED.md`
+- Next task from `pnpm agent:next`
 
 
 ## Model Routing
@@ -50,7 +74,7 @@ Quality is first. Use efficient models for routine reading, setup, and simple do
 Before heavy work, run:
 
 ```bash
-pnpm agent:route -- --task "Claude Code 작업 프롬프트 생성 어댑터"
+pnpm agent:route -- --task "Cursor 작업 프롬프트 생성 어댑터"
 ```
 
 ## Safety Rules

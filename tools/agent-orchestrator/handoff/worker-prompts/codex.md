@@ -25,16 +25,16 @@ Auth: user-managed only
 
 ## Current Task
 
-- Selected task: Claude Code 작업 프롬프트 생성 어댑터
-- Task id: claude-code-prompt-adapter
-- Priority: 56
-- Generated: 2026-05-09T21:22:05.786Z
+- Selected task: Cursor 작업 프롬프트 생성 어댑터
+- Task id: cursor-prompt-adapter
+- Priority: 54
+- Generated: 2026-05-09T21:24:26.130Z
 
 위 Required Reads를 먼저 읽고 시작한다.
 
 다음 작업을 진행한다:
 
-> Claude Code 작업 프롬프트 생성 어댑터
+> Cursor 작업 프롬프트 생성 어댑터
 
 ## Codex Adapter
 
@@ -48,7 +48,7 @@ Use this prompt when opening a fresh Codex Desktop thread for the current task.
 - Continue implementation autonomously for local code, docs, tests, validation, handoff updates, commit, and approved push.
 - Send short progress updates while exploring, editing, validating, and pushing.
 - Before any unclear operation, run `pnpm agent:dry-run -- --operation "<operation>"`.
-- Use `pnpm agent:route -- --task "Claude Code 작업 프롬프트 생성 어댑터" --provider codex` before expensive reasoning work.
+- Use `pnpm agent:route -- --task "Cursor 작업 프롬프트 생성 어댑터" --provider codex` before expensive reasoning work.
 
 ### Codex Completion Output
 
@@ -74,7 +74,7 @@ Quality is first. Use efficient models for routine reading, setup, and simple do
 Before heavy work, run:
 
 ```bash
-pnpm agent:route -- --task "Claude Code 작업 프롬프트 생성 어댑터"
+pnpm agent:route -- --task "Cursor 작업 프롬프트 생성 어댑터"
 ```
 
 ## Safety Rules

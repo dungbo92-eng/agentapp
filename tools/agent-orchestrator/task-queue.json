@@ -111,7 +111,7 @@
       "title": "Claude Code 작업 프롬프트 생성 어댑터",
       "phase": "phase-3",
       "priority": 56,
-      "status": "pending",
+      "status": "done",
       "depends_on": ["worker-prompt-templates"],
       "blocked_by": [],
       "reason": "Claude Code의 CLAUDE.md 자동 로드와 터미널 중심 흐름에 맞춘 시작 프롬프트가 필요하다."

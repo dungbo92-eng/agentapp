@@ -117,6 +117,15 @@ pnpm agent:prompt -- --worker codex --format codex --write
 
 Codex 전용 출력에는 Codex Desktop 실행 계약, 진행 업데이트 방식, `agent:dry-run`/`agent:route --provider codex` 사용 지침, 완료 보고 항목이 포함된다.
 
+Claude Code 전용 어댑터 프롬프트는 아래 alias를 쓴다.
+
+```bash
+pnpm agent:claude-prompt -- --write
+pnpm agent:prompt -- --worker claude-code --format claude-code --write
+```
+
+Claude Code 전용 출력에는 `CLAUDE.md` 자동 로드 전제, `AGENTS.md` 공통 정책 확인, 터미널 루트 실행, `agent:route --provider claude` 사용 지침, 완료 보고 항목이 포함된다.
+
 ## Model routing CLI
 
 `pnpm agent:route`는 작업 설명과 난이도를 받아 모델/계정 별칭을 추천한다.

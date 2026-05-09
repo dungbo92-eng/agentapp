@@ -12,6 +12,7 @@ const OUTPUT_DIR = path.join(REPO_ROOT, "tools", "agent-orchestrator", "handoff"
 const HELP = `Usage:
   pnpm agent:prompt -- --worker codex
   pnpm agent:prompt -- --worker codex --format codex
+  pnpm agent:prompt -- --worker claude-code --format claude-code
   pnpm agent:prompt -- --worker claude-code --write
   pnpm agent:prompt -- --all --write
   pnpm agent:prompt -- --all --json
@@ -212,14 +213,44 @@ If staging, committing, or pushing succeeds inside Codex Desktop, include the ap
 `;
 }
 
+function claudeCodeAdapterSection(nextTask) {
+  return `## Claude Code Adapter
+
+Use this prompt when opening Claude Code from a terminal at the repository root.
+
+### Claude Code Run Contract
+
+- Start from \`E:\\agentApp\`; Claude Code should naturally load \`CLAUDE.md\`.
+- Still read \`AGENTS.md\` because it is the shared policy for every agent.
+- Use \`tools/agent-orchestrator/handoff/NEXT_TASK.md\` as the active handoff.
+- Keep all implementation, docs, tests, validation, handoff updates, commit, and approved push moving without asking.
+- Do not rely on terminal history or unstated local context; read the required files first.
+- Before any unclear operation, run \`pnpm agent:dry-run -- --operation "<operation>"\`.
+- Use \`pnpm agent:route -- --task "${(nextTask.selected || "작업").replace(/"/g, '\\"')}" --provider claude\` before expensive reasoning work.
+
+### Claude Code Completion Output
+
+When finished, report:
+
+- Files or modules changed
+- Validation commands and results
+- Commit hash and push status
+- Any held decision in \`DECISIONS_REQUIRED.md\`
+- Next task from \`pnpm agent:next\`
+`;
+}
+
 function buildPrompt(worker, nextTask, options = {}) {
   const launchInstructions =
     worker.launch_instructions.length > 0
       ? worker.launch_instructions.map((item) => `- ${item}`).join("\n")
       : "- Start the worker manually from the repository root.";
-  const adapterSection = options.format === "codex" || (options.format === "auto" && worker.kind === "codex")
-    ? `\n${codexAdapterSection(nextTask)}`
-    : "";
+  const adapterSections = {
+    codex: codexAdapterSection,
+    "claude-code": claudeCodeAdapterSection,
+  };
+  const format = options.format === "auto" ? worker.kind : options.format;
+  const adapterSection = adapterSections[format] ? `\n${adapterSections[format](nextTask)}` : "";
 
   return `# ${worker.display_name || worker.id} Start Prompt
 
