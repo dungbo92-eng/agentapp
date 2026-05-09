@@ -47,7 +47,7 @@
 
 ## Phase 5 — Dashboard
 
-- [ ] 로컬 웹 대시보드 기술 선택
+- [x] 로컬 웹 대시보드 기술 선택
 - [ ] 진행률/다음 작업/보류 결정 화면
 - [ ] worker 상태 화면
 - [ ] handoff viewer

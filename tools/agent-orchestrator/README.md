@@ -13,6 +13,7 @@
 | `usage-budget.example.json` | 비밀값 없는 주간 사용량 예시 설정 |
 | `worker-run-state.schema.json` | worker 실행/중단/실패/quota 상태 모델 |
 | `worker-run-state.example.json` | 비밀값 없는 worker 상태 예시 |
+| `../../docs/dashboard-technology.md` | 로컬 대시보드 기술 선택 |
 | `roadmap.yaml` | 기계가 읽기 쉬운 로드맵 초안 |
 | `handoff/NEXT_TASK.md` | 다음 에이전트가 수행할 작업 |
 | `handoff/RUN_STATUS.md` | 최근 실행 결과 |

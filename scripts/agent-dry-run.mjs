@@ -213,7 +213,11 @@ const RULES = [
   {
     action: "auto_allowed",
     id: "local_file_edits",
-    patterns: [/\b(edit|update|create|add|modify|write)\b.*\b(file|doc|script|test|config|readme)\b/i, /(파일|문서|스크립트|테스트|설정).*(수정|추가|작성|갱신)/],
+    patterns: [
+      /\b(edit|update|create|add|modify|write)\b.*\b(file|files|doc|docs|script|test|config|readme|dashboard|local)\b/i,
+      /\b(local|dashboard)\b.*\b(file|files|app|view|component)\b/i,
+      /(파일|문서|스크립트|테스트|설정|대시보드).*(수정|추가|작성|갱신|생성)/,
+    ],
   },
 ];
 

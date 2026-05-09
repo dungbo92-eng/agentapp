@@ -32,22 +32,6 @@
 
 ## 대기
 
-### DEC-20260509-001 — 첫 UI 구현 방식
-
-- Status: pending
-- Priority: medium
-- Category: product
-- Requested by: agent
-- Blocks: Dashboard Phase 착수 방식
-- Context: 제품 첫 화면을 CLI 중심으로 유지할지, 로컬 웹 대시보드를 바로 만들지 결정이 필요하다.
-- Options:
-  - A: CLI 우선 유지. 빠르게 안전 정책, handoff, 예산 라우팅 CLI를 완성할 수 있다.
-  - B: 로컬 웹 대시보드 착수. 사용성은 좋아지지만 MVP 스코프가 커진다.
-- Recommended: A. 현재는 동기화/정책/큐가 먼저 단단해야 한다.
-- Decision needed: 첫 UI는 CLI 우선인가, 로컬 웹 대시보드 우선인가?
-- After decision: roadmap 우선순위와 다음 task selection 로직에 반영한다.
-- Created: 2026-05-09
-
 ### DEC-20260509-003 — 주간 사용량 입력 방식
 
 - Status: pending
@@ -65,6 +49,18 @@
 - Created: 2026-05-09
 
 ## 해결됨
+
+### DEC-20260509-001 — 첫 UI 구현 방식
+
+- Status: resolved
+- Priority: medium
+- Category: product
+- Requested by: agent
+- Blocks: Dashboard Phase 착수 방식
+- Context: CLI 기반 동기화, 정책, 큐, worker adapter, 사용량 예산 기능이 먼저 안정화되었고 이제 read-only 로컬 웹 대시보드를 진행할 수 있다.
+- Decision: 로컬 웹 대시보드를 착수한다. 기술 선택은 `docs/dashboard-technology.md` 기준 `Vite + React + TypeScript` read-only SPA로 한다.
+- Resolved: 2026-05-10
+- Result: `dashboard-decision-screen`의 decision block을 해제하고 `dashboard-tech-selection` 완료 task를 큐에 추가했다.
 
 ### DEC-20260509-000 — git remote URL
 

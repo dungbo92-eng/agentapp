@@ -26,16 +26,16 @@ Auth: user-managed only
 
 ## Current Task
 
-- Selected task: 로컬 웹 대시보드 기술 선택
-- Task id: n/a
-- Priority: n/a
-- Generated: 2026-05-09T21:36:05.443Z
+- Selected task: 진행률/다음 작업/보류 결정 화면
+- Task id: dashboard-decision-screen
+- Priority: 40
+- Generated: 2026-05-09T21:39:42.928Z
 
 위 Required Reads를 먼저 읽고 시작한다.
 
 다음 작업을 진행한다:
 
-> 로컬 웹 대시보드 기술 선택
+> 진행률/다음 작업/보류 결정 화면
 
 
 ## Model Routing
@@ -50,7 +50,7 @@ Quality is first. Use efficient models for routine reading, setup, and simple do
 Before heavy work, run:
 
 ```bash
-pnpm agent:route -- --task "로컬 웹 대시보드 기술 선택"
+pnpm agent:route -- --task "진행률/다음 작업/보류 결정 화면"
 ```
 
 ## Safety Rules
