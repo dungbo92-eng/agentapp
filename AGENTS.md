@@ -143,6 +143,7 @@ New-ItemProperty -Path HKCU:\Console -Name VirtualTerminalLevel -PropertyType DW
 pnpm agent:status
 pnpm agent:budget
 pnpm agent:dry-run -- --operation "pnpm validate"
+pnpm agent:codex-prompt -- --write
 pnpm agent:prompt -- --all --write
 pnpm agent:doctor
 pnpm agent:sync

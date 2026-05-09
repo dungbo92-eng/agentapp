@@ -150,3 +150,12 @@ NEXT_TASK.md 템플릿 확정: agent-next 생성물을 Required Reads, Execution
 - Git: pending commit/push
 - Decisions: none
 - Next: Codex 작업 프롬프트 생성 어댑터
+
+## 2026-05-09T21:22:27.816Z
+
+- Status: completed
+- Summary: Codex Desktop 전용 작업 프롬프트 어댑터를 agent:prompt 자동 형식과 agent:codex-prompt alias로 추가하고, Codex 실행 계약/안전 분류/모델 라우팅/완료 보고 지침을 생성 프롬프트에 포함했다.
+- Verification: pnpm validate 통과; pnpm agent:codex-prompt -- --write 통과; pnpm agent:prompt -- --worker codex --json에서 Codex Adapter 섹션 확인; pnpm agent:progress=56%
+- Git: pending commit/push
+- Decisions: none
+- Next: Claude Code 작업 프롬프트 생성 어댑터

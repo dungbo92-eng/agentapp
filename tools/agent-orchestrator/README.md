@@ -108,6 +108,15 @@ pnpm agent:prompt -- --all --write
 
 `--write`를 사용하면 `handoff/worker-prompts/{worker-id}.md` 파일을 생성한다. 이 파일은 사용자가 정상 인증한 각 도구에 붙여넣는 지시문이며, 자동 로그인/계정 전환/승인 우회 정보를 포함하지 않는다.
 
+Codex 전용 어댑터 프롬프트는 아래 alias를 쓴다.
+
+```bash
+pnpm agent:codex-prompt -- --write
+pnpm agent:prompt -- --worker codex --format codex --write
+```
+
+Codex 전용 출력에는 Codex Desktop 실행 계약, 진행 업데이트 방식, `agent:dry-run`/`agent:route --provider codex` 사용 지침, 완료 보고 항목이 포함된다.
+
 ## Model routing CLI
 
 `pnpm agent:route`는 작업 설명과 난이도를 받아 모델/계정 별칭을 추천한다.

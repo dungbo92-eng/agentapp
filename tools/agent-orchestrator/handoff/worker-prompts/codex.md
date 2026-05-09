@@ -25,16 +25,42 @@ Auth: user-managed only
 
 ## Current Task
 
-- Selected task: Codex 작업 프롬프트 생성 어댑터
-- Task id: n/a
-- Priority: n/a
-- Generated: 2026-05-09T21:16:18.824Z
+- Selected task: Claude Code 작업 프롬프트 생성 어댑터
+- Task id: claude-code-prompt-adapter
+- Priority: 56
+- Generated: 2026-05-09T21:22:05.786Z
 
 위 Required Reads를 먼저 읽고 시작한다.
 
 다음 작업을 진행한다:
 
-> Codex 작업 프롬프트 생성 어댑터
+> Claude Code 작업 프롬프트 생성 어댑터
+
+## Codex Adapter
+
+Use this prompt when opening a fresh Codex Desktop thread for the current task.
+
+### Codex Run Contract
+
+- Work from the repository root: `E:\agentApp`.
+- Treat `AGENTS.md` as the governing instruction file.
+- Use `tools/agent-orchestrator/handoff/NEXT_TASK.md` as the active handoff.
+- Continue implementation autonomously for local code, docs, tests, validation, handoff updates, commit, and approved push.
+- Send short progress updates while exploring, editing, validating, and pushing.
+- Before any unclear operation, run `pnpm agent:dry-run -- --operation "<operation>"`.
+- Use `pnpm agent:route -- --task "Claude Code 작업 프롬프트 생성 어댑터" --provider codex` before expensive reasoning work.
+
+### Codex Completion Output
+
+When finished, report:
+
+- What changed
+- What was verified
+- Commit hash and push status
+- Next task from `pnpm agent:next`
+
+If staging, committing, or pushing succeeds inside Codex Desktop, include the app git directives in the final response.
+
 
 ## Model Routing
 
@@ -48,7 +74,7 @@ Quality is first. Use efficient models for routine reading, setup, and simple do
 Before heavy work, run:
 
 ```bash
-pnpm agent:route -- --task "Codex 작업 프롬프트 생성 어댑터"
+pnpm agent:route -- --task "Claude Code 작업 프롬프트 생성 어댑터"
 ```
 
 ## Safety Rules

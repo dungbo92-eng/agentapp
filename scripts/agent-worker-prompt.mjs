@@ -11,6 +11,7 @@ const OUTPUT_DIR = path.join(REPO_ROOT, "tools", "agent-orchestrator", "handoff"
 
 const HELP = `Usage:
   pnpm agent:prompt -- --worker codex
+  pnpm agent:prompt -- --worker codex --format codex
   pnpm agent:prompt -- --worker claude-code --write
   pnpm agent:prompt -- --all --write
   pnpm agent:prompt -- --all --json
@@ -25,6 +26,7 @@ function parseArgs(argv) {
     write: false,
     json: false,
     out: OUTPUT_DIR,
+    format: "auto",
     help: false,
   };
 
@@ -43,6 +45,9 @@ function parseArgs(argv) {
       index += 1;
     } else if (arg === "--out") {
       options.out = path.resolve(REPO_ROOT, argv[index + 1] || "");
+      index += 1;
+    } else if (arg === "--format") {
+      options.format = argv[index + 1] || "generic";
       index += 1;
     } else if (!arg.startsWith("--") && !options.worker) {
       options.worker = arg;
@@ -143,10 +148,11 @@ function parseWorkers(text) {
 
 function parseNextTask(markdown) {
   const get = (label) => markdown.match(new RegExp(`^- ${label}:\\s*(.+)$`, "m"))?.[1]?.trim() || "";
+  const clean = (value) => value.replace(/\s+- Selection source:.*$/s, "").trim();
   const prompt = markdown.match(/## Agent Prompt\n\n([\s\S]*?)(?=\n## |\n?$)/)?.[1]?.trim() || "";
   return {
     generated: get("Generated"),
-    selected: get("Selected task"),
+    selected: clean(get("Selected task")),
     source: get("Selection source"),
     task_id: get("Task id"),
     priority: get("Task priority"),
@@ -178,11 +184,42 @@ function workerSpecificNotes(worker) {
   return "- Use the normal user-authenticated session for this worker.";
 }
 
-function buildPrompt(worker, nextTask) {
+function codexAdapterSection(nextTask) {
+  return `## Codex Adapter
+
+Use this prompt when opening a fresh Codex Desktop thread for the current task.
+
+### Codex Run Contract
+
+- Work from the repository root: \`E:\\agentApp\`.
+- Treat \`AGENTS.md\` as the governing instruction file.
+- Use \`tools/agent-orchestrator/handoff/NEXT_TASK.md\` as the active handoff.
+- Continue implementation autonomously for local code, docs, tests, validation, handoff updates, commit, and approved push.
+- Send short progress updates while exploring, editing, validating, and pushing.
+- Before any unclear operation, run \`pnpm agent:dry-run -- --operation "<operation>"\`.
+- Use \`pnpm agent:route -- --task "${(nextTask.selected || "작업").replace(/"/g, '\\"')}" --provider codex\` before expensive reasoning work.
+
+### Codex Completion Output
+
+When finished, report:
+
+- What changed
+- What was verified
+- Commit hash and push status
+- Next task from \`pnpm agent:next\`
+
+If staging, committing, or pushing succeeds inside Codex Desktop, include the app git directives in the final response.
+`;
+}
+
+function buildPrompt(worker, nextTask, options = {}) {
   const launchInstructions =
     worker.launch_instructions.length > 0
       ? worker.launch_instructions.map((item) => `- ${item}`).join("\n")
       : "- Start the worker manually from the repository root.";
+  const adapterSection = options.format === "codex" || (options.format === "auto" && worker.kind === "codex")
+    ? `\n${codexAdapterSection(nextTask)}`
+    : "";
 
   return `# ${worker.display_name || worker.id} Start Prompt
 
@@ -216,6 +253,7 @@ ${workerSpecificNotes(worker)}
 - Generated: ${nextTask.generated || "n/a"}
 
 ${nextTask.prompt || "Read tools/agent-orchestrator/handoff/NEXT_TASK.md and continue the selected task."}
+${adapterSection}
 
 ## Model Routing
 
@@ -282,7 +320,7 @@ if (selectedWorkers.length === 0) {
 
 const results = [];
 for (const worker of selectedWorkers) {
-  const prompt = buildPrompt(worker, nextTask);
+  const prompt = buildPrompt(worker, nextTask, options);
   const written = options.write ? await writePrompt(options.out, worker.id, prompt) : "";
   results.push({ worker: worker.id, path: written, prompt });
 }

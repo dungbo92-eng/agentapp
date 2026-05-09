@@ -26,16 +26,17 @@ Auth: user-managed only
 
 ## Current Task
 
-- Selected task: Codex 작업 프롬프트 생성 어댑터
-- Task id: n/a
-- Priority: n/a
-- Generated: 2026-05-09T21:16:18.824Z
+- Selected task: Claude Code 작업 프롬프트 생성 어댑터
+- Task id: claude-code-prompt-adapter
+- Priority: 56
+- Generated: 2026-05-09T21:22:05.786Z
 
 위 Required Reads를 먼저 읽고 시작한다.
 
 다음 작업을 진행한다:
 
-> Codex 작업 프롬프트 생성 어댑터
+> Claude Code 작업 프롬프트 생성 어댑터
+
 
 ## Model Routing
 
@@ -49,7 +50,7 @@ Quality is first. Use efficient models for routine reading, setup, and simple do
 Before heavy work, run:
 
 ```bash
-pnpm agent:route -- --task "Codex 작업 프롬프트 생성 어댑터"
+pnpm agent:route -- --task "Claude Code 작업 프롬프트 생성 어댑터"
 ```
 
 ## Safety Rules

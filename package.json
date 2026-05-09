@@ -13,6 +13,7 @@
     "agent:sync": "node scripts/claude-sync.mjs --auto --verbose",
     "agent:status": "node scripts/claude-sync.mjs --status",
     "agent:budget": "node scripts/agent-budget.mjs",
+    "agent:codex-prompt": "node scripts/agent-worker-prompt.mjs --worker codex --format codex",
     "agent:doctor": "node scripts/agent-doctor.mjs",
     "agent:dry-run": "node scripts/agent-dry-run.mjs",
     "agent:next": "node scripts/agent-next.mjs",
