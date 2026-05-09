@@ -143,6 +143,7 @@ New-ItemProperty -Path HKCU:\Console -Name VirtualTerminalLevel -PropertyType DW
 pnpm agent:status
 pnpm agent:budget
 pnpm agent:dry-run -- --operation "pnpm validate"
+pnpm agent:fallback -- --worker codex --summary "현재 환경에서 직접 실행 불가"
 pnpm agent:codex-prompt -- --write
 pnpm agent:claude-prompt -- --write
 pnpm agent:cursor-prompt -- --write

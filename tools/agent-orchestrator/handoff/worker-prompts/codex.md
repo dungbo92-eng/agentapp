@@ -25,16 +25,16 @@ Auth: user-managed only
 
 ## Current Task
 
-- Selected task: worker가 직접 실행할 수 없는 경우 handoff만 남기는 fallback 구현
-- Task id: handoff-only-fallback
-- Priority: 50
-- Generated: 2026-05-09T21:29:40.683Z
+- Selected task: 로컬 웹 대시보드 기술 선택
+- Task id: n/a
+- Priority: n/a
+- Generated: 2026-05-09T21:36:05.443Z
 
 위 Required Reads를 먼저 읽고 시작한다.
 
 다음 작업을 진행한다:
 
-> worker가 직접 실행할 수 없는 경우 handoff만 남기는 fallback 구현
+> 로컬 웹 대시보드 기술 선택
 
 ## Codex Adapter
 
@@ -48,7 +48,7 @@ Use this prompt when opening a fresh Codex Desktop thread for the current task.
 - Continue implementation autonomously for local code, docs, tests, validation, handoff updates, commit, and approved push.
 - Send short progress updates while exploring, editing, validating, and pushing.
 - Before any unclear operation, run `pnpm agent:dry-run -- --operation "<operation>"`.
-- Use `pnpm agent:route -- --task "worker가 직접 실행할 수 없는 경우 handoff만 남기는 fallback 구현" --provider codex` before expensive reasoning work.
+- Use `pnpm agent:route -- --task "로컬 웹 대시보드 기술 선택" --provider codex` before expensive reasoning work.
 
 ### Codex Completion Output
 
@@ -74,7 +74,7 @@ Quality is first. Use efficient models for routine reading, setup, and simple do
 Before heavy work, run:
 
 ```bash
-pnpm agent:route -- --task "worker가 직접 실행할 수 없는 경우 handoff만 남기는 fallback 구현"
+pnpm agent:route -- --task "로컬 웹 대시보드 기술 선택"
 ```
 
 ## Safety Rules

@@ -18,6 +18,7 @@
     "agent:cursor-prompt": "node scripts/agent-worker-prompt.mjs --worker cursor --format cursor",
     "agent:doctor": "node scripts/agent-doctor.mjs",
     "agent:dry-run": "node scripts/agent-dry-run.mjs",
+    "agent:fallback": "node scripts/agent-handoff-only.mjs",
     "agent:next": "node scripts/agent-next.mjs",
     "agent:prompt": "node scripts/agent-worker-prompt.mjs",
     "agent:progress": "node scripts/agent-progress.mjs",
@@ -28,7 +29,7 @@
     "claude:sync": "node scripts/claude-sync.mjs --auto --verbose",
     "claude:status": "node scripts/claude-sync.mjs --status",
     "hooks:install": "node scripts/install-hooks.mjs",
-    "validate": "node --check scripts/claude-sync.mjs && node --check scripts/install-hooks.mjs && node --check scripts/agent-budget.mjs && node --check scripts/agent-doctor.mjs && node --check scripts/agent-dry-run.mjs && node --check scripts/agent-next.mjs && node --check scripts/agent-worker-prompt.mjs && node --check scripts/agent-progress.mjs && node --check scripts/agent-route-model.mjs && node --check scripts/agent-report.mjs && node --check scripts/validate-configs.mjs && node scripts/validate-configs.mjs",
+    "validate": "node --check scripts/claude-sync.mjs && node --check scripts/install-hooks.mjs && node --check scripts/agent-budget.mjs && node --check scripts/agent-doctor.mjs && node --check scripts/agent-dry-run.mjs && node --check scripts/agent-handoff-only.mjs && node --check scripts/agent-next.mjs && node --check scripts/agent-worker-prompt.mjs && node --check scripts/agent-progress.mjs && node --check scripts/agent-route-model.mjs && node --check scripts/agent-report.mjs && node --check scripts/validate-configs.mjs && node scripts/validate-configs.mjs",
     "postinstall": "node scripts/install-hooks.mjs && node scripts/claude-sync.mjs --auto --quiet-on-noop"
   },
   "devDependencies": {}

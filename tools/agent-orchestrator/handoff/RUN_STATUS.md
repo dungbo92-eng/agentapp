@@ -186,3 +186,12 @@ NEXT_TASK.md 템플릿 확정: agent-next 생성물을 Required Reads, Execution
 - Git: pending commit/push
 - Decisions: none
 - Next: worker가 직접 실행할 수 없는 경우 handoff만 남기는 fallback 구현
+
+## 2026-05-09T21:36:19.496Z
+
+- Status: completed
+- Summary: 직접 실행 불가 환경에서 worker를 실행하지 않고 handoff-only 상태를 남기는 agent:fallback CLI를 추가했다. dry-run 검증으로 HANDOFF_ONLY/run-state/RUN_STATUS 생성 내용을 확인했다.
+- Verification: pnpm validate 통과; pnpm agent:fallback -- --worker codex --reason tool_error --summary 현재환경직접실행불가 --dry-run --json 통과; pnpm agent:progress=65% Phase3=100%
+- Git: pending commit/push
+- Decisions: none
+- Next: 로컬 웹 대시보드 기술 선택

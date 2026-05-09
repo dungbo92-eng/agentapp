@@ -38,6 +38,16 @@
 
 이 모델은 사용량 제한 우회를 위한 자동 계정 전환이 아니라, 정상 보유 세션에서 작업이 멈춘 이유를 다음 worker가 안전하게 해석하기 위한 기록이다.
 
+`pnpm agent:fallback`은 worker를 직접 실행할 수 없는 환경에서 handoff만 남긴다.
+
+```bash
+pnpm agent:fallback -- --worker codex --reason tool_error --summary "현재 환경에서 Codex 실행 불가"
+pnpm agent:fallback -- --worker claude-code --status quota_limited --reason quota_exhausted --summary "이번 주 사용량 예산 부족"
+pnpm agent:fallback -- --worker cursor --summary "IDE 실행 불가" --dry-run --json
+```
+
+이 명령은 `handoff/HANDOFF_ONLY.md`, `handoff/run-states/*.json`, `handoff/RUN_STATUS.md`를 갱신하며 외부 도구 실행이나 계정 전환을 하지 않는다.
+
 ## NEXT_TASK template
 
 `pnpm agent:next`가 생성하는 `handoff/NEXT_TASK.md`는 아래 계약을 따른다.

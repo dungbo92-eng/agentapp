@@ -37,6 +37,7 @@ pnpm agent:sync      # repo와 로컬 Claude memory/plan mtime 기준 동기화
 pnpm agent:status    # 동기화 차이 확인
 pnpm agent:budget    # 주말 예비분을 고려한 오늘 사용량 예산 계산
 pnpm agent:dry-run -- --operation "pnpm validate"
+pnpm agent:fallback -- --worker codex --summary "현재 환경에서 직접 실행 불가"
 pnpm agent:codex-prompt -- --write
 pnpm agent:claude-prompt -- --write
 pnpm agent:cursor-prompt -- --write
