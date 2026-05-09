@@ -26,16 +26,16 @@ Auth: user-managed only
 
 ## Current Task
 
-- Selected task: Cursor 작업 프롬프트 생성 어댑터
-- Task id: cursor-prompt-adapter
-- Priority: 54
-- Generated: 2026-05-09T21:24:26.130Z
+- Selected task: 실패/중단/quota 감지 상태 모델 정의
+- Task id: worker-state-model
+- Priority: 52
+- Generated: 2026-05-09T21:26:30.764Z
 
 위 Required Reads를 먼저 읽고 시작한다.
 
 다음 작업을 진행한다:
 
-> Cursor 작업 프롬프트 생성 어댑터
+> 실패/중단/quota 감지 상태 모델 정의
 
 ## Claude Code Adapter
 
@@ -49,7 +49,7 @@ Use this prompt when opening Claude Code from a terminal at the repository root.
 - Keep all implementation, docs, tests, validation, handoff updates, commit, and approved push moving without asking.
 - Do not rely on terminal history or unstated local context; read the required files first.
 - Before any unclear operation, run `pnpm agent:dry-run -- --operation "<operation>"`.
-- Use `pnpm agent:route -- --task "Cursor 작업 프롬프트 생성 어댑터" --provider claude` before expensive reasoning work.
+- Use `pnpm agent:route -- --task "실패/중단/quota 감지 상태 모델 정의" --provider claude` before expensive reasoning work.
 
 ### Claude Code Completion Output
 
@@ -74,7 +74,7 @@ Quality is first. Use efficient models for routine reading, setup, and simple do
 Before heavy work, run:
 
 ```bash
-pnpm agent:route -- --task "Cursor 작업 프롬프트 생성 어댑터"
+pnpm agent:route -- --task "실패/중단/quota 감지 상태 모델 정의"
 ```
 
 ## Safety Rules

@@ -168,3 +168,12 @@ NEXT_TASK.md 템플릿 확정: agent-next 생성물을 Required Reads, Execution
 - Git: pending commit/push
 - Decisions: none
 - Next: Cursor 작업 프롬프트 생성 어댑터
+
+## 2026-05-09T21:26:45.972Z
+
+- Status: completed
+- Summary: Cursor 전용 작업 프롬프트 어댑터를 agent:prompt 자동 형식과 agent:cursor-prompt alias로 추가하고, workspace 열기/IDE agent 붙여넣기/좁은 범위 편집/비밀값 저장 금지 지침을 생성 프롬프트에 포함했다.
+- Verification: pnpm validate 통과; pnpm agent:cursor-prompt -- --write 통과; pnpm agent:prompt -- --worker cursor --json에서 Cursor Adapter 섹션 확인; pnpm agent:progress=60%
+- Git: pending commit/push
+- Decisions: none
+- Next: 실패/중단/quota 감지 상태 모델 정의

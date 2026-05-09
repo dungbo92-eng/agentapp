@@ -39,6 +39,7 @@ pnpm agent:budget    # 주말 예비분을 고려한 오늘 사용량 예산 계
 pnpm agent:dry-run -- --operation "pnpm validate"
 pnpm agent:codex-prompt -- --write
 pnpm agent:claude-prompt -- --write
+pnpm agent:cursor-prompt -- --write
 pnpm agent:prompt -- --all --write
 pnpm agent:doctor    # git/hooks/Claude sync 환경 점검
 pnpm agent:next      # 다음 에이전트 작업 프롬프트 생성

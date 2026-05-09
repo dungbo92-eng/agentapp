@@ -33,7 +33,7 @@
 
 - [x] Codex 작업 프롬프트 생성 어댑터
 - [x] Claude Code 작업 프롬프트 생성 어댑터
-- [ ] Cursor 작업 프롬프트 생성 어댑터
+- [x] Cursor 작업 프롬프트 생성 어댑터
 - [ ] 실패/중단/quota 감지 상태 모델 정의
 - [ ] worker가 직접 실행할 수 없는 경우 handoff만 남기는 fallback 구현
 

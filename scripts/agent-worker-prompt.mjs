@@ -13,6 +13,7 @@ const HELP = `Usage:
   pnpm agent:prompt -- --worker codex
   pnpm agent:prompt -- --worker codex --format codex
   pnpm agent:prompt -- --worker claude-code --format claude-code
+  pnpm agent:prompt -- --worker cursor --format cursor
   pnpm agent:prompt -- --worker claude-code --write
   pnpm agent:prompt -- --all --write
   pnpm agent:prompt -- --all --json
@@ -240,6 +241,34 @@ When finished, report:
 `;
 }
 
+function cursorAdapterSection(nextTask) {
+  return `## Cursor Adapter
+
+Use this prompt when opening the repository in Cursor.
+
+### Cursor Run Contract
+
+- Open \`E:\\agentApp\` as the workspace before starting.
+- Paste this prompt into the Cursor agent/chat tied to the repository.
+- Read \`AGENTS.md\`, \`NEXT_TASK.md\`, project memory, roadmap, and policy before editing.
+- Keep edits tightly scoped and avoid broad IDE refactors unless the task calls for them.
+- Use Cursor for local code, docs, tests, validation, handoff updates, commit, and approved push only.
+- Do not store secrets in Cursor settings, prompts, files, comments, or logs.
+- Before any unclear operation, run \`pnpm agent:dry-run -- --operation "<operation>"\`.
+- Use \`pnpm agent:route -- --task "${(nextTask.selected || "작업").replace(/"/g, '\\"')}"\` before expensive reasoning work.
+
+### Cursor Completion Output
+
+When finished, report:
+
+- Edited files and why
+- Validation commands and results
+- Commit hash and push status
+- Any held operation or decision
+- Next task from \`pnpm agent:next\`
+`;
+}
+
 function buildPrompt(worker, nextTask, options = {}) {
   const launchInstructions =
     worker.launch_instructions.length > 0
@@ -248,6 +277,7 @@ function buildPrompt(worker, nextTask, options = {}) {
   const adapterSections = {
     codex: codexAdapterSection,
     "claude-code": claudeCodeAdapterSection,
+    cursor: cursorAdapterSection,
   };
   const format = options.format === "auto" ? worker.kind : options.format;
   const adapterSection = adapterSections[format] ? `\n${adapterSections[format](nextTask)}` : "";

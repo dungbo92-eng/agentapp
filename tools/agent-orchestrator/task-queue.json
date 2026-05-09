@@ -121,7 +121,7 @@
       "title": "Cursor 작업 프롬프트 생성 어댑터",
       "phase": "phase-3",
       "priority": 54,
-      "status": "pending",
+      "status": "done",
       "depends_on": ["worker-prompt-templates"],
       "blocked_by": [],
       "reason": "Cursor 작업공간에 붙여넣기 쉬운 IDE 중심 handoff 프롬프트가 필요하다."

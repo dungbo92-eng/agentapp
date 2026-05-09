@@ -15,6 +15,7 @@
     "agent:budget": "node scripts/agent-budget.mjs",
     "agent:claude-prompt": "node scripts/agent-worker-prompt.mjs --worker claude-code --format claude-code",
     "agent:codex-prompt": "node scripts/agent-worker-prompt.mjs --worker codex --format codex",
+    "agent:cursor-prompt": "node scripts/agent-worker-prompt.mjs --worker cursor --format cursor",
     "agent:doctor": "node scripts/agent-doctor.mjs",
     "agent:dry-run": "node scripts/agent-dry-run.mjs",
     "agent:next": "node scripts/agent-next.mjs",
