@@ -49,6 +49,17 @@ type Snapshot = {
     providers: string[];
     weekend_reserve_units: number;
   };
+  workers: {
+    id: string;
+    kind: string;
+    display_name: string;
+    status: string;
+    latest_status: string;
+    latest_reason: string;
+    latest_task: string;
+    latest_updated_at: string;
+    handoff_summary: string;
+  }[];
 };
 
 const numberFormatter = new Intl.NumberFormat("ko-KR");
@@ -205,6 +216,26 @@ function App() {
             <span>remaining units</span>
             <p>{snapshot.usage_budget.account_count} user-managed accounts tracked</p>
             <p>{snapshot.usage_budget.weekend_reserve_units} units reserved for weekend continuity</p>
+          </div>
+        </div>
+
+        <div className="panel wide">
+          <div className="sectionTitle">
+            <h2>Workers</h2>
+            <span>{snapshot.workers.length} registered</span>
+          </div>
+          <div className="workerGrid">
+            {snapshot.workers.map((worker) => (
+              <article className="workerRow" key={worker.id}>
+                <div>
+                  <strong>{worker.display_name || worker.id}</strong>
+                  <span>{worker.kind}</span>
+                </div>
+                <span className={`pill ${worker.latest_status}`}>{worker.latest_status}</span>
+                <p>{worker.latest_task || "No recent run state"}</p>
+                <small>{worker.latest_reason}</small>
+              </article>
+            ))}
           </div>
         </div>
 

@@ -213,3 +213,12 @@ NEXT_TASK.md 템플릿 확정: agent-next 생성물을 Required Reads, Execution
 - Git: pending commit/push
 - Decisions: none
 - Next: worker 상태 화면
+
+## 2026-05-09T21:49:55.286Z
+
+- Status: completed
+- Summary: 대시보드에 worker 상태 화면을 추가했다. snapshot 생성 시 workers.example.yaml과 worker run-state 예시/기록을 합쳐 worker별 최신 상태, 이유, 최근 task를 표시한다.
+- Verification: pnpm validate 통과; pnpm dashboard:build 통과; snapshot workers=4 next=handoff viewer; pnpm agent:progress=72%
+- Git: pending commit/push
+- Decisions: none
+- Next: handoff viewer

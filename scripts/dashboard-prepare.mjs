@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 
-import { mkdir, readFile, writeFile } from "node:fs/promises";
+import { mkdir, readFile, readdir, writeFile } from "node:fs/promises";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 
@@ -16,6 +16,9 @@ const FILES = {
   runStatus: path.join(REPO_ROOT, "tools", "agent-orchestrator", "handoff", "RUN_STATUS.md"),
   taskQueue: path.join(REPO_ROOT, "tools", "agent-orchestrator", "task-queue.json"),
   usageBudget: path.join(REPO_ROOT, "tools", "agent-orchestrator", "usage-budget.example.json"),
+  workers: path.join(REPO_ROOT, "tools", "agent-orchestrator", "workers.example.yaml"),
+  workerRunStateExample: path.join(REPO_ROOT, "tools", "agent-orchestrator", "worker-run-state.example.json"),
+  workerRunStatesDir: path.join(REPO_ROOT, "tools", "agent-orchestrator", "handoff", "run-states"),
 };
 
 async function readText(file) {
@@ -135,7 +138,73 @@ function summarizeUsageBudget(usageBudget) {
   };
 }
 
-const [roadmap, projectState, nextTask, decisions, runStatus, taskQueue, usageBudget] = await Promise.all([
+function parseWorkers(text) {
+  const workers = [];
+  let inWorkers = false;
+  let current = null;
+
+  for (const line of text.split(/\r?\n/)) {
+    if (line === "workers:") {
+      inWorkers = true;
+      continue;
+    }
+    if (!inWorkers) continue;
+    if (/^[a-z_]+:/.test(line)) break;
+
+    const workerMatch = line.match(/^  - id:\s*(.+?)\s*$/);
+    if (workerMatch) {
+      current = { id: workerMatch[1].trim(), kind: "", display_name: "", status: "unknown" };
+      workers.push(current);
+      continue;
+    }
+
+    if (!current) continue;
+    const fieldMatch = line.match(/^    (kind|display_name|status):\s*(.+?)\s*$/);
+    if (fieldMatch) {
+      current[fieldMatch[1]] = fieldMatch[2].trim().replace(/^"|"$/g, "");
+    }
+  }
+
+  return workers;
+}
+
+async function readRunStates() {
+  const states = [];
+  const example = await readJson(FILES.workerRunStateExample);
+  if (example) states.push(example);
+
+  try {
+    const entries = await readdir(FILES.workerRunStatesDir, { withFileTypes: true });
+    for (const entry of entries) {
+      if (!entry.isFile() || !entry.name.endsWith(".json")) continue;
+      const parsed = await readJson(path.join(FILES.workerRunStatesDir, entry.name));
+      if (parsed) states.push(parsed);
+    }
+  } catch {
+    // A missing run-states directory simply means no live handoff-only fallback has been recorded.
+  }
+
+  return states;
+}
+
+function summarizeWorkers(workers, runStates) {
+  return workers.map((worker) => {
+    const latest = runStates
+      .filter((state) => state.worker_id === worker.id)
+      .sort((left, right) => String(right.timestamps?.updated_at || "").localeCompare(String(left.timestamps?.updated_at || "")))[0];
+
+    return {
+      ...worker,
+      latest_status: latest?.status || worker.status,
+      latest_reason: latest?.reason || "none",
+      latest_task: latest?.task?.title || "",
+      latest_updated_at: latest?.timestamps?.updated_at || "",
+      handoff_summary: latest?.handoff?.summary || "",
+    };
+  });
+}
+
+const [roadmap, projectState, nextTask, decisions, runStatus, taskQueue, usageBudget, workersText, runStates] = await Promise.all([
   readText(FILES.roadmap),
   readText(FILES.projectState),
   readText(FILES.nextTask),
@@ -143,6 +212,8 @@ const [roadmap, projectState, nextTask, decisions, runStatus, taskQueue, usageBu
   readText(FILES.runStatus),
   readJson(FILES.taskQueue),
   readJson(FILES.usageBudget),
+  readText(FILES.workers),
+  readRunStates(),
 ]);
 
 const snapshot = {
@@ -154,6 +225,7 @@ const snapshot = {
   latest_run: parseLatestRunStatus(runStatus),
   task_queue: summarizeTaskQueue(taskQueue),
   usage_budget: summarizeUsageBudget(usageBudget),
+  workers: summarizeWorkers(parseWorkers(workersText), runStates),
   project_state_excerpt: projectState.slice(0, 1200),
 };
 

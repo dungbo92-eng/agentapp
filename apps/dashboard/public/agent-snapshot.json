@@ -1,9 +1,9 @@
 {
-  "generated_at": "2026-05-09T21:47:20.538Z",
+  "generated_at": "2026-05-09T21:51:07.815Z",
   "repo_root": "E:\\agentApp",
   "progress": {
-    "percent": 70,
-    "done": 30,
+    "percent": 72,
+    "done": 31,
     "total": 43,
     "phases": [
       {
@@ -155,7 +155,7 @@
       },
       {
         "title": "Phase 5 — Dashboard",
-        "done": 2,
+        "done": 3,
         "total": 6,
         "items": [
           {
@@ -168,7 +168,7 @@
           },
           {
             "title": "worker 상태 화면",
-            "done": false
+            "done": true
           },
           {
             "title": "handoff viewer",
@@ -237,11 +237,11 @@
     ]
   },
   "next_task": {
-    "generated": "2026-05-09T21:45:46.295Z",
-    "title": "worker 상태 화면",
-    "source": "roadmap",
-    "id": "n/a",
-    "priority": "n/a"
+    "generated": "2026-05-09T21:49:30.452Z",
+    "title": "handoff viewer",
+    "source": "task-queue",
+    "id": "dashboard-handoff-viewer",
+    "priority": "36"
   },
   "pending_decisions": [
     {
@@ -252,18 +252,26 @@
     }
   ],
   "latest_run": {
-    "at": "2026-05-09T21:47:06.047Z",
+    "at": "2026-05-09T21:49:55.286Z",
     "status": "completed",
-    "summary": "진행률/다음 작업/보류 결정 화면을 위한 Vite + React + TypeScript 로컬 대시보드 MVP를 추가하고, dashboard snapshot 생성 스크립트로 progress/next task/decisions/latest run/task queue/usage budget을 표시하도록 구현했다.",
-    "verification": "pnpm validate 통과; pnpm dashboard:build 통과; dev server http://127.0.0.1:5173 응답 200; pnpm agent:progress=70%",
-    "next": "worker 상태 화면"
+    "summary": "대시보드에 worker 상태 화면을 추가했다. snapshot 생성 시 workers.example.yaml과 worker run-state 예시/기록을 합쳐 worker별 최신 상태, 이유, 최근 task를 표시한다.",
+    "verification": "pnpm validate 통과; pnpm dashboard:build 통과; snapshot workers=4 next=handoff viewer; pnpm agent:progress=72%",
+    "next": "handoff viewer"
   },
   "task_queue": {
-    "total": 16,
+    "total": 18,
     "statuses": {
-      "done": 16
+      "done": 17,
+      "pending": 1
     },
-    "next": []
+    "next": [
+      {
+        "id": "dashboard-handoff-viewer",
+        "title": "handoff viewer",
+        "phase": "phase-5",
+        "priority": 36
+      }
+    ]
   },
   "usage_budget": {
     "total_remaining_units": 140,
@@ -274,5 +282,51 @@
     ],
     "weekend_reserve_units": 35
   },
+  "workers": [
+    {
+      "id": "codex",
+      "kind": "codex",
+      "display_name": "Codex Desktop",
+      "status": "available",
+      "latest_status": "blocked",
+      "latest_reason": "hold_for_user",
+      "latest_task": "Define worker stop and quota state model",
+      "latest_updated_at": "2026-05-09T21:35:00Z",
+      "handoff_summary": "Local implementation is complete, but remote deployment is held by policy."
+    },
+    {
+      "id": "claude-code",
+      "kind": "claude-code",
+      "display_name": "Claude Code",
+      "status": "available",
+      "latest_status": "available",
+      "latest_reason": "none",
+      "latest_task": "",
+      "latest_updated_at": "",
+      "handoff_summary": ""
+    },
+    {
+      "id": "cursor",
+      "kind": "cursor",
+      "display_name": "Cursor",
+      "status": "available",
+      "latest_status": "available",
+      "latest_reason": "none",
+      "latest_task": "",
+      "latest_updated_at": "",
+      "handoff_summary": ""
+    },
+    {
+      "id": "gemini-cli",
+      "kind": "gemini-cli",
+      "display_name": "Gemini CLI",
+      "status": "available",
+      "latest_status": "available",
+      "latest_reason": "none",
+      "latest_task": "",
+      "latest_updated_at": "",
+      "handoff_summary": ""
+    }
+  ],
   "project_state_excerpt": "# Project State\n\nLast updated: 2026-05-09\n\n## 프로젝트 한 줄\n\nAgentApp은 여러 AI 개발 에이전트가 같은 memory/plan/handoff를 공유하며 안전한 작업을 이어받게 하는 멀티 에이전트 개발 오케스트레이터다.\n\n## 현재 상태\n\n- `AGENTS.md`, `CLAUDE.md` 공통 규칙 초안 생성.\n- `.claude-sync` memory/plan 동기화 구조 생성.\n- `scripts/claude-sync.mjs`, `install-hooks.mjs` 생성.\n- `scripts/agent-doctor.mjs`, `agent-next.mjs`, `agent-progress.mjs`, `agent-report.mjs` 생성.\n- `tools/agent-orchestrator` 아래 승인 정책, worker 예시, handoff 초안 생성.\n- `git init`, `pnpm install`, hook 설치 완료.\n- `pnpm validate`, `pnpm agent:doctor`, `pnpm agent:progress`, `pnpm agent:next`, `pnpm agent:status` 검증 완료.\n- 새 PC/새 에이전트 세션에서 `pnpm agent:doctor`로 Node/pnpm/git, hooks, `.claude-sync`, 로컬 `~/.claude`, git UTF-8 설정, sync 상태를 점검한다.\n- `approval-policy.yaml`을 allow/hold/deny 구조로 확정하고 로컬 commit/remote push 기준을 명시했다.\n- git remote `origin`은 `git@github.com:dungbo92-eng/agentapp.git`, 기본 브랜치는 `main`으로 설정했다.\n- `workers.example.yaml`을 Codex, Claude Code, Cursor, Gemini CLI용 registry 예시로 확정했다.\n- `pnpm agent:next`가 생성하는 `NEXT_TASK.md` 템플릿을 Required Reads, 실행 규칙, 완료 체크리스트, handoff 갱신 목록, context snapshot 구조로 확정했다.\n- `pnpm agent:report`가 `RUN_STATUS.md`에 Status, Summary, Verification, Git, Decisions, Next 필드를 가진"
 }

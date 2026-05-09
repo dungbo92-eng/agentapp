@@ -216,7 +216,8 @@ select {
 }
 
 .decisionList,
-.queueList {
+.queueList,
+.workerGrid {
   display: grid;
   gap: 12px;
   margin: 0;
@@ -225,7 +226,8 @@ select {
 }
 
 .decisionList li,
-.queueList li {
+.queueList li,
+.workerRow {
   display: grid;
   gap: 4px;
   padding-top: 12px;
@@ -233,19 +235,22 @@ select {
 }
 
 .decisionList li:first-child,
-.queueList li:first-child {
+.queueList li:first-child,
+.workerRow:first-child {
   padding-top: 0;
   border-top: 0;
 }
 
 .decisionList strong,
-.queueList strong {
+.queueList strong,
+.workerRow strong {
   color: #20333c;
   font-size: 0.95rem;
 }
 
 .decisionList span,
 .queueList span,
+.workerRow span,
 .run span,
 .run small,
 .budget span,
@@ -257,8 +262,46 @@ select {
 
 .decisionList p,
 .budget p,
-.run p {
+.run p,
+.workerRow p {
   margin: 0;
+}
+
+.workerRow {
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: start;
+}
+
+.workerRow p,
+.workerRow small {
+  grid-column: 1 / -1;
+  color: #607883;
+}
+
+.pill {
+  min-width: 84px;
+  border-radius: 999px;
+  padding: 4px 10px;
+  background: #e7edf0;
+  color: #28404a;
+  font-size: 0.78rem;
+  font-weight: 700;
+  text-align: center;
+}
+
+.pill.available,
+.pill.completed,
+.pill.running {
+  background: #dff3ed;
+  color: #216457;
+}
+
+.pill.blocked,
+.pill.failed,
+.pill.quota_limited,
+.pill.needs_user {
+  background: #f8e6df;
+  color: #88452d;
 }
 
 .budget strong {

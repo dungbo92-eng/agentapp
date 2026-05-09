@@ -165,6 +165,26 @@
       "depends_on": ["dashboard-tech-selection"],
       "blocked_by": [],
       "reason": "CLI 기반 작업이 안정화되었고 로컬 대시보드 기술 선택이 완료되어 read-only 화면부터 진행한다."
+    },
+    {
+      "id": "dashboard-worker-status",
+      "title": "worker 상태 화면",
+      "phase": "phase-5",
+      "priority": 38,
+      "status": "done",
+      "depends_on": ["dashboard-decision-screen"],
+      "blocked_by": [],
+      "reason": "worker registry와 run-state 요약을 대시보드에서 확인할 수 있어야 한다."
+    },
+    {
+      "id": "dashboard-handoff-viewer",
+      "title": "handoff viewer",
+      "phase": "phase-5",
+      "priority": 36,
+      "status": "pending",
+      "depends_on": ["dashboard-worker-status"],
+      "blocked_by": [],
+      "reason": "NEXT_TASK, RUN_STATUS, DECISIONS_REQUIRED 내용을 읽기 전용으로 확인하는 화면이 필요하다."
     }
   ]
 }

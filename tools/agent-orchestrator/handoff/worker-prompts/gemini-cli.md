@@ -26,16 +26,16 @@ Auth: user-managed only
 
 ## Current Task
 
-- Selected task: worker 상태 화면
-- Task id: n/a
-- Priority: n/a
-- Generated: 2026-05-09T21:45:46.295Z
+- Selected task: handoff viewer
+- Task id: dashboard-handoff-viewer
+- Priority: 36
+- Generated: 2026-05-09T21:49:30.452Z
 
 위 Required Reads를 먼저 읽고 시작한다.
 
 다음 작업을 진행한다:
 
-> worker 상태 화면
+> handoff viewer
 
 
 ## Model Routing
@@ -50,7 +50,7 @@ Quality is first. Use efficient models for routine reading, setup, and simple do
 Before heavy work, run:
 
 ```bash
-pnpm agent:route -- --task "worker 상태 화면"
+pnpm agent:route -- --task "handoff viewer"
 ```
 
 ## Safety Rules
