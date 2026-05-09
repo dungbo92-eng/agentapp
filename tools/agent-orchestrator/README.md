@@ -22,6 +22,16 @@
 - `capabilities.hold_for_user`와 `capabilities.denied`는 자동 실행하지 않는다.
 - 작업 완료 시 memory/plan/handoff 갱신, 검증, commit, 승인된 remote push를 수행한다.
 
+## NEXT_TASK template
+
+`pnpm agent:next`가 생성하는 `handoff/NEXT_TASK.md`는 아래 계약을 따른다.
+
+- Required Reads: 새 에이전트가 반드시 읽을 파일 목록
+- Agent Prompt: 선택된 다음 작업
+- Execution Rules: allow/hold/deny 기준
+- Completion Checklist: 검증, handoff 갱신, commit, push 순서
+- Context Snapshot: project state, approval policy, worker registry 발췌
+
 ## 원칙
 
 - 이 디렉터리는 계정 제한 우회용이 아니다.

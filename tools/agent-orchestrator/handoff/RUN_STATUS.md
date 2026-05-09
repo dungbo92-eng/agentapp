@@ -20,3 +20,7 @@ approval-policy.yaml allow/hold 정책 확정: default hold, auto_allowed, hold_
 ## 2026-05-09T10:50:27.141Z
 
 workers.example.yaml registry 예시 확정: Codex, Claude Code, Cursor, Gemini CLI를 user-managed/manual launch worker로 정리하고 auto_allowed/hold_for_user/denied capabilities와 handoff 입출력 규칙을 명시.
+
+## 2026-05-09T10:53:12.586Z
+
+NEXT_TASK.md 템플릿 확정: agent-next 생성물을 Required Reads, Execution Rules, Completion Checklist, Handoff Updates, Context Snapshot 구조로 강화하고 worker registry 발췌를 포함하도록 변경.
