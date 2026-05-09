@@ -1,0 +1,278 @@
+{
+  "generated_at": "2026-05-09T21:47:20.538Z",
+  "repo_root": "E:\\agentApp",
+  "progress": {
+    "percent": 70,
+    "done": 30,
+    "total": 43,
+    "phases": [
+      {
+        "title": "Phase 0 — 프로젝트 운영 골격",
+        "done": 7,
+        "total": 7,
+        "items": [
+          {
+            "title": "`AGENTS.md` 공통 규칙 작성",
+            "done": true
+          },
+          {
+            "title": "`CLAUDE.md` Claude Code 호환 규칙 작성",
+            "done": true
+          },
+          {
+            "title": "`.editorconfig`, `.gitattributes`, `.gitignore` 작성",
+            "done": true
+          },
+          {
+            "title": "`.claude-sync` memory/plan 구조 작성",
+            "done": true
+          },
+          {
+            "title": "git hook 기반 sync 스크립트 작성",
+            "done": true
+          },
+          {
+            "title": "sync 환경 점검 doctor CLI 작성",
+            "done": true
+          },
+          {
+            "title": "진행률/다음작업/report CLI 초안 작성",
+            "done": true
+          }
+        ]
+      },
+      {
+        "title": "Phase 1 — 안전 정책과 handoff",
+        "done": 6,
+        "total": 6,
+        "items": [
+          {
+            "title": "`approval-policy.yaml` allow/hold 정책 확정",
+            "done": true
+          },
+          {
+            "title": "`workers.example.yaml` worker registry 예시 확정",
+            "done": true
+          },
+          {
+            "title": "`NEXT_TASK.md` 템플릿 확정",
+            "done": true
+          },
+          {
+            "title": "`RUN_STATUS.md` 템플릿 확정",
+            "done": true
+          },
+          {
+            "title": "`DECISIONS_REQUIRED.md` 템플릿 확정",
+            "done": true
+          },
+          {
+            "title": "작업 종료 시 memory/plan/handoff 갱신 규칙 정리",
+            "done": true
+          }
+        ]
+      },
+      {
+        "title": "Phase 2 — CLI MVP",
+        "done": 5,
+        "total": 5,
+        "items": [
+          {
+            "title": "`agent-next`가 우선순위/의존성/보류 상태를 반영하도록 개선",
+            "done": true
+          },
+          {
+            "title": "`agent-progress`가 phase별 진행률을 출력하도록 개선",
+            "done": true
+          },
+          {
+            "title": "`agent-report`가 project_state까지 갱신하도록 개선",
+            "done": true
+          },
+          {
+            "title": "안전 작업/보류 작업을 분류하는 dry-run 명령 추가",
+            "done": true
+          },
+          {
+            "title": "worker별 프롬프트 템플릿 생성 명령 추가",
+            "done": true
+          }
+        ]
+      },
+      {
+        "title": "Phase 3 — Worker 어댑터",
+        "done": 5,
+        "total": 5,
+        "items": [
+          {
+            "title": "Codex 작업 프롬프트 생성 어댑터",
+            "done": true
+          },
+          {
+            "title": "Claude Code 작업 프롬프트 생성 어댑터",
+            "done": true
+          },
+          {
+            "title": "Cursor 작업 프롬프트 생성 어댑터",
+            "done": true
+          },
+          {
+            "title": "실패/중단/quota 감지 상태 모델 정의",
+            "done": true
+          },
+          {
+            "title": "worker가 직접 실행할 수 없는 경우 handoff만 남기는 fallback 구현",
+            "done": true
+          }
+        ]
+      },
+      {
+        "title": "Phase 4 — 주간 사용량 예산과 모델 라우팅",
+        "done": 5,
+        "total": 5,
+        "items": [
+          {
+            "title": "계정 수/요금제/남은 주간 사용량을 비밀값 없이 기록하는 설정 스키마 작성",
+            "done": true
+          },
+          {
+            "title": "토요일/일요일 예비 사용량을 남기는 주간 예산 계산 로직 구현",
+            "done": true
+          },
+          {
+            "title": "작업 난이도(`routine`, `standard`, `complex`, `critical`) 분류 규칙 구현",
+            "done": true
+          },
+          {
+            "title": "품질 우선 모델 선택 로직 구현",
+            "done": true
+          },
+          {
+            "title": "사용량 부족 시 작업 분해 또는 사용자 결정 요청 handoff 구현",
+            "done": true
+          }
+        ]
+      },
+      {
+        "title": "Phase 5 — Dashboard",
+        "done": 2,
+        "total": 6,
+        "items": [
+          {
+            "title": "로컬 웹 대시보드 기술 선택",
+            "done": true
+          },
+          {
+            "title": "진행률/다음 작업/보류 결정 화면",
+            "done": true
+          },
+          {
+            "title": "worker 상태 화면",
+            "done": false
+          },
+          {
+            "title": "handoff viewer",
+            "done": false
+          },
+          {
+            "title": "승인 필요 큐 화면",
+            "done": false
+          },
+          {
+            "title": "주간 사용량/주말 예비분/모델 추천 화면",
+            "done": false
+          }
+        ]
+      },
+      {
+        "title": "Phase 6 — 자동화 연동",
+        "done": 0,
+        "total": 4,
+        "items": [
+          {
+            "title": "OS 작업 스케줄러 또는 Codex automation 연동 방식 정리",
+            "done": false
+          },
+          {
+            "title": "주기적 `agent-next` 실행",
+            "done": false
+          },
+          {
+            "title": "보류 결정 알림 방식 정리",
+            "done": false
+          },
+          {
+            "title": "git sync 상태 점검 자동화",
+            "done": false
+          }
+        ]
+      },
+      {
+        "title": "Phase 7 — 제품화",
+        "done": 0,
+        "total": 5,
+        "items": [
+          {
+            "title": "설치 가이드",
+            "done": false
+          },
+          {
+            "title": "보안 모델 문서화",
+            "done": false
+          },
+          {
+            "title": "plugin/MCP 확장 전략",
+            "done": false
+          },
+          {
+            "title": "테스트 시나리오",
+            "done": false
+          },
+          {
+            "title": "첫 릴리즈 태그",
+            "done": false
+          }
+        ]
+      }
+    ]
+  },
+  "next_task": {
+    "generated": "2026-05-09T21:45:46.295Z",
+    "title": "worker 상태 화면",
+    "source": "roadmap",
+    "id": "n/a",
+    "priority": "n/a"
+  },
+  "pending_decisions": [
+    {
+      "title": "DEC-20260509-003 — 주간 사용량 입력 방식",
+      "priority": "high",
+      "category": "usage_budget",
+      "blocks": "사용량 예산/모델 라우팅 CLI 구현"
+    }
+  ],
+  "latest_run": {
+    "at": "2026-05-09T21:47:06.047Z",
+    "status": "completed",
+    "summary": "진행률/다음 작업/보류 결정 화면을 위한 Vite + React + TypeScript 로컬 대시보드 MVP를 추가하고, dashboard snapshot 생성 스크립트로 progress/next task/decisions/latest run/task queue/usage budget을 표시하도록 구현했다.",
+    "verification": "pnpm validate 통과; pnpm dashboard:build 통과; dev server http://127.0.0.1:5173 응답 200; pnpm agent:progress=70%",
+    "next": "worker 상태 화면"
+  },
+  "task_queue": {
+    "total": 16,
+    "statuses": {
+      "done": 16
+    },
+    "next": []
+  },
+  "usage_budget": {
+    "total_remaining_units": 140,
+    "account_count": 2,
+    "providers": [
+      "claude",
+      "codex"
+    ],
+    "weekend_reserve_units": 35
+  },
+  "project_state_excerpt": "# Project State\n\nLast updated: 2026-05-09\n\n## 프로젝트 한 줄\n\nAgentApp은 여러 AI 개발 에이전트가 같은 memory/plan/handoff를 공유하며 안전한 작업을 이어받게 하는 멀티 에이전트 개발 오케스트레이터다.\n\n## 현재 상태\n\n- `AGENTS.md`, `CLAUDE.md` 공통 규칙 초안 생성.\n- `.claude-sync` memory/plan 동기화 구조 생성.\n- `scripts/claude-sync.mjs`, `install-hooks.mjs` 생성.\n- `scripts/agent-doctor.mjs`, `agent-next.mjs`, `agent-progress.mjs`, `agent-report.mjs` 생성.\n- `tools/agent-orchestrator` 아래 승인 정책, worker 예시, handoff 초안 생성.\n- `git init`, `pnpm install`, hook 설치 완료.\n- `pnpm validate`, `pnpm agent:doctor`, `pnpm agent:progress`, `pnpm agent:next`, `pnpm agent:status` 검증 완료.\n- 새 PC/새 에이전트 세션에서 `pnpm agent:doctor`로 Node/pnpm/git, hooks, `.claude-sync`, 로컬 `~/.claude`, git UTF-8 설정, sync 상태를 점검한다.\n- `approval-policy.yaml`을 allow/hold/deny 구조로 확정하고 로컬 commit/remote push 기준을 명시했다.\n- git remote `origin`은 `git@github.com:dungbo92-eng/agentapp.git`, 기본 브랜치는 `main`으로 설정했다.\n- `workers.example.yaml`을 Codex, Claude Code, Cursor, Gemini CLI용 registry 예시로 확정했다.\n- `pnpm agent:next`가 생성하는 `NEXT_TASK.md` 템플릿을 Required Reads, 실행 규칙, 완료 체크리스트, handoff 갱신 목록, context snapshot 구조로 확정했다.\n- `pnpm agent:report`가 `RUN_STATUS.md`에 Status, Summary, Verification, Git, Decisions, Next 필드를 가진"
+}

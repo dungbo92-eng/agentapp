@@ -25,16 +25,16 @@ Auth: user-managed only
 
 ## Current Task
 
-- Selected task: 진행률/다음 작업/보류 결정 화면
-- Task id: dashboard-decision-screen
-- Priority: 40
-- Generated: 2026-05-09T21:39:42.928Z
+- Selected task: worker 상태 화면
+- Task id: n/a
+- Priority: n/a
+- Generated: 2026-05-09T21:45:46.295Z
 
 위 Required Reads를 먼저 읽고 시작한다.
 
 다음 작업을 진행한다:
 
-> 진행률/다음 작업/보류 결정 화면
+> worker 상태 화면
 
 ## Cursor Adapter
 
@@ -49,7 +49,7 @@ Use this prompt when opening the repository in Cursor.
 - Use Cursor for local code, docs, tests, validation, handoff updates, commit, and approved push only.
 - Do not store secrets in Cursor settings, prompts, files, comments, or logs.
 - Before any unclear operation, run `pnpm agent:dry-run -- --operation "<operation>"`.
-- Use `pnpm agent:route -- --task "진행률/다음 작업/보류 결정 화면"` before expensive reasoning work.
+- Use `pnpm agent:route -- --task "worker 상태 화면"` before expensive reasoning work.
 
 ### Cursor Completion Output
 
@@ -74,7 +74,7 @@ Quality is first. Use efficient models for routine reading, setup, and simple do
 Before heavy work, run:
 
 ```bash
-pnpm agent:route -- --task "진행률/다음 작업/보류 결정 화면"
+pnpm agent:route -- --task "worker 상태 화면"
 ```
 
 ## Safety Rules

@@ -161,7 +161,7 @@
       "title": "진행률/다음 작업/보류 결정 화면",
       "phase": "phase-5",
       "priority": 40,
-      "status": "pending",
+      "status": "done",
       "depends_on": ["dashboard-tech-selection"],
       "blocked_by": [],
       "reason": "CLI 기반 작업이 안정화되었고 로컬 대시보드 기술 선택이 완료되어 read-only 화면부터 진행한다."

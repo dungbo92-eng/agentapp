@@ -204,3 +204,12 @@ NEXT_TASK.md 템플릿 확정: agent-next 생성물을 Required Reads, Execution
 - Git: pending commit/push
 - Decisions: DEC-20260509-001 resolved
 - Next: 진행률/다음 작업/보류 결정 화면
+
+## 2026-05-09T21:47:06.047Z
+
+- Status: completed
+- Summary: 진행률/다음 작업/보류 결정 화면을 위한 Vite + React + TypeScript 로컬 대시보드 MVP를 추가하고, dashboard snapshot 생성 스크립트로 progress/next task/decisions/latest run/task queue/usage budget을 표시하도록 구현했다.
+- Verification: pnpm validate 통과; pnpm dashboard:build 통과; dev server http://127.0.0.1:5173 응답 200; pnpm agent:progress=70%
+- Git: pending commit/push
+- Decisions: none
+- Next: worker 상태 화면

@@ -49,6 +49,8 @@ pnpm agent:route -- --task "Docker 설치 방법 정리"
 pnpm agent:route -- --task "자동매매 로직 설계" --complexity complex
 pnpm agent:report -- "작업 요약"
 pnpm agent:report -- --status completed --summary "작업 요약" --verify "pnpm validate"
+pnpm dashboard:prepare # 로컬 대시보드 snapshot 생성
+pnpm dashboard:dev     # 로컬 대시보드 개발 서버
 pnpm validate        # 로컬 스크립트 문법 검증
 ```
 
