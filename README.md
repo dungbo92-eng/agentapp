@@ -1,0 +1,50 @@
+# AgentApp
+
+여러 AI 개발 에이전트가 같은 프로젝트 상태를 읽고, 안전한 작업은 이어서 진행하며, 의사결정이 필요한 작업만 사용자에게 넘기기 위한 에이전트 오케스트레이터 앱입니다.
+
+이 저장소의 1차 목표는 계정 제한을 우회하는 자동 계정 전환이 아니라, 정상 인증된 에이전트/도구들이 같은 memory, plan, handoff 문서를 기준으로 작업을 이어받는 안전한 운영 체계를 만드는 것입니다.
+
+## 핵심 구성
+
+| 경로 | 역할 |
+|---|---|
+| `AGENTS.md` | Codex/Gemini/기타 MCP 에이전트 공통 규칙 |
+| `CLAUDE.md` | Claude Code 자동 로드용 규칙 |
+| `.claude-sync/memory` | 현재 상태, 사용자 선호, 장기 메모리 |
+| `.claude-sync/plans` | 로드맵/큰 계획 |
+| `tools/agent-orchestrator` | worker, 승인 정책, handoff 문서 |
+| `scripts/claude-sync.mjs` | repo `.claude-sync` ↔ 로컬 `~/.claude` 동기화 |
+| `scripts/agent-next.mjs` | 다음 작업 선정 및 프롬프트 생성 |
+| `scripts/agent-progress.mjs` | 계획 체크박스 기준 진행률 계산 |
+
+## 새 PC 시작
+
+```bash
+git clone <repo-url> agentApp
+cd agentApp
+pnpm install
+pnpm agent:doctor
+pnpm agent:status
+pnpm agent:next
+```
+
+## 자주 쓰는 명령
+
+```bash
+pnpm agent:sync      # repo와 로컬 Claude memory/plan mtime 기준 동기화
+pnpm agent:status    # 동기화 차이 확인
+pnpm agent:doctor    # git/hooks/Claude sync 환경 점검
+pnpm agent:next      # 다음 에이전트 작업 프롬프트 생성
+pnpm agent:progress  # 로드맵 진행률 계산
+pnpm agent:report -- "작업 요약"
+pnpm validate        # 로컬 스크립트 문법 검증
+```
+
+## 안전 원칙
+
+- 플랫폼 제한 우회, 자동 계정 로그인, 무조건 승인 클릭 자동화는 만들지 않는다.
+- 정상 로그인된 도구/에이전트가 가능한 범위에서 작업을 이어받는다.
+- 코드 수정, 테스트, 문서화, 로컬 실행은 자동 진행 가능하다.
+- 외부 운영계 쓰기, 결제, 배포, 비밀값 변경, 파괴적 파일/DB 작업은 사용자 승인을 요구한다.
+- 검증된 변경은 로컬 git commit으로 남긴다.
+- remote push는 remote가 설정되고 사용자 승인 범위가 명확할 때 수행한다.

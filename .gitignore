@@ -1,0 +1,46 @@
+# Dependencies
+node_modules/
+.pnpm-store/
+
+# Build outputs
+dist/
+build/
+.next/
+out/
+*.tsbuildinfo
+
+# Env / secrets
+.env
+.env.local
+.env.*.local
+*.secret.*
+
+# Logs
+*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+
+# OS / IDE
+.DS_Store
+Thumbs.db
+.idea/
+.vscode/*
+!.vscode/extensions.json
+!.vscode/settings.json
+
+# Coverage / temp
+coverage/
+tmp/
+.tmp/
+
+# Per-PC agent state. The sync script tracks only memory/plans.
+.claude-sync/.local-*
+**/.claude/
+.claude/worktrees/
+worktrees/
+
+# Local app data
+data/
+storage/

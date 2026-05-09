@@ -1,0 +1,42 @@
+version: 1
+
+phases:
+  - id: phase-0
+    name: "project foundation"
+    status: done
+    tasks:
+      - "shared agent rules"
+      - "memory/plan sync"
+      - "basic CLI scripts"
+
+  - id: phase-1
+    name: "policy and handoff"
+    status: in_progress
+    tasks:
+      - "approval policy"
+      - "worker registry"
+      - "handoff templates"
+
+  - id: phase-2
+    name: "CLI MVP"
+    status: pending
+    tasks:
+      - "next task selector"
+      - "progress reporter"
+      - "decision queue"
+
+  - id: phase-3
+    name: "worker adapters"
+    status: pending
+    tasks:
+      - "Codex prompt adapter"
+      - "Claude prompt adapter"
+      - "Cursor prompt adapter"
+
+  - id: phase-4
+    name: "dashboard"
+    status: pending
+    tasks:
+      - "local web dashboard"
+      - "worker status"
+      - "approval queue"

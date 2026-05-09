@@ -1,0 +1,126 @@
+version: 1
+
+intent:
+  product: "multi-agent development orchestrator"
+  goal: "continue safe development work across authenticated agents using shared memory, plans, and handoff files"
+
+default_action: "hold_for_user"
+
+principles:
+  - "Prefer safe local progress over external mutation."
+  - "Keep every operation inside the repository unless the policy explicitly allows otherwise."
+  - "Use normal user-authenticated tools only; never automate login, account switching, captcha, billing, or approval bypass."
+  - "Never store secrets, credentials, session cookies, tokens, or production data in repo files, logs, MCP configs, or handoff docs."
+  - "When a task mixes auto-allowed and hold-for-user operations, complete the safe local part and record the held part in DECISIONS_REQUIRED.md."
+
+auto_allowed:
+  - id: local_file_edits
+    description: "Edit local source, docs, configs, tests, and scripts inside the repository."
+    scope:
+      - "repo files under E:\\agentApp"
+      - "generated docs, tests, and local tool configs that contain no secrets"
+    examples:
+      - "update scripts"
+      - "edit README/AGENTS/CLAUDE/handoff docs"
+      - "add local tests"
+  - id: validation
+    description: "Run local syntax checks, tests, typechecks, builds, and linters."
+    examples:
+      - "pnpm validate"
+      - "pnpm agent:doctor"
+      - "pnpm agent:progress"
+  - id: local_runtime
+    description: "Start or stop local development servers and local Docker infrastructure."
+    limits:
+      - "local only"
+      - "no production deploy"
+      - "no destructive database operation"
+  - id: read_only_checks
+    description: "Run read-only local or external checks that do not mutate production systems."
+    examples:
+      - "inspect package metadata"
+      - "view logs"
+      - "read documentation"
+  - id: memory_plan_updates
+    description: "Update .claude-sync memory/plans and handoff files."
+    required_when:
+      - "meaningful progress is made"
+      - "task is blocked"
+      - "a user decision is needed"
+  - id: git_status_diff
+    description: "Inspect git status, diff, logs, and branches."
+    examples:
+      - "git status --short"
+      - "git diff"
+      - "git log --oneline"
+  - id: git_local_commit
+    description: "Stage and create local commits for verified project changes."
+    limits:
+      - "do not rewrite history"
+      - "do not discard user changes"
+      - "review status before staging"
+      - "run validation first when feasible"
+
+hold_for_user:
+  - id: external_writes
+    description: "POST, PUT, PATCH, DELETE against external or production services."
+  - id: deployment
+    description: "Deploy to production, change DNS, publish packages, or release artifacts."
+  - id: billing_payments
+    description: "Payments, billing, paid plan changes, or usage quota changes."
+  - id: secrets
+    description: "Create, reveal, rotate, or store API keys, passwords, tokens, or credentials."
+  - id: destructive_git
+    description: "git reset --hard, force push, branch deletion, history rewrite."
+  - id: destructive_filesystem
+    description: "Recursive deletion or irreversible file operations outside clearly scoped generated output."
+  - id: account_automation
+    description: "Automatic login, account switching to bypass limits, approval dialog auto-clicking, captcha or security bypass."
+  - id: git_remote_setup
+    description: "Add, change, or remove git remotes."
+  - id: git_push
+    description: "Push commits or tags to a remote repository."
+
+deny:
+  - id: quota_bypass
+    description: "Use extra accounts, automated switching, or approval bypass to evade platform limits."
+  - id: credential_capture
+    description: "Capture, persist, print, or exfiltrate credentials, cookies, tokens, or secrets."
+  - id: unattended_security_bypass
+    description: "Bypass captcha, MFA, security prompts, consent screens, or paid-plan gates."
+
+user_required:
+  - id: external_writes
+    description: "Compatibility alias for hold_for_user.external_writes."
+  - id: deployment
+    description: "Compatibility alias for hold_for_user.deployment."
+  - id: billing_payments
+    description: "Compatibility alias for hold_for_user.billing_payments."
+  - id: secrets
+    description: "Compatibility alias for hold_for_user.secrets."
+  - id: destructive_git
+    description: "Compatibility alias for hold_for_user.destructive_git."
+  - id: destructive_filesystem
+    description: "Compatibility alias for hold_for_user.destructive_filesystem."
+  - id: account_automation
+    description: "Compatibility alias for hold_for_user.account_automation."
+  - id: git_remote_setup
+    description: "Compatibility alias for hold_for_user.git_remote_setup."
+  - id: git_push
+    description: "Compatibility alias for hold_for_user.git_push."
+
+handoff_required_when:
+  - "worker quota or session time is exhausted"
+  - "task needs user decision"
+  - "operation is listed in hold_for_user or deny"
+  - "tests fail and the next step is ambiguous"
+  - "secrets or external credentials are missing"
+  - "git remote is missing when remote sync is requested"
+
+completion_requirements:
+  - "Run available validation before reporting completion."
+  - "Update RUN_STATUS.md with what changed and what was verified."
+  - "Update project_state.md after meaningful progress."
+  - "Regenerate NEXT_TASK.md after roadmap status changes."
+  - "Create a local git commit for completed verified work when git is available."
+  - "Push only after a git remote is configured and the user has approved that remote write."

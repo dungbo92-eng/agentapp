@@ -1,0 +1,28 @@
+{
+  "name": "agent-app",
+  "version": "0.0.1",
+  "private": true,
+  "description": "Multi-agent development orchestrator foundation",
+  "packageManager": "pnpm@10.33.2",
+  "engines": {
+    "node": ">=20"
+  },
+  "scripts": {
+    "agent:pull": "node scripts/claude-sync.mjs --pull --verbose",
+    "agent:push": "node scripts/claude-sync.mjs --push --verbose",
+    "agent:sync": "node scripts/claude-sync.mjs --auto --verbose",
+    "agent:status": "node scripts/claude-sync.mjs --status",
+    "agent:doctor": "node scripts/agent-doctor.mjs",
+    "agent:next": "node scripts/agent-next.mjs",
+    "agent:progress": "node scripts/agent-progress.mjs",
+    "agent:report": "node scripts/agent-report.mjs",
+    "claude:pull": "node scripts/claude-sync.mjs --pull --verbose",
+    "claude:push": "node scripts/claude-sync.mjs --push --verbose",
+    "claude:sync": "node scripts/claude-sync.mjs --auto --verbose",
+    "claude:status": "node scripts/claude-sync.mjs --status",
+    "hooks:install": "node scripts/install-hooks.mjs",
+    "validate": "node --check scripts/claude-sync.mjs && node --check scripts/install-hooks.mjs && node --check scripts/agent-doctor.mjs && node --check scripts/agent-next.mjs && node --check scripts/agent-progress.mjs && node --check scripts/agent-report.mjs",
+    "postinstall": "node scripts/install-hooks.mjs && node scripts/claude-sync.mjs --auto --quiet-on-noop"
+  },
+  "devDependencies": {}
+}

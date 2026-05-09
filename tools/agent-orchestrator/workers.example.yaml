@@ -1,0 +1,43 @@
+version: 1
+
+workers:
+  - id: codex-primary
+    kind: codex
+    auth: "user-managed"
+    launch: "Open Codex in E:\\agentApp and paste handoff/NEXT_TASK.md"
+    allowed_modes:
+      - local_file_edits
+      - validation
+      - memory_plan_updates
+
+  - id: codex-secondary
+    kind: codex
+    auth: "user-managed"
+    launch: "Open second Codex account/session manually, then paste handoff/NEXT_TASK.md"
+    allowed_modes:
+      - local_file_edits
+      - validation
+      - memory_plan_updates
+
+  - id: claude-code
+    kind: claude-code
+    auth: "user-managed"
+    launch: "Run Claude Code from E:\\agentApp"
+    allowed_modes:
+      - local_file_edits
+      - validation
+      - memory_plan_updates
+
+  - id: cursor
+    kind: cursor
+    auth: "user-managed"
+    launch: "Open E:\\agentApp in Cursor and paste handoff/NEXT_TASK.md"
+    allowed_modes:
+      - local_file_edits
+      - validation
+      - memory_plan_updates
+
+rules:
+  - "Do not automate login or account switching."
+  - "Do not use workers to bypass quota or billing limits."
+  - "Use handoff files to continue work safely."

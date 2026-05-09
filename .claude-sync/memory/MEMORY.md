@@ -1,0 +1,16 @@
+# MEMORY
+
+AgentApp 공용 memory index.
+
+## 파일
+
+- `project_state.md`: 현재 프로젝트 상태, 진행률, 다음 작업 후보
+- `user_profile.md`: 사용자 선호와 작업 방식
+- `archive.md`: 완료/폐기된 세부 로그
+
+## 운영 규칙
+
+- 에이전트는 작업 시작 전 `project_state.md`를 읽는다.
+- 작업이 의미 있게 진행되면 `project_state.md`를 갱신한다.
+- 오래된 세부 로그는 `archive.md`로 이동한다.
+- 비밀값은 기록하지 않는다.
