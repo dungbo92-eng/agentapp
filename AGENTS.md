@@ -29,6 +29,9 @@
 - worker가 quota, 시간 제한, 오류, 결정 필요 상태로 멈추면 handoff 문서를 남긴다.
 - 다음 worker는 handoff, memory, plan, git 상태를 읽고 이어서 진행한다.
 - 승인 정책은 allowlist 기반으로 관리한다.
+- 사용자가 정상 보유한 Claude Pro, Codex Plus 등 계정의 주간 사용량을 로컬 예산으로 관리한다.
+- 품질을 최우선으로 하되, 단순 숙지/설치/문서 작업은 효율 모델을, 복잡한 설계/추론 작업은 최고 품질 모델을 추천한다.
+- 토요일/일요일 작업이 끊기지 않도록 주말 예비 사용량을 남기는 모델 라우팅 로직을 둔다.
 
 ## 3. 새 PC에서 작업 시작
 
@@ -114,10 +117,11 @@ New-ItemProperty -Path HKCU:\Console -Name VirtualTerminalLevel -PropertyType DW
 2. `.claude-sync/memory/project_state.md`를 읽는다.
 3. `.claude-sync/plans/agent-orchestrator-roadmap.md`를 읽는다.
 4. `tools/agent-orchestrator/approval-policy.yaml`을 확인한다.
-5. `tools/agent-orchestrator/handoff/NEXT_TASK.md`가 있으면 우선 확인한다.
-6. 의사결정이 필요 없는 작업이면 바로 진행한다.
-7. 작업 후 테스트/검증 결과를 남긴다.
-8. `project_state.md`, roadmap, handoff를 갱신한다.
+5. `docs/usage-budget-model-routing.md`를 확인하고 작업 난이도에 맞는 모델/예산 정책을 따른다.
+6. `tools/agent-orchestrator/handoff/NEXT_TASK.md`가 있으면 우선 확인한다.
+7. 의사결정이 필요 없는 작업이면 바로 진행한다.
+8. 작업 후 테스트/검증 결과를 남긴다.
+9. `project_state.md`, roadmap, handoff를 갱신한다.
 
 ## 7. 응답 / 코딩 규칙
 

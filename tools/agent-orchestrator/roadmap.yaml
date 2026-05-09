@@ -34,9 +34,20 @@ phases:
       - "Cursor prompt adapter"
 
   - id: phase-4
+    name: "usage budget and model routing"
+    status: pending
+    tasks:
+      - "account capacity schema without secrets"
+      - "weekly budget calculator with weekend reserve"
+      - "task complexity classifier"
+      - "quality-first model selector"
+      - "insufficient budget handoff"
+
+  - id: phase-5
     name: "dashboard"
     status: pending
     tasks:
       - "local web dashboard"
       - "worker status"
       - "approval queue"
+      - "usage budget and model recommendation"

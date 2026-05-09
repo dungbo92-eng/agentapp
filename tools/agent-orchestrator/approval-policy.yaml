@@ -12,6 +12,8 @@ principles:
   - "Use normal user-authenticated tools only; never automate login, account switching, captcha, billing, or approval bypass."
   - "Never store secrets, credentials, session cookies, tokens, or production data in repo files, logs, MCP configs, or handoff docs."
   - "When a task mixes auto-allowed and hold-for-user operations, complete the safe local part and record the held part in DECISIONS_REQUIRED.md."
+  - "Usage budgeting is for planning normal user-owned capacity, not bypassing platform limits."
+  - "Model routing is quality-first: downgrade only low-risk routine work, never critical reasoning work."
 
 auto_allowed:
   - id: local_file_edits
@@ -60,6 +62,17 @@ auto_allowed:
       - "do not discard user changes"
       - "review status before staging"
       - "run validation first when feasible"
+  - id: usage_budget_planning
+    description: "Track user-provided remaining weekly usage units and recommend model/account allocation without storing credentials."
+    limits:
+      - "manual or user-provided usage values only"
+      - "no hidden quota scraping"
+      - "no automatic login or account switching"
+      - "no payment or plan changes"
+    examples:
+      - "reserve weekend usage"
+      - "recommend efficient model for routine context review"
+      - "recommend highest quality model for complex architecture design"
 
 hold_for_user:
   - id: external_writes
@@ -76,6 +89,8 @@ hold_for_user:
     description: "Recursive deletion or irreversible file operations outside clearly scoped generated output."
   - id: account_automation
     description: "Automatic login, account switching to bypass limits, approval dialog auto-clicking, captcha or security bypass."
+  - id: usage_source_setup
+    description: "Connect or change an external usage source, browser session, or account metadata source."
   - id: git_remote_setup
     description: "Add, change, or remove git remotes."
   - id: git_push
@@ -83,7 +98,7 @@ hold_for_user:
 
 deny:
   - id: quota_bypass
-    description: "Use extra accounts, automated switching, or approval bypass to evade platform limits."
+    description: "Use extra accounts, automated switching, or approval bypass to evade platform limits instead of planning normal user-owned usage."
   - id: credential_capture
     description: "Capture, persist, print, or exfiltrate credentials, cookies, tokens, or secrets."
   - id: unattended_security_bypass
@@ -104,6 +119,8 @@ user_required:
     description: "Compatibility alias for hold_for_user.destructive_filesystem."
   - id: account_automation
     description: "Compatibility alias for hold_for_user.account_automation."
+  - id: usage_source_setup
+    description: "Compatibility alias for hold_for_user.usage_source_setup."
   - id: git_remote_setup
     description: "Compatibility alias for hold_for_user.git_remote_setup."
   - id: git_push

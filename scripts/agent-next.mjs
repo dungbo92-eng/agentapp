@@ -9,6 +9,7 @@ const ROADMAP = path.join(REPO_ROOT, ".claude-sync", "plans", "agent-orchestrato
 const PROJECT_STATE = path.join(REPO_ROOT, ".claude-sync", "memory", "project_state.md");
 const POLICY = path.join(REPO_ROOT, "tools", "agent-orchestrator", "approval-policy.yaml");
 const WORKERS = path.join(REPO_ROOT, "tools", "agent-orchestrator", "workers.example.yaml");
+const USAGE_BUDGET = path.join(REPO_ROOT, "docs", "usage-budget-model-routing.md");
 const HANDOFF_DIR = path.join(REPO_ROOT, "tools", "agent-orchestrator", "handoff");
 const NEXT_TASK = path.join(HANDOFF_DIR, "NEXT_TASK.md");
 
@@ -24,6 +25,7 @@ const roadmap = await readText(ROADMAP);
 const state = await readText(PROJECT_STATE);
 const policy = await readText(POLICY);
 const workers = await readText(WORKERS);
+const usageBudget = await readText(USAGE_BUDGET);
 
 const unchecked = [...roadmap.matchAll(/^- \[ \] (.+)$/gm)].map((match) => match[1].trim());
 const selected = unchecked[0] || "로드맵의 다음 미완료 작업을 정리한다.";
@@ -47,7 +49,8 @@ const body = `# NEXT_TASK
 2. .claude-sync/memory/project_state.md
 3. .claude-sync/plans/agent-orchestrator-roadmap.md
 4. tools/agent-orchestrator/approval-policy.yaml
-5. tools/agent-orchestrator/workers.example.yaml
+5. docs/usage-budget-model-routing.md
+6. tools/agent-orchestrator/workers.example.yaml
 
 ## Agent Prompt
 
@@ -101,6 +104,12 @@ ${excerpt(policy, 3500)}
 
 \`\`\`yaml
 ${excerpt(workers, 2500)}
+\`\`\`
+
+### Usage Budget and Model Routing
+
+\`\`\`md
+${excerpt(usageBudget, 2500)}
 \`\`\`
 `;
 

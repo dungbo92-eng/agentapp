@@ -33,3 +33,12 @@ NEXT_TASK.md 템플릿 확정: agent-next 생성물을 Required Reads, Execution
 - Git: pending commit/push
 - Decisions: none
 - Next: DECISIONS_REQUIRED.md 템플릿 확정
+
+## 2026-05-09T12:40:55.975Z
+
+- Status: completed
+- Summary: 개발 방향 추가: 주간 사용량 예산, 주말 예비분, 품질 우선 모델 라우팅, 작업 난이도별 모델 선택 정책을 문서/roadmap/policy/worker registry에 반영.
+- Verification: pnpm validate 통과; pnpm agent:progress=26%
+- Git: pending commit/push
+- Decisions: 사용량 입력 방식은 수동 우선인지 read-only 화면 값 허용인지 추후 결정
+- Next: DECISIONS_REQUIRED.md 템플릿 확정

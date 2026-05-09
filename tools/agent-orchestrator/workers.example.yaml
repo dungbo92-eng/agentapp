@@ -20,11 +20,13 @@ defaults:
   auth: "user-managed"
   status: "available"
   approval_policy: "tools/agent-orchestrator/approval-policy.yaml"
+  usage_budget_policy: "docs/usage-budget-model-routing.md"
   required_reads:
     - "AGENTS.md"
     - ".claude-sync/memory/project_state.md"
     - ".claude-sync/plans/agent-orchestrator-roadmap.md"
     - "tools/agent-orchestrator/approval-policy.yaml"
+    - "docs/usage-budget-model-routing.md"
     - "tools/agent-orchestrator/handoff/NEXT_TASK.md"
   handoff_outputs:
     - "tools/agent-orchestrator/handoff/RUN_STATUS.md"
@@ -57,6 +59,7 @@ workers:
         - memory_plan_updates
         - git_status_diff
         - git_local_commit
+        - usage_budget_planning
       hold_for_user:
         - external_writes
         - deployment
@@ -65,12 +68,27 @@ workers:
         - destructive_git
         - destructive_filesystem
         - account_automation
+        - usage_source_setup
         - git_remote_setup
         - git_push
       denied:
         - quota_bypass
         - credential_capture
         - unattended_security_bypass
+    model_routing:
+      routine:
+        model_tier: "efficient"
+        reasoning_effort: "medium"
+      standard:
+        model_tier: "balanced"
+        reasoning_effort: "high"
+      complex:
+        model_tier: "best_available"
+        reasoning_effort: "xhigh"
+      critical:
+        model_tier: "best_available"
+        reasoning_effort: "xhigh"
+        require_user_budget_confirmation: true
     handoff:
       input: "tools/agent-orchestrator/handoff/NEXT_TASK.md"
       required_reads: "defaults.required_reads"
@@ -99,6 +117,7 @@ workers:
         - memory_plan_updates
         - git_status_diff
         - git_local_commit
+        - usage_budget_planning
       hold_for_user:
         - external_writes
         - deployment
@@ -107,12 +126,27 @@ workers:
         - destructive_git
         - destructive_filesystem
         - account_automation
+        - usage_source_setup
         - git_remote_setup
         - git_push
       denied:
         - quota_bypass
         - credential_capture
         - unattended_security_bypass
+    model_routing:
+      routine:
+        model_tier: "sonnet"
+        reasoning_effort: "normal"
+      standard:
+        model_tier: "sonnet"
+        reasoning_effort: "high"
+      complex:
+        model_tier: "opus"
+        reasoning_effort: "very_high"
+      critical:
+        model_tier: "opus"
+        reasoning_effort: "very_high"
+        require_user_budget_confirmation: true
     handoff:
       input: "tools/agent-orchestrator/handoff/NEXT_TASK.md"
       required_reads: "defaults.required_reads"
@@ -139,6 +173,7 @@ workers:
         - read_only_checks
         - memory_plan_updates
         - git_status_diff
+        - usage_budget_planning
       hold_for_user:
         - external_writes
         - deployment
@@ -147,12 +182,27 @@ workers:
         - destructive_git
         - destructive_filesystem
         - account_automation
+        - usage_source_setup
         - git_remote_setup
         - git_push
       denied:
         - quota_bypass
         - credential_capture
         - unattended_security_bypass
+    model_routing:
+      routine:
+        model_tier: "efficient"
+        reasoning_effort: "normal"
+      standard:
+        model_tier: "balanced"
+        reasoning_effort: "high"
+      complex:
+        model_tier: "best_available"
+        reasoning_effort: "very_high"
+      critical:
+        model_tier: "best_available"
+        reasoning_effort: "very_high"
+        require_user_budget_confirmation: true
     handoff:
       input: "tools/agent-orchestrator/handoff/NEXT_TASK.md"
       required_reads: "defaults.required_reads"
@@ -180,6 +230,7 @@ workers:
         - read_only_checks
         - memory_plan_updates
         - git_status_diff
+        - usage_budget_planning
       hold_for_user:
         - external_writes
         - deployment
@@ -188,12 +239,27 @@ workers:
         - destructive_git
         - destructive_filesystem
         - account_automation
+        - usage_source_setup
         - git_remote_setup
         - git_push
       denied:
         - quota_bypass
         - credential_capture
         - unattended_security_bypass
+    model_routing:
+      routine:
+        model_tier: "efficient"
+        reasoning_effort: "normal"
+      standard:
+        model_tier: "balanced"
+        reasoning_effort: "high"
+      complex:
+        model_tier: "best_available"
+        reasoning_effort: "very_high"
+      critical:
+        model_tier: "best_available"
+        reasoning_effort: "very_high"
+        require_user_budget_confirmation: true
     handoff:
       input: "tools/agent-orchestrator/handoff/NEXT_TASK.md"
       required_reads: "defaults.required_reads"
@@ -206,5 +272,6 @@ rules:
   - "Workers are descriptors for normal user-authenticated tools, not account automation."
   - "Before work starts, run or inspect pnpm agent:doctor and pnpm agent:status."
   - "After meaningful work, update memory/plan/handoff, run validation, commit, and push when authorized."
+  - "Use docs/usage-budget-model-routing.md to recommend model tier and reasoning effort before spending scarce weekly usage."
   - "If a worker reaches quota, session timeout, missing credentials, failed tests with ambiguous next steps, or a hold_for_user operation, update handoff files and stop."
   - "Never store secrets or account-specific identifiers in this registry."

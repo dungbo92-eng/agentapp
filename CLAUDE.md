@@ -7,6 +7,8 @@
 - 작업 루트: `E:\agentApp`
 - 프로젝트 목적: 여러 AI 개발 에이전트가 같은 memory/plan/handoff를 공유하며 안전한 개발 작업을 이어받게 하는 멀티 에이전트 오케스트레이터
 - `.claude-sync`는 Claude 전용이 아니라 모든 에이전트 공용 memory/plan 동기화 저장소다.
+- 모델 선택은 품질 우선이다. 단순 작업은 효율 모델, 복잡한 설계/추론 작업은 최고 품질 모델을 사용하도록 추천한다.
+- 주간 사용량 관리는 정상 보유 계정의 로컬 예산 배분이며, 자동 로그인/자동 계정 전환/제한 우회가 아니다.
 
 ## 절대 금지
 
@@ -29,8 +31,9 @@
 2. `.claude-sync/memory/project_state.md`를 읽는다.
 3. `.claude-sync/plans/agent-orchestrator-roadmap.md`를 읽는다.
 4. `tools/agent-orchestrator/approval-policy.yaml`을 읽는다.
-5. `tools/agent-orchestrator/handoff/NEXT_TASK.md`를 확인한다.
-6. `git status`로 현재 변경 사항을 확인한다.
+5. `docs/usage-budget-model-routing.md`를 읽고 작업 난이도에 맞는 모델/예산 정책을 확인한다.
+6. `tools/agent-orchestrator/handoff/NEXT_TASK.md`를 확인한다.
+7. `git status`로 현재 변경 사항을 확인한다.
 
 ## 동기화
 
