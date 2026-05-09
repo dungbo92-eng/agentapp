@@ -61,7 +61,7 @@
       "title": "`agent-progress`가 phase별 진행률을 출력하도록 개선",
       "phase": "phase-2",
       "priority": 70,
-      "status": "pending",
+      "status": "done",
       "depends_on": [],
       "blocked_by": [],
       "reason": "전체 진행률뿐 아니라 Phase별 병목을 보여줘야 한다."

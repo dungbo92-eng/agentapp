@@ -45,6 +45,10 @@
 - `blocked_by`: 대기 중인 `DEC-*` 또는 미완료 task id가 있으면 선택하지 않는다.
 - task queue가 비어 있거나 파싱 실패하면 markdown roadmap의 첫 미완료 체크박스를 fallback으로 사용한다.
 
+## Progress CLI
+
+`pnpm agent:progress`는 전체 진행률과 Phase별 진행률을 함께 출력한다.
+
 ## RUN_STATUS template
 
 `pnpm agent:report`는 `handoff/RUN_STATUS.md`에 아래 필드를 가진 실행 로그를 추가한다.

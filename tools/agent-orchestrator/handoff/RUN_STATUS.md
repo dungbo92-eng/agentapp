@@ -114,3 +114,12 @@ NEXT_TASK.md 템플릿 확정: agent-next 생성물을 Required Reads, Execution
 - Git: pending commit/push
 - Decisions: 실제 decision queue에는 테스트 항목을 쓰지 않음
 - Next: agent-progress phase별 진행률 출력 개선
+
+## 2026-05-09T13:11:33.275Z
+
+- Status: completed
+- Summary: agent-progress phase별 출력 개선: 전체 진행률과 Phase별 진행률, 다음 미완료 항목을 함께 출력하도록 변경.
+- Verification: pnpm validate 통과; pnpm agent:progress phase별 출력 확인; progress=47%
+- Git: pending commit/push
+- Decisions: none
+- Next: agent-report가 project_state까지 갱신하도록 개선
