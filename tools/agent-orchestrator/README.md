@@ -8,6 +8,7 @@
 |---|---|
 | `approval-policy.yaml` | 자동 진행 가능/사용자 승인 필요 기준 |
 | `workers.example.yaml` | worker registry 예시 |
+| `task-queue.json` | 우선순위/의존성/보류 상태를 가진 작업 큐 |
 | `roadmap.yaml` | 기계가 읽기 쉬운 로드맵 초안 |
 | `handoff/NEXT_TASK.md` | 다음 에이전트가 수행할 작업 |
 | `handoff/RUN_STATUS.md` | 최근 실행 결과 |
@@ -31,6 +32,16 @@
 - Execution Rules: allow/hold/deny 기준
 - Completion Checklist: 검증, handoff 갱신, commit, push 순서
 - Context Snapshot: project state, approval policy, worker registry 발췌
+
+## Task queue
+
+`task-queue.json`은 `pnpm agent:next`가 roadmap보다 먼저 참고하는 실행 큐다.
+
+- `priority`: 숫자가 높을수록 먼저 선택한다.
+- `status`: `pending`, `done`, `blocked`, `hold`를 사용한다.
+- `depends_on`: 완료된 task id가 모두 있어야 선택된다.
+- `blocked_by`: 대기 중인 `DEC-*` 또는 미완료 task id가 있으면 선택하지 않는다.
+- task queue가 비어 있거나 파싱 실패하면 markdown roadmap의 첫 미완료 체크박스를 fallback으로 사용한다.
 
 ## RUN_STATUS template
 

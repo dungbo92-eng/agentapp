@@ -69,3 +69,12 @@ NEXT_TASK.md 템플릿 확정: agent-next 생성물을 Required Reads, Execution
 - Git: pending commit/push
 - Decisions: DEC-20260509-002 worker 실행 범위 resolved: auto_allowed 로컬 개발 작업은 자율 진행
 - Next: agent-next 우선순위/의존성/보류 상태 반영 개선
+
+## 2026-05-09T12:54:18.102Z
+
+- Status: completed
+- Summary: agent-next 선택 로직 개선: task-queue.json 추가, 우선순위/의존성/보류 decision을 반영하고 roadmap fallback을 유지하도록 변경.
+- Verification: pnpm validate 통과; pnpm agent:next가 usage-budget-schema를 선택
+- Git: pending commit/push
+- Decisions: DEC-20260509-001이 dashboard task를 보류하도록 task queue에 반영
+- Next: 계정 수/요금제/남은 주간 사용량 설정 스키마 작성

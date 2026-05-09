@@ -34,8 +34,9 @@
 4. `tools/agent-orchestrator/approval-policy.yaml`을 읽는다.
 5. `docs/usage-budget-model-routing.md`를 읽고 작업 난이도에 맞는 모델/예산 정책을 확인한다.
 6. `docs/handoff-completion-protocol.md`를 읽고 완료/중단 시 갱신 규칙을 확인한다.
-7. `tools/agent-orchestrator/handoff/NEXT_TASK.md`를 확인한다.
-8. `git status`로 현재 변경 사항을 확인한다.
+7. `tools/agent-orchestrator/task-queue.json`을 확인한다.
+8. `tools/agent-orchestrator/handoff/NEXT_TASK.md`를 확인한다.
+9. `git status`로 현재 변경 사항을 확인한다.
 
 ## 동기화
 

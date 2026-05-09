@@ -9,6 +9,8 @@ const ROADMAP = path.join(REPO_ROOT, ".claude-sync", "plans", "agent-orchestrato
 const PROJECT_STATE = path.join(REPO_ROOT, ".claude-sync", "memory", "project_state.md");
 const POLICY = path.join(REPO_ROOT, "tools", "agent-orchestrator", "approval-policy.yaml");
 const WORKERS = path.join(REPO_ROOT, "tools", "agent-orchestrator", "workers.example.yaml");
+const TASK_QUEUE = path.join(REPO_ROOT, "tools", "agent-orchestrator", "task-queue.json");
+const DECISIONS = path.join(REPO_ROOT, "tools", "agent-orchestrator", "handoff", "DECISIONS_REQUIRED.md");
 const USAGE_BUDGET = path.join(REPO_ROOT, "docs", "usage-budget-model-routing.md");
 const COMPLETION_PROTOCOL = path.join(REPO_ROOT, "docs", "handoff-completion-protocol.md");
 const HANDOFF_DIR = path.join(REPO_ROOT, "tools", "agent-orchestrator", "handoff");
@@ -26,11 +28,59 @@ const roadmap = await readText(ROADMAP);
 const state = await readText(PROJECT_STATE);
 const policy = await readText(POLICY);
 const workers = await readText(WORKERS);
+const taskQueueText = await readText(TASK_QUEUE);
+const decisions = await readText(DECISIONS);
 const usageBudget = await readText(USAGE_BUDGET);
 const completionProtocol = await readText(COMPLETION_PROTOCOL);
 
 const unchecked = [...roadmap.matchAll(/^- \[ \] (.+)$/gm)].map((match) => match[1].trim());
-const selected = unchecked[0] || "로드맵의 다음 미완료 작업을 정리한다.";
+
+function parseTaskQueue(text) {
+  if (!text.trim()) return [];
+  try {
+    const parsed = JSON.parse(text);
+    return Array.isArray(parsed.tasks) ? parsed.tasks : [];
+  } catch (error) {
+    console.warn(`[agent-next] task queue ignored: ${error.message}`);
+    return [];
+  }
+}
+
+function pendingDecisionIds(markdown) {
+  const pendingSection = markdown.match(/## 대기([\s\S]*?)(?:\n## |\n# |$)/);
+  if (!pendingSection) return new Set();
+  return new Set([...pendingSection[1].matchAll(/###\s+(DEC-\d{8}-\d{3})\b/g)].map((match) => match[1]));
+}
+
+function taskPriority(task) {
+  if (Number.isFinite(task.priority)) return task.priority;
+  return { high: 90, medium: 50, low: 10 }[task.priority] || 0;
+}
+
+function selectTask(tasks, pendingDecisions) {
+  const completed = new Set(
+    tasks.filter((task) => ["done", "completed"].includes(task.status)).map((task) => task.id),
+  );
+  const skippedStatuses = new Set(["done", "completed", "blocked", "hold"]);
+  const available = tasks
+    .filter((task) => !skippedStatuses.has(task.status))
+    .filter((task) => (task.depends_on || []).every((id) => completed.has(id)))
+    .filter(
+      (task) =>
+        !(task.blocked_by || []).some((id) =>
+          id.startsWith("DEC-") ? pendingDecisions.has(id) : !completed.has(id),
+        ),
+    )
+    .sort((left, right) => taskPriority(right) - taskPriority(left));
+
+  return available[0] || null;
+}
+
+const tasks = parseTaskQueue(taskQueueText);
+const pendingDecisions = pendingDecisionIds(decisions);
+const selectedTask = selectTask(tasks, pendingDecisions);
+const selected = selectedTask?.title || unchecked[0] || "로드맵의 다음 미완료 작업을 정리한다.";
+const selectedSource = selectedTask ? "task-queue" : "roadmap";
 
 function excerpt(text, maxLength) {
   if (text.length <= maxLength) return text;
@@ -42,6 +92,9 @@ const body = `# NEXT_TASK
 
 - Generated: ${generatedAt}
 - Selected task: ${selected}
+- Selection source: ${selectedSource}
+- Task id: ${selectedTask?.id || "n/a"}
+- Task priority: ${selectedTask?.priority || "n/a"}
 - Workspace: ${REPO_ROOT}
 - Policy: tools/agent-orchestrator/approval-policy.yaml
 
@@ -53,7 +106,8 @@ const body = `# NEXT_TASK
 4. tools/agent-orchestrator/approval-policy.yaml
 5. docs/usage-budget-model-routing.md
 6. docs/handoff-completion-protocol.md
-7. tools/agent-orchestrator/workers.example.yaml
+7. tools/agent-orchestrator/task-queue.json
+8. tools/agent-orchestrator/workers.example.yaml
 
 ## Agent Prompt
 
@@ -108,6 +162,12 @@ ${excerpt(policy, 3500)}
 
 \`\`\`yaml
 ${excerpt(workers, 2500)}
+\`\`\`
+
+### Task Queue
+
+\`\`\`json
+${excerpt(taskQueueText, 2500)}
 \`\`\`
 
 ### Usage Budget and Model Routing

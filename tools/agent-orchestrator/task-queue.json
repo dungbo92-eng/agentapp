@@ -1,0 +1,90 @@
+{
+  "version": 1,
+  "selection": {
+    "priority_order": "higher_first",
+    "skip_statuses": ["done", "blocked", "hold"],
+    "pending_decisions_source": "tools/agent-orchestrator/handoff/DECISIONS_REQUIRED.md"
+  },
+  "tasks": [
+    {
+      "id": "agent-next-priority",
+      "title": "`agent-next`가 우선순위/의존성/보류 상태를 반영하도록 개선",
+      "phase": "phase-2",
+      "priority": 100,
+      "status": "done",
+      "depends_on": [],
+      "blocked_by": [],
+      "reason": "NEXT_TASK 생성기가 단순 첫 체크박스가 아니라 task queue와 decision queue를 반영해야 한다."
+    },
+    {
+      "id": "usage-budget-schema",
+      "title": "계정 수/요금제/남은 주간 사용량 설정 스키마 작성",
+      "phase": "phase-4",
+      "priority": 95,
+      "status": "pending",
+      "depends_on": [],
+      "blocked_by": [],
+      "reason": "사용량 예산과 모델 라우팅 구현의 입력 계약이 먼저 필요하다."
+    },
+    {
+      "id": "model-routing-cli",
+      "title": "작업 난이도별 모델 추천 CLI 초안 작성",
+      "phase": "phase-4",
+      "priority": 90,
+      "status": "pending",
+      "depends_on": ["usage-budget-schema"],
+      "blocked_by": [],
+      "reason": "계정/예산 스키마가 있어야 추천 로직이 안정적으로 동작한다."
+    },
+    {
+      "id": "agent-progress-by-phase",
+      "title": "`agent-progress`가 phase별 진행률을 출력하도록 개선",
+      "phase": "phase-2",
+      "priority": 70,
+      "status": "pending",
+      "depends_on": [],
+      "blocked_by": [],
+      "reason": "전체 진행률뿐 아니라 Phase별 병목을 보여줘야 한다."
+    },
+    {
+      "id": "agent-report-project-state",
+      "title": "`agent-report`가 project_state까지 갱신하도록 개선",
+      "phase": "phase-2",
+      "priority": 65,
+      "status": "pending",
+      "depends_on": ["agent-progress-by-phase"],
+      "blocked_by": [],
+      "reason": "보고와 상태 갱신을 한 번에 묶어 handoff 누락을 줄인다."
+    },
+    {
+      "id": "safe-dry-run",
+      "title": "안전 작업/보류 작업을 분류하는 dry-run 명령 추가",
+      "phase": "phase-2",
+      "priority": 60,
+      "status": "pending",
+      "depends_on": ["agent-next-priority"],
+      "blocked_by": [],
+      "reason": "실행 전에 allow/hold/deny 분류를 확인해야 한다."
+    },
+    {
+      "id": "worker-prompt-templates",
+      "title": "worker별 프롬프트 템플릿 생성 명령 추가",
+      "phase": "phase-2",
+      "priority": 55,
+      "status": "pending",
+      "depends_on": ["agent-next-priority"],
+      "blocked_by": [],
+      "reason": "Codex, Claude Code, Cursor, Gemini CLI별 handoff 시작을 표준화한다."
+    },
+    {
+      "id": "dashboard-decision-screen",
+      "title": "진행률/다음 작업/보류 결정 화면",
+      "phase": "phase-5",
+      "priority": 40,
+      "status": "pending",
+      "depends_on": ["agent-progress-by-phase"],
+      "blocked_by": ["DEC-20260509-001"],
+      "reason": "첫 UI 방식 결정 전에는 CLI 기반 작업을 우선한다."
+    }
+  ]
+}

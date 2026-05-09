@@ -120,10 +120,11 @@ New-ItemProperty -Path HKCU:\Console -Name VirtualTerminalLevel -PropertyType DW
 4. `tools/agent-orchestrator/approval-policy.yaml`을 확인한다.
 5. `docs/usage-budget-model-routing.md`를 확인하고 작업 난이도에 맞는 모델/예산 정책을 따른다.
 6. `docs/handoff-completion-protocol.md`를 확인하고 작업 종료 규칙을 따른다.
-7. `tools/agent-orchestrator/handoff/NEXT_TASK.md`가 있으면 우선 확인한다.
-8. 의사결정이 필요 없는 개발 작업이면 바로 진행한다.
-9. 작업 후 테스트/검증 결과를 남긴다.
-10. `project_state.md`, roadmap, handoff를 갱신한다.
+7. `tools/agent-orchestrator/task-queue.json`을 확인해 우선순위/의존성/보류 상태를 파악한다.
+8. `tools/agent-orchestrator/handoff/NEXT_TASK.md`가 있으면 우선 확인한다.
+9. 의사결정이 필요 없는 개발 작업이면 바로 진행한다.
+10. 작업 후 테스트/검증 결과를 남긴다.
+11. `project_state.md`, roadmap, handoff를 갱신한다.
 
 ## 7. 응답 / 코딩 규칙
 

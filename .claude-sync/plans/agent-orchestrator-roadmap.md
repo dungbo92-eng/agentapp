@@ -23,7 +23,7 @@
 
 ## Phase 2 — CLI MVP
 
-- [ ] `agent-next`가 우선순위/의존성/보류 상태를 반영하도록 개선
+- [x] `agent-next`가 우선순위/의존성/보류 상태를 반영하도록 개선
 - [ ] `agent-progress`가 phase별 진행률을 출력하도록 개선
 - [ ] `agent-report`가 project_state까지 갱신하도록 개선
 - [ ] 안전 작업/보류 작업을 분류하는 dry-run 명령 추가
