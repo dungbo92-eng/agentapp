@@ -91,7 +91,7 @@
       "title": "worker별 프롬프트 템플릿 생성 명령 추가",
       "phase": "phase-2",
       "priority": 55,
-      "status": "pending",
+      "status": "done",
       "depends_on": ["agent-next-priority"],
       "blocked_by": [],
       "reason": "Codex, Claude Code, Cursor, Gemini CLI별 handoff 시작을 표준화한다."

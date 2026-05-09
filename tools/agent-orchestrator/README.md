@@ -96,6 +96,18 @@ pnpm agent:dry-run -- --operation "bypass quota"
 
 분류 결과가 `hold_for_user` 또는 `deny`이면 작업을 실행하지 않고, 차단 범위가 있으면 `handoff/DECISIONS_REQUIRED.md`에 남긴다.
 
+## Worker prompt CLI
+
+`pnpm agent:prompt`는 `workers.example.yaml`과 `handoff/NEXT_TASK.md`를 읽어 worker별 시작 프롬프트를 만든다.
+
+```bash
+pnpm agent:prompt -- --worker codex
+pnpm agent:prompt -- --worker claude-code --write
+pnpm agent:prompt -- --all --write
+```
+
+`--write`를 사용하면 `handoff/worker-prompts/{worker-id}.md` 파일을 생성한다. 이 파일은 사용자가 정상 인증한 각 도구에 붙여넣는 지시문이며, 자동 로그인/계정 전환/승인 우회 정보를 포함하지 않는다.
+
 ## Model routing CLI
 
 `pnpm agent:route`는 작업 설명과 난이도를 받아 모델/계정 별칭을 추천한다.

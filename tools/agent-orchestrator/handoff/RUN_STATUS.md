@@ -141,3 +141,12 @@ NEXT_TASK.md 템플릿 확정: agent-next 생성물을 Required Reads, Execution
 - Git: pending commit/push
 - Decisions: none
 - Next: worker별 프롬프트 템플릿 생성 명령 추가
+
+## 2026-05-09T21:16:12.245Z
+
+- Status: completed
+- Summary: worker registry와 NEXT_TASK를 기반으로 Codex/Claude Code/Cursor/Gemini CLI별 시작 프롬프트를 생성하는 agent:prompt CLI를 추가했다.
+- Verification: pnpm validate 통과; pnpm agent:prompt -- --worker codex 출력 확인; pnpm agent:prompt -- --all --json 통과; pnpm agent:prompt -- --all --write로 4개 프롬프트 생성; pnpm agent:progress=53%
+- Git: pending commit/push
+- Decisions: none
+- Next: Codex 작업 프롬프트 생성 어댑터

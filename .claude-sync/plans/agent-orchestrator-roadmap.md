@@ -27,7 +27,7 @@
 - [x] `agent-progress`가 phase별 진행률을 출력하도록 개선
 - [x] `agent-report`가 project_state까지 갱신하도록 개선
 - [x] 안전 작업/보류 작업을 분류하는 dry-run 명령 추가
-- [ ] worker별 프롬프트 템플릿 생성 명령 추가
+- [x] worker별 프롬프트 템플릿 생성 명령 추가
 
 ## Phase 3 — Worker 어댑터
 
