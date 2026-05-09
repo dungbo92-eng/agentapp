@@ -32,6 +32,17 @@
 - Completion Checklist: 검증, handoff 갱신, commit, push 순서
 - Context Snapshot: project state, approval policy, worker registry 발췌
 
+## RUN_STATUS template
+
+`pnpm agent:report`는 `handoff/RUN_STATUS.md`에 아래 필드를 가진 실행 로그를 추가한다.
+
+- Status: `completed`, `blocked`, `in_progress` 중 하나
+- Summary: 수행 내용
+- Verification: 실행한 검증 명령과 결과
+- Git: commit/push 상태
+- Decisions: 새로 생긴 사용자 결정 필요 항목
+- Next: 다음 작업 또는 `NEXT_TASK.md` 참조
+
 ## 원칙
 
 - 이 디렉터리는 계정 제한 우회용이 아니다.

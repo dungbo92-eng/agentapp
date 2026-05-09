@@ -138,6 +138,7 @@ pnpm agent:sync
 pnpm agent:next
 pnpm agent:progress
 pnpm agent:report -- "작업 요약"
+pnpm agent:report -- --status completed --summary "작업 요약" --verify "pnpm validate"
 pnpm validate
 ```
 

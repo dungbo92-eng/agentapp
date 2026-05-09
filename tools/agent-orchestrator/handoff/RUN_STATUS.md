@@ -24,3 +24,12 @@ workers.example.yaml registry 예시 확정: Codex, Claude Code, Cursor, Gemini 
 ## 2026-05-09T10:53:12.586Z
 
 NEXT_TASK.md 템플릿 확정: agent-next 생성물을 Required Reads, Execution Rules, Completion Checklist, Handoff Updates, Context Snapshot 구조로 강화하고 worker registry 발췌를 포함하도록 변경.
+
+## 2026-05-09T10:57:05.021Z
+
+- Status: completed
+- Summary: RUN_STATUS.md 템플릿 확정: agent-report가 Status/Summary/Verification/Git/Decisions/Next 필드를 가진 구조화 로그를 추가하도록 변경.
+- Verification: pnpm validate 통과; pnpm agent:progress=30%
+- Git: pending commit/push
+- Decisions: none
+- Next: DECISIONS_REQUIRED.md 템플릿 확정
