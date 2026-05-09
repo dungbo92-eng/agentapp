@@ -16,3 +16,7 @@ sync 환경 점검을 우선 보강: scripts/agent-doctor.mjs 추가, package/do
 ## 2026-05-09T10:46:27.935Z
 
 approval-policy.yaml allow/hold 정책 확정: default hold, auto_allowed, hold_for_user, deny, completion_requirements 정리. git remote origin=git@github.com:dungbo92-eng/agentapp.git 등록, 기본 브랜치 main 설정.
+
+## 2026-05-09T10:50:27.141Z
+
+workers.example.yaml registry 예시 확정: Codex, Claude Code, Cursor, Gemini CLI를 user-managed/manual launch worker로 정리하고 auto_allowed/hold_for_user/denied capabilities와 handoff 입출력 규칙을 명시.

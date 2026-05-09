@@ -15,7 +15,7 @@
 ## Phase 1 — 안전 정책과 handoff
 
 - [x] `approval-policy.yaml` allow/hold 정책 확정
-- [ ] `workers.example.yaml` worker registry 예시 확정
+- [x] `workers.example.yaml` worker registry 예시 확정
 - [ ] `NEXT_TASK.md` 템플릿 확정
 - [ ] `RUN_STATUS.md` 템플릿 확정
 - [ ] `DECISIONS_REQUIRED.md` 템플릿 확정

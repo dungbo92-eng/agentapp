@@ -1,43 +1,210 @@
 version: 1
 
-workers:
-  - id: codex-primary
-    kind: codex
-    auth: "user-managed"
-    launch: "Open Codex in E:\\agentApp and paste handoff/NEXT_TASK.md"
-    allowed_modes:
-      - local_file_edits
-      - validation
-      - memory_plan_updates
+schema:
+  worker:
+    required:
+      - id
+      - kind
+      - auth
+      - workspace
+      - launch
+      - capabilities
+      - handoff
+    notes:
+      - "This registry describes user-managed, already-authenticated tools."
+      - "Do not store tokens, cookies, passwords, API keys, or account identifiers here."
+      - "Do not use multiple workers to bypass quota, billing, approval, or security limits."
 
-  - id: codex-secondary
+defaults:
+  workspace: "E:\\agentApp"
+  auth: "user-managed"
+  status: "available"
+  approval_policy: "tools/agent-orchestrator/approval-policy.yaml"
+  required_reads:
+    - "AGENTS.md"
+    - ".claude-sync/memory/project_state.md"
+    - ".claude-sync/plans/agent-orchestrator-roadmap.md"
+    - "tools/agent-orchestrator/approval-policy.yaml"
+    - "tools/agent-orchestrator/handoff/NEXT_TASK.md"
+  handoff_outputs:
+    - "tools/agent-orchestrator/handoff/RUN_STATUS.md"
+    - "tools/agent-orchestrator/handoff/DECISIONS_REQUIRED.md"
+    - ".claude-sync/memory/project_state.md"
+    - ".claude-sync/plans/agent-orchestrator-roadmap.md"
+  completion_commands:
+    - "pnpm validate"
+    - "pnpm agent:doctor"
+    - "pnpm agent:next"
+    - "pnpm agent:sync"
+
+workers:
+  - id: codex
     kind: codex
+    display_name: "Codex Desktop"
     auth: "user-managed"
-    launch: "Open second Codex account/session manually, then paste handoff/NEXT_TASK.md"
-    allowed_modes:
-      - local_file_edits
-      - validation
-      - memory_plan_updates
+    workspace: "E:\\agentApp"
+    status: "available"
+    launch:
+      mode: "manual"
+      instructions:
+        - "Open Codex with workspace E:\\agentApp."
+        - "Ask it to read tools/agent-orchestrator/handoff/NEXT_TASK.md."
+    capabilities:
+      auto_allowed:
+        - local_file_edits
+        - validation
+        - read_only_checks
+        - memory_plan_updates
+        - git_status_diff
+        - git_local_commit
+      hold_for_user:
+        - external_writes
+        - deployment
+        - billing_payments
+        - secrets
+        - destructive_git
+        - destructive_filesystem
+        - account_automation
+        - git_remote_setup
+        - git_push
+      denied:
+        - quota_bypass
+        - credential_capture
+        - unattended_security_bypass
+    handoff:
+      input: "tools/agent-orchestrator/handoff/NEXT_TASK.md"
+      required_reads: "defaults.required_reads"
+      outputs: "defaults.handoff_outputs"
+    health_checks:
+      - "pnpm agent:doctor"
+      - "pnpm agent:status"
 
   - id: claude-code
     kind: claude-code
+    display_name: "Claude Code"
     auth: "user-managed"
-    launch: "Run Claude Code from E:\\agentApp"
-    allowed_modes:
-      - local_file_edits
-      - validation
-      - memory_plan_updates
+    workspace: "E:\\agentApp"
+    status: "available"
+    launch:
+      mode: "manual"
+      instructions:
+        - "Open a terminal in E:\\agentApp."
+        - "Run Claude Code from the repository root."
+        - "Claude Code reads CLAUDE.md automatically; still check AGENTS.md for shared rules."
+    capabilities:
+      auto_allowed:
+        - local_file_edits
+        - validation
+        - read_only_checks
+        - memory_plan_updates
+        - git_status_diff
+        - git_local_commit
+      hold_for_user:
+        - external_writes
+        - deployment
+        - billing_payments
+        - secrets
+        - destructive_git
+        - destructive_filesystem
+        - account_automation
+        - git_remote_setup
+        - git_push
+      denied:
+        - quota_bypass
+        - credential_capture
+        - unattended_security_bypass
+    handoff:
+      input: "tools/agent-orchestrator/handoff/NEXT_TASK.md"
+      required_reads: "defaults.required_reads"
+      outputs: "defaults.handoff_outputs"
+    health_checks:
+      - "pnpm agent:doctor"
+      - "pnpm agent:status"
 
   - id: cursor
     kind: cursor
+    display_name: "Cursor"
     auth: "user-managed"
-    launch: "Open E:\\agentApp in Cursor and paste handoff/NEXT_TASK.md"
-    allowed_modes:
-      - local_file_edits
-      - validation
-      - memory_plan_updates
+    workspace: "E:\\agentApp"
+    status: "available"
+    launch:
+      mode: "manual"
+      instructions:
+        - "Open E:\\agentApp in Cursor."
+        - "Paste the Agent Prompt from tools/agent-orchestrator/handoff/NEXT_TASK.md."
+    capabilities:
+      auto_allowed:
+        - local_file_edits
+        - validation
+        - read_only_checks
+        - memory_plan_updates
+        - git_status_diff
+      hold_for_user:
+        - external_writes
+        - deployment
+        - billing_payments
+        - secrets
+        - destructive_git
+        - destructive_filesystem
+        - account_automation
+        - git_remote_setup
+        - git_push
+      denied:
+        - quota_bypass
+        - credential_capture
+        - unattended_security_bypass
+    handoff:
+      input: "tools/agent-orchestrator/handoff/NEXT_TASK.md"
+      required_reads: "defaults.required_reads"
+      outputs: "defaults.handoff_outputs"
+    health_checks:
+      - "pnpm agent:doctor"
+      - "pnpm agent:status"
+
+  - id: gemini-cli
+    kind: gemini-cli
+    display_name: "Gemini CLI"
+    auth: "user-managed"
+    workspace: "E:\\agentApp"
+    status: "available"
+    launch:
+      mode: "manual"
+      instructions:
+        - "Open a terminal in E:\\agentApp."
+        - "Start Gemini CLI with the repository as context."
+        - "Paste the Agent Prompt from tools/agent-orchestrator/handoff/NEXT_TASK.md."
+    capabilities:
+      auto_allowed:
+        - local_file_edits
+        - validation
+        - read_only_checks
+        - memory_plan_updates
+        - git_status_diff
+      hold_for_user:
+        - external_writes
+        - deployment
+        - billing_payments
+        - secrets
+        - destructive_git
+        - destructive_filesystem
+        - account_automation
+        - git_remote_setup
+        - git_push
+      denied:
+        - quota_bypass
+        - credential_capture
+        - unattended_security_bypass
+    handoff:
+      input: "tools/agent-orchestrator/handoff/NEXT_TASK.md"
+      required_reads: "defaults.required_reads"
+      outputs: "defaults.handoff_outputs"
+    health_checks:
+      - "pnpm agent:doctor"
+      - "pnpm agent:status"
 
 rules:
-  - "Do not automate login or account switching."
-  - "Do not use workers to bypass quota or billing limits."
-  - "Use handoff files to continue work safely."
+  - "Workers are descriptors for normal user-authenticated tools, not account automation."
+  - "Before work starts, run or inspect pnpm agent:doctor and pnpm agent:status."
+  - "After meaningful work, update memory/plan/handoff, run validation, commit, and push when authorized."
+  - "If a worker reaches quota, session timeout, missing credentials, failed tests with ambiguous next steps, or a hold_for_user operation, update handoff files and stop."
+  - "Never store secrets or account-specific identifiers in this registry."

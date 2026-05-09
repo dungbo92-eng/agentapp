@@ -13,6 +13,15 @@
 | `handoff/RUN_STATUS.md` | 최근 실행 결과 |
 | `handoff/DECISIONS_REQUIRED.md` | 사용자 결정 필요 항목 |
 
+## Worker registry
+
+`workers.example.yaml`은 실제 계정 정보를 저장하지 않는 예시 registry다.
+
+- worker는 정상 인증된 도구/세션을 사람이 여는 방식으로 시작한다.
+- `capabilities.auto_allowed`는 `approval-policy.yaml`의 안전 작업 id만 참조한다.
+- `capabilities.hold_for_user`와 `capabilities.denied`는 자동 실행하지 않는다.
+- 작업 완료 시 memory/plan/handoff 갱신, 검증, commit, 승인된 remote push를 수행한다.
+
 ## 원칙
 
 - 이 디렉터리는 계정 제한 우회용이 아니다.
