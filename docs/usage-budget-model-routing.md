@@ -113,6 +113,7 @@ choose_model(task, accounts):
 pnpm agent:route -- --task "Docker 설치 방법 정리"
 pnpm agent:route -- --task "자동매매 로직 설계" --complexity complex
 pnpm agent:route -- --task "AI 모델 연동 보안 설계" --complexity critical --json
+pnpm agent:route -- --config tools/agent-orchestrator/usage-budget.low.example.json --task "자동매매 로직 설계" --complexity complex --write-decision
 ```
 
 CLI는 `tools/agent-orchestrator/usage-budget.example.json` 형식의 설정을 읽고 아래를 추천한다.
@@ -124,6 +125,8 @@ CLI는 `tools/agent-orchestrator/usage-budget.example.json` 형식의 설정을 
 - estimated units
 - weekend reserve 상태
 - 추천 사유
+
+`--write-decision`을 함께 쓰면 `needs_decision` 또는 `blocked` 상태일 때 `DECISIONS_REQUIRED.md`에 사용량 부족 decision을 남긴다.
 
 ## 출력 예시
 

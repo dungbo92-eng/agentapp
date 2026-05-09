@@ -87,9 +87,11 @@
 ```bash
 pnpm agent:route -- --task "Docker 설치 방법 정리"
 pnpm agent:route -- --task "자동매매 로직 설계" --complexity complex
+pnpm agent:route -- --config tools/agent-orchestrator/usage-budget.low.example.json --task "자동매매 로직 설계" --complexity complex --write-decision
 ```
 
 이 명령은 실제 계정을 전환하지 않고 `usage-budget.example.json` 형태의 로컬 예산 설정을 기반으로 추천만 출력한다.
+`--write-decision`은 사용량 부족 시 `DECISIONS_REQUIRED.md`에 작업 분해/사용자 승인 선택지를 남긴다.
 
 ## Usage budget CLI
 

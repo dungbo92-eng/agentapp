@@ -43,7 +43,7 @@
 - [x] 토요일/일요일 예비 사용량을 남기는 주간 예산 계산 로직 구현
 - [x] 작업 난이도(`routine`, `standard`, `complex`, `critical`) 분류 규칙 구현
 - [x] 품질 우선 모델 선택 로직 구현
-- [ ] 사용량 부족 시 작업 분해 또는 사용자 결정 요청 handoff 구현
+- [x] 사용량 부족 시 작업 분해 또는 사용자 결정 요청 handoff 구현
 
 ## Phase 5 — Dashboard
 

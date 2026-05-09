@@ -51,7 +51,7 @@
       "title": "사용량 부족 시 작업 분해 또는 사용자 결정 요청 handoff 구현",
       "phase": "phase-4",
       "priority": 80,
-      "status": "pending",
+      "status": "done",
       "depends_on": ["usage-budget-schema", "model-routing-cli", "weekly-budget-calculator"],
       "blocked_by": [],
       "reason": "예산 부족 상태를 감지했을 때 자동 계정 전환이 아니라 작업 분해/사용자 결정 큐로 넘겨야 한다."

@@ -8,7 +8,8 @@ const REPO_ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..
 const JSON_FILES = [
   "tools/agent-orchestrator/task-queue.json",
   "tools/agent-orchestrator/usage-budget.schema.json",
-  "tools/agent-orchestrator/usage-budget.example.json"
+  "tools/agent-orchestrator/usage-budget.example.json",
+  "tools/agent-orchestrator/usage-budget.low.example.json"
 ];
 
 async function readJson(relativePath) {

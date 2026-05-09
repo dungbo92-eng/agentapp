@@ -1,11 +1,12 @@
 #!/usr/bin/env node
 
-import { readFile } from "node:fs/promises";
+import { readFile, writeFile } from "node:fs/promises";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 
 const REPO_ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 const DEFAULT_CONFIG = path.join(REPO_ROOT, "tools", "agent-orchestrator", "usage-budget.example.json");
+const DECISIONS = path.join(REPO_ROOT, "tools", "agent-orchestrator", "handoff", "DECISIONS_REQUIRED.md");
 
 const COMPLEXITIES = new Set(["routine", "standard", "complex", "critical"]);
 const RISKS = new Set(["low", "medium", "high"]);
@@ -25,13 +26,18 @@ function parseArgs(argv) {
     provider: "",
     complexity: "",
     risk: "",
-    task: ""
+    task: "",
+    "write-decision": false
   };
 
   for (let index = 0; index < argv.length; index += 1) {
     const arg = argv[index];
     if (arg === "--json") {
       options.json = true;
+      continue;
+    }
+    if (arg === "--write-decision") {
+      options["write-decision"] = true;
       continue;
     }
     if (!arg.startsWith("--")) {
@@ -50,7 +56,7 @@ function parseArgs(argv) {
 }
 
 function usage() {
-  console.error("usage: pnpm agent:route -- --task \"작업 설명\" [--complexity routine|standard|complex|critical] [--risk low|medium|high] [--provider claude|codex] [--json]");
+  console.error("usage: pnpm agent:route -- --task \"작업 설명\" [--complexity routine|standard|complex|critical] [--risk low|medium|high] [--provider claude|codex] [--json] [--write-decision]");
 }
 
 async function readJson(file) {
@@ -174,6 +180,46 @@ function chooseModel(config, options) {
   };
 }
 
+function compactDate() {
+  return new Date().toISOString().slice(0, 10).replace(/-/g, "");
+}
+
+function decisionId(result) {
+  const suffix = `${result.complexity || "unknown"}-${(result.provider || "any").replace(/[^a-z0-9-]/gi, "-")}`;
+  return `DEC-${compactDate()}-USAGE-${suffix}`.toUpperCase();
+}
+
+function decisionEntry(result) {
+  const id = decisionId(result);
+  const summary =
+    result.status === "blocked"
+      ? "조건에 맞는 계정/모델 프로필이 없거나 남은 사용량이 부족하다."
+      : "추천 모델 실행 시 주말 예비 사용량을 침범한다.";
+
+  return {
+    id,
+    markdown: `\n### ${id} — 사용량 예산 부족: ${result.task || "작업"}\n\n- Status: pending\n- Priority: high\n- Category: usage_budget\n- Requested by: agent\n- Blocks: ${result.task || "모델 라우팅 대상 작업"}\n- Context: ${summary}\n- Options:\n  - A: 작업을 탐색/설계/구현/검증 단계로 나누고 낮은 위험 단계부터 실행한다.\n  - B: 사용자가 이번 주 예산 사용을 승인한 뒤 최고 품질 모델로 진행한다.\n- Recommended: A. 제한 우회 없이 품질과 주말 예비분을 같이 지킨다.\n- Decision needed: 이 작업을 분해해서 진행할까, 예산 사용을 승인하고 진행할까?\n- After decision: agent:route 또는 agent:budget 결과를 다시 확인하고 NEXT_TASK를 갱신한다.\n- Created: ${new Date().toISOString().slice(0, 10)}\n`
+  };
+}
+
+async function writeDecisionIfNeeded(result) {
+  if (!["needs_decision", "blocked"].includes(result.status)) return null;
+
+  const { id, markdown } = decisionEntry(result);
+  const current = await readFile(DECISIONS, "utf8");
+  if (current.includes(`### ${id} `)) {
+    return { id, written: false, path: DECISIONS, reason: "already_exists" };
+  }
+
+  const marker = "\n## 해결됨";
+  const next =
+    current.includes(marker)
+      ? current.replace(marker, `${markdown}${marker}`)
+      : `${current.trimEnd()}\n${markdown}\n`;
+  await writeFile(DECISIONS, next, "utf8");
+  return { id, written: true, path: DECISIONS };
+}
+
 function printHuman(result) {
   console.log(`status=${result.status}`);
   console.log(`complexity=${result.complexity}`);
@@ -199,6 +245,8 @@ if (!options.task) {
 
 const config = await readJson(path.resolve(REPO_ROOT, options.config));
 const result = chooseModel(config, options);
+const decision = options["write-decision"] ? await writeDecisionIfNeeded(result) : null;
+if (decision) result.decision = decision;
 
 if (options.json) {
   console.log(JSON.stringify(result, null, 2));

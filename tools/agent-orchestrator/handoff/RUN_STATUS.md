@@ -105,3 +105,12 @@ NEXT_TASK.md 템플릿 확정: agent-next 생성물을 Required Reads, Execution
 - Git: pending commit/push
 - Decisions: none
 - Next: 사용량 부족 시 작업 분해 또는 사용자 결정 요청 handoff 구현
+
+## 2026-05-09T13:09:42.465Z
+
+- Status: completed
+- Summary: 사용량 부족 handoff 구현: agent:route --write-decision 옵션 추가, low budget 예시 설정 추가, needs_decision 상태 검증.
+- Verification: pnpm validate 통과; low config complex route가 needs_decision 반환; pnpm agent:progress=44%
+- Git: pending commit/push
+- Decisions: 실제 decision queue에는 테스트 항목을 쓰지 않음
+- Next: agent-progress phase별 진행률 출력 개선
