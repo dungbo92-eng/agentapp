@@ -1,6 +1,6 @@
 # NEXT_TASK
 
-- Generated: 2026-05-09T12:57:08.617Z
+- Generated: 2026-05-09T12:58:16.443Z
 - Selected task: 작업 난이도별 모델 추천 CLI 초안 작성
 - Selection source: task-queue
 - Task id: model-routing-cli
