@@ -78,3 +78,12 @@ NEXT_TASK.md 템플릿 확정: agent-next 생성물을 Required Reads, Execution
 - Git: pending commit/push
 - Decisions: DEC-20260509-001이 dashboard task를 보류하도록 task queue에 반영
 - Next: 계정 수/요금제/남은 주간 사용량 설정 스키마 작성
+
+## 2026-05-09T12:57:17.793Z
+
+- Status: completed
+- Summary: 사용량 예산 설정 스키마 작성: usage-budget.schema.json/example.json 추가, validate-configs로 JSON 설정 검증을 pnpm validate에 통합.
+- Verification: pnpm validate 통과; pnpm agent:next가 모델 추천 CLI 초안을 선택; pnpm agent:progress=35%
+- Git: pending commit/push
+- Decisions: usage 입력 방식 DEC-20260509-003은 대기 유지, MVP는 수동 입력 가능한 스키마부터 진행
+- Next: 작업 난이도별 모델 추천 CLI 초안 작성

@@ -1,0 +1,163 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://agentapp.local/schemas/usage-budget.schema.json",
+  "title": "AgentApp Usage Budget Configuration",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["version", "timezone", "week_start_day", "weekend_reserve", "accounts", "routing"],
+  "properties": {
+    "version": {
+      "type": "integer",
+      "const": 1
+    },
+    "timezone": {
+      "type": "string",
+      "description": "IANA timezone used for weekly reset and weekend reserve calculations."
+    },
+    "week_start_day": {
+      "type": "string",
+      "enum": ["monday", "tuesday", "wednesday", "thursday", "friday", "saturday", "sunday"]
+    },
+    "weekend_reserve": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["enabled", "days", "minimum_units"],
+      "properties": {
+        "enabled": {
+          "type": "boolean"
+        },
+        "days": {
+          "type": "array",
+          "minItems": 1,
+          "uniqueItems": true,
+          "items": {
+            "type": "string",
+            "enum": ["saturday", "sunday"]
+          }
+        },
+        "minimum_units": {
+          "type": "number",
+          "minimum": 0,
+          "maximum": 100
+        }
+      }
+    },
+    "accounts": {
+      "type": "array",
+      "minItems": 1,
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "id",
+          "provider",
+          "plan",
+          "auth",
+          "weekly_budget_units",
+          "remaining_units",
+          "reset_day",
+          "model_profiles"
+        ],
+        "properties": {
+          "id": {
+            "type": "string",
+            "pattern": "^[a-z0-9][a-z0-9-]*$",
+            "description": "Local alias only. Do not use emails, usernames, or account identifiers."
+          },
+          "provider": {
+            "type": "string",
+            "enum": ["claude", "codex", "cursor", "gemini", "other"]
+          },
+          "plan": {
+            "type": "string",
+            "enum": ["free", "plus", "pro", "team", "enterprise", "other"]
+          },
+          "auth": {
+            "type": "string",
+            "const": "user-managed"
+          },
+          "weekly_budget_units": {
+            "type": "number",
+            "exclusiveMinimum": 0,
+            "maximum": 100
+          },
+          "remaining_units": {
+            "type": "number",
+            "minimum": 0,
+            "maximum": 100
+          },
+          "reset_day": {
+            "type": "string",
+            "enum": ["monday", "tuesday", "wednesday", "thursday", "friday", "saturday", "sunday"]
+          },
+          "model_profiles": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": ["routine", "standard", "complex", "critical"],
+            "properties": {
+              "routine": {
+                "$ref": "#/$defs/model_profile"
+              },
+              "standard": {
+                "$ref": "#/$defs/model_profile"
+              },
+              "complex": {
+                "$ref": "#/$defs/model_profile"
+              },
+              "critical": {
+                "$ref": "#/$defs/model_profile"
+              }
+            }
+          }
+        }
+      }
+    },
+    "routing": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["quality_first", "allow_downgrade_for", "require_confirmation_for"],
+      "properties": {
+        "quality_first": {
+          "type": "boolean",
+          "const": true
+        },
+        "allow_downgrade_for": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "enum": ["routine", "standard"]
+          }
+        },
+        "require_confirmation_for": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "enum": ["complex", "critical", "external_write", "deployment", "billing", "secrets"]
+          }
+        }
+      }
+    }
+  },
+  "$defs": {
+    "model_profile": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["model_tier", "reasoning_effort", "estimated_units"],
+      "properties": {
+        "model_tier": {
+          "type": "string",
+          "enum": ["efficient", "balanced", "best_available", "sonnet", "opus", "other"]
+        },
+        "reasoning_effort": {
+          "type": "string",
+          "enum": ["low", "normal", "medium", "high", "very_high", "xhigh"]
+        },
+        "estimated_units": {
+          "type": "number",
+          "minimum": 0,
+          "maximum": 100
+        }
+      }
+    }
+  }
+}

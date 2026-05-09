@@ -9,6 +9,8 @@
 | `approval-policy.yaml` | 자동 진행 가능/사용자 승인 필요 기준 |
 | `workers.example.yaml` | worker registry 예시 |
 | `task-queue.json` | 우선순위/의존성/보류 상태를 가진 작업 큐 |
+| `usage-budget.schema.json` | 주간 사용량 예산 설정 스키마 |
+| `usage-budget.example.json` | 비밀값 없는 주간 사용량 예시 설정 |
 | `roadmap.yaml` | 기계가 읽기 쉬운 로드맵 초안 |
 | `handoff/NEXT_TASK.md` | 다음 에이전트가 수행할 작업 |
 | `handoff/RUN_STATUS.md` | 최근 실행 결과 |

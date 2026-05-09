@@ -1,0 +1,79 @@
+{
+  "version": 1,
+  "timezone": "Asia/Seoul",
+  "week_start_day": "monday",
+  "weekend_reserve": {
+    "enabled": true,
+    "days": ["saturday", "sunday"],
+    "minimum_units": 35
+  },
+  "accounts": [
+    {
+      "id": "claude-pro-1",
+      "provider": "claude",
+      "plan": "pro",
+      "auth": "user-managed",
+      "weekly_budget_units": 100,
+      "remaining_units": 70,
+      "reset_day": "monday",
+      "model_profiles": {
+        "routine": {
+          "model_tier": "sonnet",
+          "reasoning_effort": "normal",
+          "estimated_units": 3
+        },
+        "standard": {
+          "model_tier": "sonnet",
+          "reasoning_effort": "high",
+          "estimated_units": 7
+        },
+        "complex": {
+          "model_tier": "opus",
+          "reasoning_effort": "very_high",
+          "estimated_units": 18
+        },
+        "critical": {
+          "model_tier": "opus",
+          "reasoning_effort": "very_high",
+          "estimated_units": 28
+        }
+      }
+    },
+    {
+      "id": "codex-plus-1",
+      "provider": "codex",
+      "plan": "plus",
+      "auth": "user-managed",
+      "weekly_budget_units": 100,
+      "remaining_units": 70,
+      "reset_day": "monday",
+      "model_profiles": {
+        "routine": {
+          "model_tier": "efficient",
+          "reasoning_effort": "medium",
+          "estimated_units": 3
+        },
+        "standard": {
+          "model_tier": "balanced",
+          "reasoning_effort": "high",
+          "estimated_units": 8
+        },
+        "complex": {
+          "model_tier": "best_available",
+          "reasoning_effort": "xhigh",
+          "estimated_units": 20
+        },
+        "critical": {
+          "model_tier": "best_available",
+          "reasoning_effort": "xhigh",
+          "estimated_units": 30
+        }
+      }
+    }
+  ],
+  "routing": {
+    "quality_first": true,
+    "allow_downgrade_for": ["routine"],
+    "require_confirmation_for": ["critical", "external_write", "deployment", "billing", "secrets"]
+  }
+}

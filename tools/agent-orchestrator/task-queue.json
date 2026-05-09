@@ -21,7 +21,7 @@
       "title": "계정 수/요금제/남은 주간 사용량 설정 스키마 작성",
       "phase": "phase-4",
       "priority": 95,
-      "status": "pending",
+      "status": "done",
       "depends_on": [],
       "blocked_by": [],
       "reason": "사용량 예산과 모델 라우팅 구현의 입력 계약이 먼저 필요하다."

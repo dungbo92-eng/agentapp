@@ -21,7 +21,7 @@
     "claude:sync": "node scripts/claude-sync.mjs --auto --verbose",
     "claude:status": "node scripts/claude-sync.mjs --status",
     "hooks:install": "node scripts/install-hooks.mjs",
-    "validate": "node --check scripts/claude-sync.mjs && node --check scripts/install-hooks.mjs && node --check scripts/agent-doctor.mjs && node --check scripts/agent-next.mjs && node --check scripts/agent-progress.mjs && node --check scripts/agent-report.mjs",
+    "validate": "node --check scripts/claude-sync.mjs && node --check scripts/install-hooks.mjs && node --check scripts/agent-doctor.mjs && node --check scripts/agent-next.mjs && node --check scripts/agent-progress.mjs && node --check scripts/agent-report.mjs && node --check scripts/validate-configs.mjs && node scripts/validate-configs.mjs",
     "postinstall": "node scripts/install-hooks.mjs && node scripts/claude-sync.mjs --auto --quiet-on-noop"
   },
   "devDependencies": {}
