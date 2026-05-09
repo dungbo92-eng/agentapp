@@ -48,22 +48,6 @@
 - After decision: roadmap 우선순위와 다음 task selection 로직에 반영한다.
 - Created: 2026-05-09
 
-### DEC-20260509-002 — worker 실행 범위
-
-- Status: pending
-- Priority: high
-- Category: worker
-- Requested by: agent
-- Blocks: Worker adapter Phase의 자동화 범위
-- Context: AgentApp이 프롬프트와 handoff만 생성할지, 일부 CLI 실행까지 자동으로 맡을지 결정이 필요하다.
-- Options:
-  - A: 프롬프트 생성과 handoff까지만 지원. 안전하고 계정/승인 우회 리스크가 낮다.
-  - B: allowlist 안의 로컬 CLI 작업까지 실행. 생산성은 높지만 정책/감사 로그가 더 필요하다.
-- Recommended: A에서 시작 후 `auto_allowed` 로컬 작업만 단계적으로 확장한다.
-- Decision needed: worker 실행은 프롬프트 생성까지만 둘지, 일부 로컬 CLI 자동 실행까지 허용할지?
-- After decision: `workers.example.yaml`, approval policy, adapter roadmap에 반영한다.
-- Created: 2026-05-09
-
 ### DEC-20260509-003 — 주간 사용량 입력 방식
 
 - Status: pending
@@ -93,3 +77,15 @@
 - Decision: `git@github.com:dungbo92-eng/agentapp.git`
 - Resolved: 2026-05-09
 - Result: `origin` 등록, `main` push 완료.
+
+### DEC-20260509-002 — worker 실행 범위
+
+- Status: resolved
+- Priority: high
+- Category: worker
+- Requested by: agent
+- Blocks: Worker adapter Phase의 자동화 범위
+- Context: AgentApp이 프롬프트와 handoff만 생성할지, 일부 CLI 실행까지 자동으로 맡을지 결정이 필요했다.
+- Decision: 개발 구현, 문서화, 테스트, 로컬 검증, memory/plan/handoff 갱신, commit/push는 추가 확인 없이 계속 진행한다.
+- Resolved: 2026-05-09
+- Result: `auto_allowed` 범위의 로컬 작업은 에이전트가 자율 진행한다. `hold_for_user`와 `deny`에 해당하는 작업만 decision queue로 넘긴다.

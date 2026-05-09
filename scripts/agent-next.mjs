@@ -10,6 +10,7 @@ const PROJECT_STATE = path.join(REPO_ROOT, ".claude-sync", "memory", "project_st
 const POLICY = path.join(REPO_ROOT, "tools", "agent-orchestrator", "approval-policy.yaml");
 const WORKERS = path.join(REPO_ROOT, "tools", "agent-orchestrator", "workers.example.yaml");
 const USAGE_BUDGET = path.join(REPO_ROOT, "docs", "usage-budget-model-routing.md");
+const COMPLETION_PROTOCOL = path.join(REPO_ROOT, "docs", "handoff-completion-protocol.md");
 const HANDOFF_DIR = path.join(REPO_ROOT, "tools", "agent-orchestrator", "handoff");
 const NEXT_TASK = path.join(HANDOFF_DIR, "NEXT_TASK.md");
 
@@ -26,6 +27,7 @@ const state = await readText(PROJECT_STATE);
 const policy = await readText(POLICY);
 const workers = await readText(WORKERS);
 const usageBudget = await readText(USAGE_BUDGET);
+const completionProtocol = await readText(COMPLETION_PROTOCOL);
 
 const unchecked = [...roadmap.matchAll(/^- \[ \] (.+)$/gm)].map((match) => match[1].trim());
 const selected = unchecked[0] || "로드맵의 다음 미완료 작업을 정리한다.";
@@ -50,7 +52,8 @@ const body = `# NEXT_TASK
 3. .claude-sync/plans/agent-orchestrator-roadmap.md
 4. tools/agent-orchestrator/approval-policy.yaml
 5. docs/usage-budget-model-routing.md
-6. tools/agent-orchestrator/workers.example.yaml
+6. docs/handoff-completion-protocol.md
+7. tools/agent-orchestrator/workers.example.yaml
 
 ## Agent Prompt
 
@@ -67,6 +70,7 @@ const body = `# NEXT_TASK
 - \`deny\`에 해당하는 작업은 구현하지 않는다.
 - 비밀값, 계정 정보, 토큰, 쿠키, 운영 인증 정보는 파일/로그/문서에 남기지 않는다.
 - 작업 범위가 섞여 있으면 안전한 로컬 부분만 완료하고 보류 항목을 기록한다.
+- 개발 구현, 문서화, 테스트, 로컬 검증, handoff 갱신, commit/push는 추가 확인 없이 계속 진행한다.
 
 ## Completion Checklist
 
@@ -110,6 +114,12 @@ ${excerpt(workers, 2500)}
 
 \`\`\`md
 ${excerpt(usageBudget, 2500)}
+\`\`\`
+
+### Handoff Completion Protocol
+
+\`\`\`md
+${excerpt(completionProtocol, 2500)}
 \`\`\`
 `;
 

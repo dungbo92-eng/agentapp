@@ -12,6 +12,7 @@
 | `CLAUDE.md` | Claude Code 자동 로드용 규칙 |
 | `.claude-sync/memory` | 현재 상태, 사용자 선호, 장기 메모리 |
 | `.claude-sync/plans` | 로드맵/큰 계획 |
+| `docs/handoff-completion-protocol.md` | 작업 완료/중단 시 갱신 규칙 |
 | `docs/usage-budget-model-routing.md` | 주간 사용량 예산과 모델 선택 방향 |
 | `tools/agent-orchestrator` | worker, 승인 정책, handoff 문서 |
 | `scripts/claude-sync.mjs` | repo `.claude-sync` ↔ 로컬 `~/.claude` 동기화 |
@@ -48,6 +49,7 @@ pnpm validate        # 로컬 스크립트 문법 검증
 - 정상 로그인된 도구/에이전트가 가능한 범위에서 작업을 이어받는다.
 - 주간 사용량은 사용자가 보유한 정상 계정의 남은 예산을 계획적으로 배분하는 용도로만 관리한다.
 - 모델 선택은 품질 우선이며, 단순 작업은 효율 모델, 복잡한 설계/추론은 최고 품질 모델을 추천한다.
+- 개발 구현, 문서화, 테스트, 로컬 검증, handoff 갱신, commit/push는 추가 확인 없이 이어간다.
 - 코드 수정, 테스트, 문서화, 로컬 실행은 자동 진행 가능하다.
 - 외부 운영계 쓰기, 결제, 배포, 비밀값 변경, 파괴적 파일/DB 작업은 사용자 승인을 요구한다.
 - 검증된 변경은 로컬 git commit으로 남긴다.

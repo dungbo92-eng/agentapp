@@ -57,6 +57,16 @@
 - Decision needed: 사용자에게 물을 질문
 - After decision: 결정 후 이어갈 작업
 
+## Completion protocol
+
+작업 완료/중단 시에는 `docs/handoff-completion-protocol.md`를 따른다.
+
+- 완료 시 roadmap, `project_state.md`, `RUN_STATUS.md`, `DECISIONS_REQUIRED.md`, `NEXT_TASK.md`를 갱신한다.
+- `pnpm validate`, `pnpm agent:doctor`, `pnpm agent:status`로 검증한다.
+- 검증된 변경은 commit 후 remote가 설정되어 있으면 push한다.
+- 개발 구현/문서/테스트/로컬 검증은 추가 확인 없이 계속 진행한다.
+- `hold_for_user` 또는 `deny` 작업만 decision queue로 넘긴다.
+
 ## 원칙
 
 - 이 디렉터리는 계정 제한 우회용이 아니다.

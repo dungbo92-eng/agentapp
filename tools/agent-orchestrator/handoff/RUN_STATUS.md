@@ -60,3 +60,12 @@ NEXT_TASK.md 템플릿 확정: agent-next 생성물을 Required Reads, Execution
 - Git: pending commit/push
 - Decisions: 대기 항목 3개 유지
 - Next: 작업 종료 시 memory/plan/handoff 갱신 규칙 정리
+
+## 2026-05-09T12:50:52.064Z
+
+- Status: completed
+- Summary: 작업 종료 시 memory/plan/handoff 갱신 규칙 정리: docs/handoff-completion-protocol.md 추가, agent-next Required Reads에 완료 프로토콜 포함, 개발 구현 자율 진행 원칙 반영.
+- Verification: pnpm validate 통과; pnpm agent:progress=30%
+- Git: pending commit/push
+- Decisions: DEC-20260509-002 worker 실행 범위 resolved: auto_allowed 로컬 개발 작업은 자율 진행
+- Next: agent-next 우선순위/의존성/보류 상태 반영 개선

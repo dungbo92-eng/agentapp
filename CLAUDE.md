@@ -9,6 +9,7 @@
 - `.claude-sync`는 Claude 전용이 아니라 모든 에이전트 공용 memory/plan 동기화 저장소다.
 - 모델 선택은 품질 우선이다. 단순 작업은 효율 모델, 복잡한 설계/추론 작업은 최고 품질 모델을 사용하도록 추천한다.
 - 주간 사용량 관리는 정상 보유 계정의 로컬 예산 배분이며, 자동 로그인/자동 계정 전환/제한 우회가 아니다.
+- 개발 구현, 문서화, 테스트, 로컬 검증, memory/plan/handoff 갱신, commit/push는 추가 확인 없이 계속 진행한다.
 
 ## 절대 금지
 
@@ -32,8 +33,9 @@
 3. `.claude-sync/plans/agent-orchestrator-roadmap.md`를 읽는다.
 4. `tools/agent-orchestrator/approval-policy.yaml`을 읽는다.
 5. `docs/usage-budget-model-routing.md`를 읽고 작업 난이도에 맞는 모델/예산 정책을 확인한다.
-6. `tools/agent-orchestrator/handoff/NEXT_TASK.md`를 확인한다.
-7. `git status`로 현재 변경 사항을 확인한다.
+6. `docs/handoff-completion-protocol.md`를 읽고 완료/중단 시 갱신 규칙을 확인한다.
+7. `tools/agent-orchestrator/handoff/NEXT_TASK.md`를 확인한다.
+8. `git status`로 현재 변경 사항을 확인한다.
 
 ## 동기화
 

@@ -16,6 +16,7 @@
 - MCP/커넥터/설정 파일에 운영 비밀값을 저장하지 않는다.
 - 외부 서비스 `POST`, `PUT`, `PATCH`, `DELETE`, 배포, 결제, 운영 DB 파괴적 변경은 사용자 명시 승인 없이 실행하지 않는다.
 - 로컬 파일 수정, 테스트, 빌드, 문서 갱신, read-only 점검은 자동 진행 가능하다.
+- 개발 구현, 문서화, 테스트, 로컬 검증, memory/plan/handoff 갱신, commit/push는 사용자의 추가 확인 없이 계속 진행한다.
 
 ## 1. 프로젝트 한 줄
 
@@ -118,10 +119,11 @@ New-ItemProperty -Path HKCU:\Console -Name VirtualTerminalLevel -PropertyType DW
 3. `.claude-sync/plans/agent-orchestrator-roadmap.md`를 읽는다.
 4. `tools/agent-orchestrator/approval-policy.yaml`을 확인한다.
 5. `docs/usage-budget-model-routing.md`를 확인하고 작업 난이도에 맞는 모델/예산 정책을 따른다.
-6. `tools/agent-orchestrator/handoff/NEXT_TASK.md`가 있으면 우선 확인한다.
-7. 의사결정이 필요 없는 작업이면 바로 진행한다.
-8. 작업 후 테스트/검증 결과를 남긴다.
-9. `project_state.md`, roadmap, handoff를 갱신한다.
+6. `docs/handoff-completion-protocol.md`를 확인하고 작업 종료 규칙을 따른다.
+7. `tools/agent-orchestrator/handoff/NEXT_TASK.md`가 있으면 우선 확인한다.
+8. 의사결정이 필요 없는 개발 작업이면 바로 진행한다.
+9. 작업 후 테스트/검증 결과를 남긴다.
+10. `project_state.md`, roadmap, handoff를 갱신한다.
 
 ## 7. 응답 / 코딩 규칙
 
