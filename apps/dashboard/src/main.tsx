@@ -1,6 +1,29 @@
 import React from "react";
 import { createRoot } from "react-dom/client";
-import { AlertCircle, CheckCircle2, ClipboardList, FileText, Gauge, GitBranch, TimerReset } from "lucide-react";
+import {
+  AlertCircle,
+  Bot,
+  CheckCircle2,
+  CircleStop,
+  ClipboardList,
+  FolderGit2,
+  Gauge,
+  GitBranch,
+  KeyRound,
+  MessageSquareText,
+  Play,
+  Plus,
+  RefreshCcw,
+  Send,
+  Settings,
+  ShieldCheck,
+  Square,
+  Terminal,
+  TimerReset,
+  UserCheck,
+  Zap,
+  type LucideIcon,
+} from "lucide-react";
 import "./styles.css";
 
 type Phase = {
@@ -86,12 +109,6 @@ type Snapshot = {
     days_to_reset: number;
     weekend_days_left: string[];
     reserve_ok_now: boolean;
-    provider_summaries: {
-      provider: string;
-      accounts: number;
-      remaining_units: number;
-      weekly_budget_units: number;
-    }[];
     accounts: {
       id: string;
       provider: string;
@@ -128,17 +145,88 @@ type Snapshot = {
   }[];
 };
 
-const numberFormatter = new Intl.NumberFormat("ko-KR");
+type ManagedAccount = {
+  id: string;
+  provider: string;
+  plan: string;
+  remainingUnits: number;
+  weeklyUnits: number;
+  resetDay: string;
+  source: "config" | "local";
+};
 
-function Stat({ label, value, icon: Icon }: { label: string; value: string; icon: typeof Gauge }) {
+type ManagedProject = {
+  id: string;
+  name: string;
+  path: string;
+  status: "active" | "registered" | "needs-baseline";
+  progress: number;
+};
+
+type RunRecord = {
+  id: string;
+  status: "running" | "stopped" | "queued";
+  workerId: string;
+  projectId: string;
+  prompt: string;
+  complexity: string;
+  startedAt: string;
+  stoppedAt?: string;
+};
+
+type RuntimeState = {
+  accounts: ManagedAccount[];
+  projects: ManagedProject[];
+  activeRun: RunRecord | null;
+  runHistory: RunRecord[];
+};
+
+const numberFormatter = new Intl.NumberFormat("ko-KR");
+const emptyRuntime: RuntimeState = { accounts: [], projects: [], activeRun: null, runHistory: [] };
+
+function safeParse<T>(value: string | null, fallback: T): T {
+  if (!value) return fallback;
+  try {
+    return JSON.parse(value) as T;
+  } catch {
+    return fallback;
+  }
+}
+
+function useStoredState<T>(key: string, initialValue: T) {
+  const [value, setValue] = React.useState<T>(() => safeParse(window.localStorage.getItem(key), initialValue));
+
+  React.useEffect(() => {
+    window.localStorage.setItem(key, JSON.stringify(value));
+  }, [key, value]);
+
+  return [value, setValue] as const;
+}
+
+function StatusPill({ status }: { status: string }) {
+  return <span className={`pill ${status}`}>{status || "unknown"}</span>;
+}
+
+function IconButton({
+  children,
+  icon: Icon,
+  variant = "ghost",
+  type = "button",
+  disabled = false,
+  onClick,
+}: {
+  children: React.ReactNode;
+  icon: LucideIcon;
+  variant?: "primary" | "danger" | "ghost";
+  type?: "button" | "submit";
+  disabled?: boolean;
+  onClick?: () => void;
+}) {
   return (
-    <section className="stat">
-      <Icon aria-hidden="true" size={18} />
-      <div>
-        <span>{label}</span>
-        <strong>{value}</strong>
-      </div>
-    </section>
+    <button className={`button ${variant}`} disabled={disabled} type={type} onClick={onClick}>
+      <Icon aria-hidden="true" size={16} />
+      <span>{children}</span>
+    </button>
   );
 }
 
@@ -150,9 +238,38 @@ function ProgressBar({ value }: { value: number }) {
   );
 }
 
+function Stat({ label, value, icon: Icon }: { label: string; value: string; icon: LucideIcon }) {
+  return (
+    <section className="stat">
+      <Icon aria-hidden="true" size={17} />
+      <div>
+        <span>{label}</span>
+        <strong>{value}</strong>
+      </div>
+    </section>
+  );
+}
+
+function uniqById<T extends { id: string }>(items: T[]) {
+  return Array.from(new Map(items.map((item) => [item.id, item])).values());
+}
+
 function App() {
   const [snapshot, setSnapshot] = React.useState<Snapshot | null>(null);
   const [error, setError] = React.useState("");
+  const [runtime, setRuntime] = useStoredState<RuntimeState>("agent-app-runtime", emptyRuntime);
+  const [prompt, setPrompt] = React.useState("");
+  const [complexity, setComplexity] = React.useState("standard");
+  const [selectedWorker, setSelectedWorker] = React.useState("codex");
+  const [selectedProject, setSelectedProject] = React.useState("current");
+  const [accountForm, setAccountForm] = React.useState({
+    provider: "claude",
+    plan: "pro",
+    alias: "",
+    remainingUnits: "70",
+    weeklyUnits: "100",
+  });
+  const [projectForm, setProjectForm] = React.useState({ name: "", path: "" });
 
   React.useEffect(() => {
     fetch("/agent-snapshot.json", { cache: "no-store" })
@@ -163,6 +280,12 @@ function App() {
       .then(setSnapshot)
       .catch((caught: unknown) => setError(caught instanceof Error ? caught.message : "snapshot load failed"));
   }, []);
+
+  React.useEffect(() => {
+    if (snapshot?.next_task.title && !prompt) {
+      setPrompt(snapshot.next_task.title === "none" ? "" : snapshot.next_task.title);
+    }
+  }, [snapshot, prompt]);
 
   if (error) {
     return (
@@ -180,315 +303,477 @@ function App() {
       <main className="shell">
         <section className="notice">
           <TimerReset aria-hidden="true" />
-          <strong>Loading snapshot</strong>
+          <strong>Loading workspace</strong>
         </section>
       </main>
     );
   }
 
-  const pendingCount = snapshot.pending_decisions.length;
-  const phaseCount = snapshot.progress.phases.length;
+  const currentProject: ManagedProject = {
+    id: "current",
+    name: "AgentApp",
+    path: snapshot.repo_root,
+    status: "active",
+    progress: snapshot.progress.percent,
+  };
+  const projects = uniqById([currentProject, ...runtime.projects]);
+  const configuredAccounts: ManagedAccount[] = snapshot.usage_budget.accounts.map((account) => ({
+    id: account.id,
+    provider: account.provider,
+    plan: account.plan,
+    remainingUnits: account.remaining_units,
+    weeklyUnits: account.weekly_budget_units,
+    resetDay: account.reset_day,
+    source: "config",
+  }));
+  const accounts = uniqById([...configuredAccounts, ...runtime.accounts]);
+  const selectedRecommendation = snapshot.usage_budget.recommendations.find((item) => item.complexity === complexity);
+  const selectedProjectRecord = projects.find((project) => project.id === selectedProject) || currentProject;
+  const activeRun = runtime.activeRun;
   const approvalCount = snapshot.approval_queue.pending_decisions.length + snapshot.approval_queue.held_tasks.length;
+  const nextTaskTitle = snapshot.next_task.title === "none" ? "새 계획 작성" : snapshot.next_task.title;
+
+  function updateRuntime(next: RuntimeState) {
+    setRuntime(next);
+  }
+
+  function addAccount(event: React.FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    const alias = accountForm.alias.trim();
+    if (!alias) return;
+
+    updateRuntime({
+      ...runtime,
+      accounts: uniqById([
+        ...runtime.accounts,
+        {
+          id: alias,
+          provider: accountForm.provider,
+          plan: accountForm.plan,
+          remainingUnits: Number(accountForm.remainingUnits) || 0,
+          weeklyUnits: Number(accountForm.weeklyUnits) || 100,
+          resetDay: "monday",
+          source: "local",
+        },
+      ]),
+    });
+    setAccountForm({ ...accountForm, alias: "" });
+  }
+
+  function addProject(event: React.FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    const path = projectForm.path.trim();
+    const name = projectForm.name.trim() || path.split(/[\\/]/).filter(Boolean).at(-1) || "Local project";
+    if (!path) return;
+
+    const project: ManagedProject = {
+      id: `local-${Date.now()}`,
+      name,
+      path,
+      status: "needs-baseline",
+      progress: 0,
+    };
+    updateRuntime({ ...runtime, projects: [...runtime.projects, project] });
+    setSelectedProject(project.id);
+    setProjectForm({ name: "", path: "" });
+  }
+
+  function startRun() {
+    const text = prompt.trim() || nextTaskTitle;
+    const run: RunRecord = {
+      id: `run-${Date.now()}`,
+      status: "running",
+      workerId: selectedWorker,
+      projectId: selectedProjectRecord.id,
+      prompt: text,
+      complexity,
+      startedAt: new Date().toISOString(),
+    };
+    updateRuntime({ ...runtime, activeRun: run, runHistory: [run, ...runtime.runHistory].slice(0, 8) });
+  }
+
+  function stopRun() {
+    if (!activeRun) return;
+    const stopped: RunRecord = { ...activeRun, status: "stopped", stoppedAt: new Date().toISOString() };
+    updateRuntime({
+      ...runtime,
+      activeRun: null,
+      runHistory: [stopped, ...runtime.runHistory.filter((run) => run.id !== activeRun.id)].slice(0, 8),
+    });
+  }
 
   return (
-    <main className="shell">
-      <header className="topbar">
-        <div>
-          <p>AgentApp</p>
-          <h1>Operations Dashboard</h1>
-        </div>
-        <time dateTime={snapshot.generated_at}>{new Date(snapshot.generated_at).toLocaleString("ko-KR")}</time>
-      </header>
-
-      <section className="overview">
-        <Stat label="Progress" value={`${snapshot.progress.percent}%`} icon={Gauge} />
-        <Stat label="Completed" value={`${snapshot.progress.done}/${snapshot.progress.total}`} icon={CheckCircle2} />
-        <Stat label="Approval Queue" value={String(approvalCount)} icon={AlertCircle} />
-        <Stat label="Queue Items" value={String(snapshot.task_queue.total)} icon={ClipboardList} />
-      </section>
-
-      <section className="band">
-        <div className="sectionTitle">
-          <h2>Next Task</h2>
-          <span>{snapshot.next_task.source || "handoff"}</span>
-        </div>
-        <div className="nextTask">
-          <strong>{snapshot.next_task.title || "No task selected"}</strong>
-          <dl>
-            <div>
-              <dt>ID</dt>
-              <dd>{snapshot.next_task.id || "n/a"}</dd>
-            </div>
-            <div>
-              <dt>Priority</dt>
-              <dd>{snapshot.next_task.priority || "n/a"}</dd>
-            </div>
-          </dl>
-        </div>
-      </section>
-
-      <section className="grid">
-        <div className="panel wide">
-          <div className="sectionTitle">
-            <h2>Phase Progress</h2>
-            <span>{phaseCount} phases</span>
+    <main className="appShell">
+      <aside className="sidebar">
+        <div className="brand">
+          <Bot aria-hidden="true" size={22} />
+          <div>
+            <strong>AgentApp</strong>
+            <span>Unified agent console</span>
           </div>
-          <div className="phaseList">
-            {snapshot.progress.phases.map((phase) => {
-              const percent = phase.total > 0 ? Math.round((phase.done / phase.total) * 100) : 0;
+        </div>
+
+        <nav className="navStack" aria-label="Workspace sections">
+          <a href="#run">
+            <Zap aria-hidden="true" size={16} />
+            Run
+          </a>
+          <a href="#projects">
+            <FolderGit2 aria-hidden="true" size={16} />
+            Projects
+          </a>
+          <a href="#accounts">
+            <KeyRound aria-hidden="true" size={16} />
+            Accounts
+          </a>
+          <a href="#handoff">
+            <ClipboardList aria-hidden="true" size={16} />
+            Handoff
+          </a>
+        </nav>
+
+        <section className="sidebarBlock" id="projects">
+          <div className="sectionTitle compact">
+            <h2>Projects</h2>
+            <FolderGit2 aria-hidden="true" size={16} />
+          </div>
+          <div className="projectList">
+            {projects.map((project) => (
+              <button
+                className={`projectButton ${project.id === selectedProject ? "selected" : ""}`}
+                key={project.id}
+                type="button"
+                onClick={() => setSelectedProject(project.id)}
+              >
+                <span>{project.name}</span>
+                <small>{project.path}</small>
+                <ProgressBar value={project.progress} />
+              </button>
+            ))}
+          </div>
+          <form className="miniForm" onSubmit={addProject}>
+            <input
+              aria-label="project name"
+              placeholder="프로젝트 이름"
+              value={projectForm.name}
+              onChange={(event) => setProjectForm({ ...projectForm, name: event.target.value })}
+            />
+            <input
+              aria-label="project path"
+              placeholder="E:\\myProject"
+              value={projectForm.path}
+              onChange={(event) => setProjectForm({ ...projectForm, path: event.target.value })}
+            />
+            <IconButton icon={Plus} type="submit">
+              Add
+            </IconButton>
+          </form>
+        </section>
+
+        <section className="sidebarBlock" id="accounts">
+          <div className="sectionTitle compact">
+            <h2>Accounts</h2>
+            <UserCheck aria-hidden="true" size={16} />
+          </div>
+          <div className="accountList">
+            {accounts.map((account) => {
+              const percent = account.weeklyUnits > 0 ? Math.round((account.remainingUnits / account.weeklyUnits) * 100) : 0;
               return (
-                <article className="phaseRow" key={phase.title}>
-                  <div>
-                    <strong>{phase.title}</strong>
-                    <span>
-                      {phase.done}/{phase.total}
-                    </span>
-                  </div>
+                <article className="accountItem" key={account.id}>
+                  <header>
+                    <strong>{account.id}</strong>
+                    <span>{account.source}</span>
+                  </header>
+                  <small>
+                    {account.provider} / {account.plan}
+                  </small>
                   <ProgressBar value={percent} />
                 </article>
               );
             })}
           </div>
-        </div>
+          <form className="miniForm" onSubmit={addAccount}>
+            <select
+              aria-label="provider"
+              value={accountForm.provider}
+              onChange={(event) => setAccountForm({ ...accountForm, provider: event.target.value })}
+            >
+              <option value="claude">Claude</option>
+              <option value="codex">Codex</option>
+              <option value="cursor">Cursor</option>
+              <option value="gemini">Gemini</option>
+            </select>
+            <select
+              aria-label="plan"
+              value={accountForm.plan}
+              onChange={(event) => setAccountForm({ ...accountForm, plan: event.target.value })}
+            >
+              <option value="pro">Pro</option>
+              <option value="plus">Plus</option>
+              <option value="team">Team</option>
+              <option value="local">Local</option>
+            </select>
+            <input
+              aria-label="account alias"
+              placeholder="claude-pro-2"
+              value={accountForm.alias}
+              onChange={(event) => setAccountForm({ ...accountForm, alias: event.target.value })}
+            />
+            <div className="splitInputs">
+              <input
+                aria-label="remaining units"
+                inputMode="numeric"
+                value={accountForm.remainingUnits}
+                onChange={(event) => setAccountForm({ ...accountForm, remainingUnits: event.target.value })}
+              />
+              <input
+                aria-label="weekly units"
+                inputMode="numeric"
+                value={accountForm.weeklyUnits}
+                onChange={(event) => setAccountForm({ ...accountForm, weeklyUnits: event.target.value })}
+              />
+            </div>
+            <IconButton icon={Plus} type="submit">
+              Connect
+            </IconButton>
+          </form>
+        </section>
+      </aside>
 
-        <div className="panel">
-          <div className="sectionTitle">
-            <h2>Decisions</h2>
-            <span>{pendingCount} pending</span>
+      <section className="workspace">
+        <header className="topbar">
+          <div>
+            <p>{selectedProjectRecord.path}</p>
+            <h1>{selectedProjectRecord.name}</h1>
           </div>
-          {pendingCount === 0 ? (
-            <p className="empty">No pending decisions.</p>
-          ) : (
-            <ul className="decisionList">
-              {snapshot.pending_decisions.map((decision) => (
-                <li key={decision.title}>
-                  <strong>{decision.title}</strong>
-                  <span>
-                    {decision.priority} · {decision.category}
-                  </span>
-                  {decision.blocks ? <p>{decision.blocks}</p> : null}
-                </li>
-              ))}
-            </ul>
-          )}
-        </div>
+          <div className="topActions">
+            <StatusPill status={activeRun?.status || "ready"} />
+            <time dateTime={snapshot.generated_at}>{new Date(snapshot.generated_at).toLocaleString("ko-KR")}</time>
+          </div>
+        </header>
 
-        <div className="panel">
-          <div className="sectionTitle">
-            <h2>Usage Budget</h2>
-            <span>{snapshot.usage_budget.providers.join(", ") || "n/a"}</span>
-          </div>
-          <div className="budget">
-            <strong>{numberFormatter.format(snapshot.usage_budget.total_remaining_units)}</strong>
-            <span>remaining units</span>
-            <p>{snapshot.usage_budget.account_count} user-managed accounts tracked</p>
-            <p>{snapshot.usage_budget.weekend_reserve_units} units reserved for weekend continuity</p>
-          </div>
-        </div>
+        <section className="overview">
+          <Stat label="Roadmap" value={`${snapshot.progress.percent}%`} icon={Gauge} />
+          <Stat label="Completed" value={`${snapshot.progress.done}/${snapshot.progress.total}`} icon={CheckCircle2} />
+          <Stat label="Decisions" value={String(approvalCount)} icon={AlertCircle} />
+          <Stat label="Accounts" value={String(accounts.length)} icon={KeyRound} />
+        </section>
 
-        <div className="panel wide">
-          <div className="sectionTitle">
-            <h2>Usage Routing</h2>
-            <span>{snapshot.usage_budget.reserve_ok_now ? "reserve ok" : "reserve low"}</span>
-          </div>
-          <div className="usageSummary">
+        <section className="runSurface" id="run">
+          <div className="runHeader">
             <div>
-              <strong>{numberFormatter.format(snapshot.usage_budget.spendable_before_reserve)}</strong>
-              <span>spendable before reserve</span>
+              <span>Next plan</span>
+              <h2>{nextTaskTitle}</h2>
             </div>
-            <div>
-              <strong>{numberFormatter.format(snapshot.usage_budget.recommended_today_budget_units)}</strong>
-              <span>today budget units</span>
-            </div>
-            <div>
-              <strong>{snapshot.usage_budget.days_to_reset}</strong>
-              <span>days to reset</span>
-            </div>
-            <div>
-              <strong>{snapshot.usage_budget.weekend_days_left.length}</strong>
-              <span>weekend days left</span>
+            <div className="runControls">
+              <IconButton icon={Play} variant="primary" disabled={Boolean(activeRun)} onClick={startRun}>
+                Start
+              </IconButton>
+              <IconButton icon={Square} variant="danger" disabled={!activeRun} onClick={stopRun}>
+                Stop
+              </IconButton>
             </div>
           </div>
-          <div className="accountGrid">
-            {snapshot.usage_budget.accounts.map((account) => (
-              <article className="accountCard" key={account.id}>
-                <div>
-                  <strong>{account.id}</strong>
-                  <span>
-                    {account.provider} / {account.plan}
-                  </span>
-                </div>
-                <ProgressBar value={account.remaining_percent} />
-                <small>
-                  {account.remaining_units}/{account.weekly_budget_units} units / reset {account.reset_day}
-                </small>
-              </article>
-            ))}
-          </div>
-          <div className="routingGrid">
-            {snapshot.usage_budget.recommendations.map((recommendation) => (
-              <article className="routeCard" key={recommendation.complexity}>
-                <header>
-                  <strong>{recommendation.complexity}</strong>
-                  <span className={`pill ${recommendation.status}`}>{recommendation.status}</span>
-                </header>
-                {recommendation.account_id ? (
-                  <p>
-                    {recommendation.account_id} / {recommendation.model_tier} / {recommendation.reasoning_effort}
-                  </p>
-                ) : (
-                  <p>No account available</p>
-                )}
-                <small>{recommendation.reason}</small>
-              </article>
-            ))}
-          </div>
-        </div>
 
-        <div className="panel wide">
-          <div className="sectionTitle">
-            <h2>Workers</h2>
-            <span>{snapshot.workers.length} registered</span>
-          </div>
-          <div className="workerGrid">
-            {snapshot.workers.map((worker) => (
-              <article className="workerRow" key={worker.id}>
-                <div>
-                  <strong>{worker.display_name || worker.id}</strong>
-                  <span>{worker.kind}</span>
-                </div>
-                <span className={`pill ${worker.latest_status}`}>{worker.latest_status}</span>
-                <p>{worker.latest_task || "No recent run state"}</p>
-                <small>{worker.latest_reason}</small>
-              </article>
-            ))}
-          </div>
-        </div>
-
-        <div className="panel wide">
-          <div className="sectionTitle">
-            <h2>Approval Queue</h2>
-            <span>{approvalCount} waiting</span>
-          </div>
-          <div className="approvalSummary">
-            <div>
-              <strong>{snapshot.approval_queue.pending_decisions.length}</strong>
-              <span>pending decisions</span>
-            </div>
-            <div>
-              <strong>{snapshot.approval_queue.held_tasks.length}</strong>
-              <span>held tasks</span>
-            </div>
-            <div>
-              <strong>{snapshot.approval_queue.policy.hold_for_user.length}</strong>
-              <span>hold rules</span>
-            </div>
-            <div>
-              <strong>{snapshot.approval_queue.policy.deny.length}</strong>
-              <span>deny rules</span>
-            </div>
-          </div>
-          <div className="approvalGrid">
-            <section>
-              <h3>Waiting Decisions</h3>
-              {snapshot.approval_queue.pending_decisions.length === 0 ? (
-                <p className="empty">No pending decisions.</p>
-              ) : (
-                <ul>
-                  {snapshot.approval_queue.pending_decisions.map((decision) => (
-                    <li key={decision.title}>
-                      <strong>{decision.title}</strong>
-                      <span>
-                        {decision.priority} / {decision.category}
-                      </span>
-                      {decision.blocks ? <p>{decision.blocks}</p> : null}
-                    </li>
-                  ))}
-                </ul>
-              )}
-            </section>
-            <section>
-              <h3>Policy Boundaries</h3>
-              <ul>
-                {[...snapshot.approval_queue.policy.hold_for_user, ...snapshot.approval_queue.policy.deny].slice(0, 8).map((rule) => (
-                  <li key={rule.id}>
-                    <strong>{rule.id}</strong>
-                    <span>{rule.description}</span>
-                  </li>
+          <div className="runnerGrid">
+            <label>
+              Agent
+              <select value={selectedWorker} onChange={(event) => setSelectedWorker(event.target.value)}>
+                {snapshot.workers.map((worker) => (
+                  <option key={worker.id} value={worker.id}>
+                    {worker.display_name || worker.id}
+                  </option>
                 ))}
-              </ul>
-            </section>
+              </select>
+            </label>
+            <label>
+              Complexity
+              <select value={complexity} onChange={(event) => setComplexity(event.target.value)}>
+                <option value="routine">routine</option>
+                <option value="standard">standard</option>
+                <option value="complex">complex</option>
+                <option value="critical">critical</option>
+              </select>
+            </label>
+            <label>
+              Project
+              <select value={selectedProject} onChange={(event) => setSelectedProject(event.target.value)}>
+                {projects.map((project) => (
+                  <option key={project.id} value={project.id}>
+                    {project.name}
+                  </option>
+                ))}
+              </select>
+            </label>
           </div>
-        </div>
 
-        <div className="panel wide">
-          <div className="sectionTitle">
-            <h2>Latest Run</h2>
-            <span>{snapshot.latest_run?.status || "unknown"}</span>
+          <label className="promptBox">
+            Prompt
+            <textarea
+              placeholder="작업 지시를 입력하세요"
+              value={prompt}
+              onChange={(event) => setPrompt(event.target.value)}
+            />
+          </label>
+
+          <div className="routeStrip">
+            <MessageSquareText aria-hidden="true" size={17} />
+            <span>
+              {selectedRecommendation?.account_id || "no account"} / {selectedRecommendation?.model_tier || "model pending"} /{" "}
+              {selectedRecommendation?.reasoning_effort || "effort pending"}
+            </span>
+            <StatusPill status={selectedRecommendation?.status || "unknown"} />
           </div>
-          {snapshot.latest_run ? (
-            <div className="run">
-              <p>{snapshot.latest_run.summary}</p>
-              <span>{snapshot.latest_run.verification}</span>
-              <small>{snapshot.latest_run.at}</small>
+        </section>
+
+        <section className="contentGrid">
+          <section className="panel">
+            <div className="sectionTitle">
+              <h2>Active run</h2>
+              <CircleStop aria-hidden="true" size={17} />
             </div>
-          ) : (
-            <p className="empty">No run status recorded.</p>
-          )}
-        </div>
-
-        <div className="panel wide">
-          <div className="sectionTitle">
-            <h2>Handoff Viewer</h2>
-            <span>{snapshot.handoff_documents.length} docs</span>
-          </div>
-          <div className="handoffList">
-            {snapshot.handoff_documents.map((document) => (
-              <article className="handoffDoc" key={document.id}>
-                <header>
-                  <FileText aria-hidden="true" size={16} />
+            {activeRun ? (
+              <div className="activeRun">
+                <strong>{activeRun.prompt}</strong>
+                <span>
+                  {activeRun.workerId} / {activeRun.complexity}
+                </span>
+                <small>{activeRun.startedAt}</small>
+              </div>
+            ) : (
+              <p className="empty">No active run.</p>
+            )}
+            <div className="historyList">
+              {runtime.runHistory.slice(0, 4).map((run) => (
+                <article key={run.id}>
+                  <StatusPill status={run.status} />
                   <div>
+                    <strong>{run.prompt}</strong>
+                    <span>{run.workerId}</span>
+                  </div>
+                </article>
+              ))}
+            </div>
+          </section>
+
+          <section className="panel">
+            <div className="sectionTitle">
+              <h2>Connection policy</h2>
+              <ShieldCheck aria-hidden="true" size={17} />
+            </div>
+            <ul className="policyList">
+              <li>Claude/Codex/Cursor 로그인은 각 공식 앱에서 사용자가 직접 유지</li>
+              <li>AgentApp에는 계정 별칭, 요금제, 남은 로컬 예산 단위만 저장</li>
+              <li>자동 로그인, 자동 계정 전환, captcha/MFA 우회는 금지</li>
+            </ul>
+          </section>
+
+          <section className="panel wide" id="handoff">
+            <div className="sectionTitle">
+              <h2>Handoff</h2>
+              <ClipboardList aria-hidden="true" size={17} />
+            </div>
+            <div className="handoffGrid">
+              {snapshot.handoff_documents.map((document) => (
+                <article className="handoffDoc" key={document.id}>
+                  <header>
                     <strong>{document.title}</strong>
                     <span>{document.path}</span>
-                  </div>
-                </header>
-                <dl>
-                  <div>
-                    <dt>Status</dt>
-                    <dd>{document.status || "n/a"}</dd>
-                  </div>
-                  <div>
-                    <dt>Next</dt>
-                    <dd>{document.next || document.generated || "n/a"}</dd>
-                  </div>
-                  <div>
-                    <dt>Lines</dt>
-                    <dd>{document.line_count}</dd>
-                  </div>
-                </dl>
-                <pre>{document.excerpt || "No content."}</pre>
-              </article>
-            ))}
-          </div>
-        </div>
+                  </header>
+                  <pre>{document.excerpt || "No content."}</pre>
+                </article>
+              ))}
+            </div>
+          </section>
 
-        <div className="panel wide">
-          <div className="sectionTitle">
-            <h2>Upcoming Queue</h2>
-            <GitBranch aria-hidden="true" size={18} />
-          </div>
-          <ol className="queueList">
-            {snapshot.task_queue.next.map((task) => (
-              <li key={task.id}>
-                <strong>{task.title}</strong>
-                <span>
-                  {task.phase} · priority {task.priority}
-                </span>
-              </li>
-            ))}
-          </ol>
-        </div>
+          <section className="panel wide">
+            <div className="sectionTitle">
+              <h2>Plan</h2>
+              <GitBranch aria-hidden="true" size={17} />
+            </div>
+            <div className="phaseList">
+              {snapshot.progress.phases.map((phase) => {
+                const percent = phase.total > 0 ? Math.round((phase.done / phase.total) * 100) : 0;
+                return (
+                  <article className="phaseRow" key={phase.title}>
+                    <div>
+                      <strong>{phase.title}</strong>
+                      <span>
+                        {phase.done}/{phase.total}
+                      </span>
+                    </div>
+                    <ProgressBar value={percent} />
+                  </article>
+                );
+              })}
+            </div>
+          </section>
+
+          <section className="panel">
+            <div className="sectionTitle">
+              <h2>Commands</h2>
+              <Terminal aria-hidden="true" size={17} />
+            </div>
+            <div className="commandList">
+              <code>pnpm agent:next</code>
+              <code>pnpm agent:prompt -- --all --write</code>
+              <code>pnpm agent:scheduled-check -- --json</code>
+              <code>pnpm dashboard:build</code>
+            </div>
+          </section>
+
+          <section className="panel">
+            <div className="sectionTitle">
+              <h2>Workers</h2>
+              <Settings aria-hidden="true" size={17} />
+            </div>
+            <div className="workerList">
+              {snapshot.workers.map((worker) => (
+                <article key={worker.id}>
+                  <Bot aria-hidden="true" size={16} />
+                  <div>
+                    <strong>{worker.display_name || worker.id}</strong>
+                    <span>{worker.kind}</span>
+                  </div>
+                  <StatusPill status={worker.latest_status} />
+                </article>
+              ))}
+            </div>
+          </section>
+        </section>
       </section>
+
+      <aside className="contextRail">
+        <section className="railPanel">
+          <div className="sectionTitle compact">
+            <h2>Usage</h2>
+            <RefreshCcw aria-hidden="true" size={16} />
+          </div>
+          <strong className="bigNumber">{numberFormatter.format(snapshot.usage_budget.total_remaining_units)}</strong>
+          <span>remaining units</span>
+          <ProgressBar value={snapshot.usage_budget.reserve_ok_now ? 100 : 40} />
+          <small>{snapshot.usage_budget.weekend_reserve_units} weekend reserve</small>
+        </section>
+
+        <section className="railPanel">
+          <div className="sectionTitle compact">
+            <h2>Queue</h2>
+            <Send aria-hidden="true" size={16} />
+          </div>
+          {snapshot.task_queue.next.length === 0 ? (
+            <p className="empty">No pending queue.</p>
+          ) : (
+            <ol className="queueList">
+              {snapshot.task_queue.next.map((task) => (
+                <li key={task.id}>
+                  <strong>{task.title}</strong>
+                  <span>priority {task.priority}</span>
+                </li>
+              ))}
+            </ol>
+          )}
+        </section>
+      </aside>
     </main>
   );
 }

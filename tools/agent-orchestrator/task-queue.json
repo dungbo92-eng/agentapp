@@ -295,6 +295,46 @@
       "depends_on": ["test-scenarios"],
       "blocked_by": [],
       "reason": "제품화 테스트 시나리오까지 정리되었으므로 release note와 v0.0.1 tag 기준을 정리했다."
+    },
+    {
+      "id": "dashboard-control-surface",
+      "title": "Codex 스타일 dashboard control surface MVP",
+      "phase": "phase-8",
+      "priority": 40,
+      "status": "done",
+      "depends_on": ["first-release-tag"],
+      "blocked_by": [],
+      "reason": "사용자가 계정 연결 위치, 로컬 프로젝트 추가, 프롬프트 입력, Start/Stop UX가 없다고 지적해 통합 콘솔 화면 MVP를 추가했다."
+    },
+    {
+      "id": "dashboard-local-execution-api",
+      "title": "dashboard local execution API",
+      "phase": "phase-8",
+      "priority": 38,
+      "status": "pending",
+      "depends_on": ["dashboard-control-surface"],
+      "blocked_by": [],
+      "reason": "Start/Stop UX가 생겼으므로 실제 로컬 프로세스 실행, 중단, handoff 기록을 안전 정책 안에서 연결한다."
+    },
+    {
+      "id": "project-registry-local-store",
+      "title": "프로젝트 registry local-only 저장소",
+      "phase": "phase-8",
+      "priority": 36,
+      "status": "pending",
+      "depends_on": ["dashboard-control-surface"],
+      "blocked_by": [],
+      "reason": "dashboard에서 추가한 로컬 프로젝트를 브라우저 localStorage가 아니라 gitignore된 data/ 저장소에 유지한다."
+    },
+    {
+      "id": "account-budget-local-store",
+      "title": "계정 예산 편집 local-only 저장소",
+      "phase": "phase-8",
+      "priority": 34,
+      "status": "pending",
+      "depends_on": ["dashboard-control-surface"],
+      "blocked_by": [],
+      "reason": "Claude/Codex/Cursor 계정 별칭과 남은 예산 단위를 비밀값 없이 로컬 전용 파일로 편집할 수 있게 한다."
     }
   ]
 }

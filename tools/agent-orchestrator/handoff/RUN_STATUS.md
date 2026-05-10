@@ -330,3 +330,12 @@ NEXT_TASK.md 템플릿 확정: agent-next 생성물을 Required Reads, Execution
 - Git: pending commit/tag/push
 - Decisions: none
 - Next: none
+
+## 2026-05-10T03:13:01.788Z
+
+- Status: completed
+- Summary: dashboard를 단순 상태판에서 통합 에이전트 콘솔 UX로 개편했다. 좌측 프로젝트/계정 등록, 중앙 프롬프트 입력과 Start/Stop, 모델 라우팅, 우측 queue/usage, handoff/plan/worker 패널을 추가했다.
+- Verification: pnpm validate 통과; pnpm dashboard:build 통과; 브라우저 DOM에서 Projects/Accounts/Prompt/Start/Stop/Phase8 확인; Start/Stop 클릭 테스트 통과
+- Git: pending commit/push
+- Decisions: none
+- Next: dashboard local execution API

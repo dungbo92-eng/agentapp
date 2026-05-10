@@ -1,10 +1,10 @@
 # NEXT_TASK
 
-- Generated: 2026-05-10T02:55:09.980Z
-- Selected task: 로드맵의 다음 미완료 작업을 정리한다.
-- Selection source: roadmap
-- Task id: n/a
-- Task priority: n/a
+- Generated: 2026-05-10T03:13:06.734Z
+- Selected task: dashboard local execution API
+- Selection source: task-queue
+- Task id: dashboard-local-execution-api
+- Task priority: 38
 - Workspace: E:\agentApp
 - Policy: tools/agent-orchestrator/approval-policy.yaml
 
@@ -25,7 +25,7 @@
 
 다음 작업을 진행한다:
 
-> 로드맵의 다음 미완료 작업을 정리한다.
+> dashboard local execution API
 
 ## Execution Rules
 
@@ -132,13 +132,13 @@ AgentApp은 여러 AI 개발 에이전트가 같은 memory/plan/handoff를 공�
 
 ## 최근 보고
 
-- Updated: 2026-05-10T02:55:06.320Z
+- Updated: 2026-05-10T03:13:01.788Z
 - Status: completed
-- Summary: v0.0.1 CHANGELOG를 추가하고 Phase 7 첫 릴리즈 태그 작업을 완료 상태로 정리했다. 전체 roadmap 진행률은 100%다.
-- Verification: pnpm validate 통과; pnpm agent:progress=100%
-- Git: pending commit/tag/push
+- Summary: dashboard를 단순 상태판에서 통합 에이전트 콘솔 UX로 개편했다. 좌측 프로젝트/계정 등록, 중앙 프롬프트 입력과 Start/Stop, 모델 라우팅, 우측 queue/usage, handoff/plan/worker 패널을 추가했다.
+- Verification: pnpm validate 통과; pnpm dashboard:build 통과; 브라우저 DOM에서 Projects/Accounts/Prompt/Start/Stop/Phase8 확인; Start/Stop 클릭 테스트 통과
+- Git: pending commit/push
 - Decisions: none
-- Next: none
+- Next: dashboard local execution API
 
 
 ```
