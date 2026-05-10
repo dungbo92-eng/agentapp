@@ -33,6 +33,7 @@ const FILES = {
   decisions: path.join(REPO_ROOT, "tools", "agent-orchestrator", "handoff", "DECISIONS_REQUIRED.md"),
   approvalPolicy: path.join(REPO_ROOT, "tools", "agent-orchestrator", "approval-policy.yaml"),
   runStatus: path.join(REPO_ROOT, "tools", "agent-orchestrator", "handoff", "RUN_STATUS.md"),
+  dashboardRun: path.join(REPO_ROOT, "tools", "agent-orchestrator", "handoff", "DASHBOARD_RUN.md"),
   taskQueue: path.join(REPO_ROOT, "tools", "agent-orchestrator", "task-queue.json"),
   usageBudget: path.join(REPO_ROOT, "tools", "agent-orchestrator", "usage-budget.example.json"),
   workers: path.join(REPO_ROOT, "tools", "agent-orchestrator", "workers.example.yaml"),
@@ -410,13 +411,26 @@ function summarizeWorkers(workers, runStates) {
   });
 }
 
-const [roadmap, projectState, nextTask, decisions, approvalPolicy, runStatus, taskQueue, usageBudget, workersText, runStates] = await Promise.all([
+const [
+  roadmap,
+  projectState,
+  nextTask,
+  decisions,
+  approvalPolicy,
+  runStatus,
+  dashboardRun,
+  taskQueue,
+  usageBudget,
+  workersText,
+  runStates,
+] = await Promise.all([
   readText(FILES.roadmap),
   readText(FILES.projectState),
   readText(FILES.nextTask),
   readText(FILES.decisions),
   readText(FILES.approvalPolicy),
   readText(FILES.runStatus),
+  readText(FILES.dashboardRun),
   readJson(FILES.taskQueue),
   readJson(FILES.usageBudget),
   readText(FILES.workers),
@@ -451,6 +465,16 @@ const snapshot = {
       status: parseLatestRunStatus(runStatus)?.status || "",
       next: parseLatestRunStatus(runStatus)?.next || "",
       generated: parseLatestRunStatus(runStatus)?.at || "",
+    },
+    {
+      id: "dashboard-run",
+      title: "DASHBOARD_RUN.md",
+      file: FILES.dashboardRun,
+      markdown: dashboardRun,
+      mode: "head",
+      status: dashboardRun.match(/^- Status:\s*(.+)$/m)?.[1]?.trim() || "not_started",
+      next: dashboardRun.match(/## Next Step\s+([\s\S]+)$/m)?.[1]?.trim().split(/\r?\n/)[0] || "",
+      generated: dashboardRun.match(/^- Generated:\s*(.+)$/m)?.[1]?.trim() || "",
     },
     {
       id: "decisions",

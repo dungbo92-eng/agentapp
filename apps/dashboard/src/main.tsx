@@ -151,6 +151,8 @@ type ManagedAccount = {
   plan: string;
   loginLabel: string;
   enabled: boolean;
+  sessionStatus: "needs-login" | "ready" | "paused";
+  lastVerifiedAt?: string;
   remainingUnits: number;
   weeklyUnits: number;
   resetDay: string;
@@ -175,6 +177,7 @@ type RunRecord = {
   complexity: string;
   startedAt: string;
   stoppedAt?: string;
+  handoffPath?: string;
   routing?: {
     status: string;
     accountId?: string;
@@ -274,6 +277,7 @@ function recommendLocalRoute(accounts: ManagedAccount[], complexity: string, wor
   const candidates = accounts
     .filter((account) => !provider || account.provider === provider)
     .filter((account) => account.enabled !== false)
+    .filter((account) => account.sessionStatus === "ready")
     .map((account) => ({ account, profile: profileFor(account, complexity) }))
     .filter((candidate): candidate is { account: ManagedAccount; profile: { model: string; reasoningEffort: string; estimatedUnits: number } } =>
       Boolean(candidate.profile),
@@ -291,6 +295,18 @@ function recommendLocalRoute(accounts: ManagedAccount[], complexity: string, wor
     reasoningEffort: selected.profile.reasoningEffort,
     estimatedUnits: selected.profile.estimatedUnits,
   };
+}
+
+function routeBlockMessage(accounts: ManagedAccount[], workerId: string) {
+  const provider = providerForWorker(workerId);
+  const matching = accounts.filter((account) => (!provider || account.provider === provider) && account.modelProfiles);
+  const enabled = matching.filter((account) => account.enabled !== false);
+  const ready = enabled.filter((account) => account.sessionStatus === "ready");
+
+  if (matching.length === 0) return "등록된 계정 없음";
+  if (enabled.length === 0) return "켜진 계정 없음";
+  if (ready.length === 0) return "Ready 세션 없음";
+  return "예산 부족 또는 모델 프로필 없음";
 }
 
 function App() {
@@ -375,6 +391,7 @@ function App() {
     plan: account.plan,
     loginLabel: "configured",
     enabled: true,
+    sessionStatus: "ready",
     remainingUnits: account.remaining_units,
     weeklyUnits: account.weekly_budget_units,
     resetDay: account.reset_day,
@@ -382,7 +399,8 @@ function App() {
     modelProfiles: undefined,
   }));
   const accounts = uniqById([...configuredAccounts, ...runtime.accounts]);
-  const selectedRecommendation = snapshot.usage_budget.recommendations.find((item) => item.complexity === complexity);
+  const localAccounts = runtime.accounts;
+  const readyLocalAccounts = localAccounts.filter((account) => account.enabled !== false && account.sessionStatus === "ready");
   const localRecommendation = recommendLocalRoute(accounts, complexity, selectedWorker);
   const selectedProjectRecord = projects.find((project) => project.id === selectedProject) || currentProject;
   const activeRun = runtime.activeRun;
@@ -413,6 +431,7 @@ function App() {
         remainingUnits: Number(accountForm.remainingUnits) || 0,
         weeklyUnits: Number(accountForm.weeklyUnits) || 100,
         enabled: true,
+        sessionStatus: "needs-login",
       }),
     );
     setAccountForm({ ...accountForm, alias: "", loginLabel: "google-a" });
@@ -451,6 +470,10 @@ function App() {
 
   function toggleAccount(account: ManagedAccount) {
     void updateRuntime(runtimeRequest("accounts/enabled", { ...account, enabled: !account.enabled }));
+  }
+
+  function setSession(account: ManagedAccount, sessionStatus: ManagedAccount["sessionStatus"]) {
+    void updateRuntime(runtimeRequest("accounts/session", { ...account, sessionStatus }));
   }
 
   return (
@@ -527,6 +550,12 @@ function App() {
             <UserCheck aria-hidden="true" size={16} />
           </div>
           <div className="runtimeStatus">{runtimeStatus}</div>
+          <div className="setupStrip">
+            <strong>
+              {readyLocalAccounts.length}/{localAccounts.length}
+            </strong>
+            <span>ready sessions</span>
+          </div>
           <div className="accountList">
             {accounts.map((account) => {
               const percent = account.weeklyUnits > 0 ? Math.round((account.remainingUnits / account.weeklyUnits) * 100) : 0;
@@ -542,6 +571,25 @@ function App() {
                   <small>
                     {account.provider} / {account.plan} / {account.loginLabel} / {account.source}
                   </small>
+                  <div className="sessionRow">
+                    <StatusPill status={account.sessionStatus || "needs-login"} />
+                    <div className="sessionActions">
+                      <button
+                        className={account.sessionStatus === "ready" ? "segButton selected" : "segButton"}
+                        type="button"
+                        onClick={() => setSession(account, "ready")}
+                      >
+                        Ready
+                      </button>
+                      <button
+                        className={account.sessionStatus === "needs-login" ? "segButton selected" : "segButton"}
+                        type="button"
+                        onClick={() => setSession(account, "needs-login")}
+                      >
+                        Login
+                      </button>
+                    </div>
+                  </div>
                   <ProgressBar value={percent} />
                 </article>
               );
@@ -598,7 +646,7 @@ function App() {
               />
             </div>
             <IconButton icon={Plus} type="submit">
-              Connect
+              Register
             </IconButton>
           </form>
         </section>
@@ -685,11 +733,9 @@ function App() {
             <span>
               {localRecommendation
                 ? `${localRecommendation.accountId} (${localRecommendation.loginLabel}) / ${localRecommendation.model} / ${localRecommendation.reasoningEffort}`
-                : `${selectedRecommendation?.account_id || "no account"} / ${selectedRecommendation?.model_tier || "model pending"} / ${
-                    selectedRecommendation?.reasoning_effort || "effort pending"
-                  }`}
+                : routeBlockMessage(accounts, selectedWorker)}
             </span>
-            <StatusPill status={localRecommendation ? "recommended" : selectedRecommendation?.status || "unknown"} />
+            <StatusPill status={localRecommendation ? "recommended" : "blocked"} />
           </div>
         </section>
 
@@ -711,6 +757,7 @@ function App() {
                     {activeRun.routing.estimatedUnits || 0} units
                   </span>
                 ) : null}
+                {activeRun.handoffPath ? <small>{activeRun.handoffPath}</small> : null}
                 <small>{activeRun.startedAt}</small>
               </div>
             ) : (

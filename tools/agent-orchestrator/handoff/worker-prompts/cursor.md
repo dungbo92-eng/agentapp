@@ -25,16 +25,16 @@ Auth: user-managed only
 
 ## Current Task
 
-- Selected task: Start/Stop과 worker process/handoff 연동
-- Task id: worker-process-handoff-api
-- Priority: 32
-- Generated: 2026-05-10T07:28:39.016Z
+- Selected task: Windows exe packaging
+- Task id: windows-exe-packaging
+- Priority: 30
+- Generated: 2026-05-10T07:42:15.349Z
 
 위 Required Reads를 먼저 읽고 시작한다.
 
 다음 작업을 진행한다:
 
-> Start/Stop과 worker process/handoff 연동
+> Windows exe packaging
 
 ## Cursor Adapter
 
@@ -49,7 +49,7 @@ Use this prompt when opening the repository in Cursor.
 - Use Cursor for local code, docs, tests, validation, handoff updates, commit, and approved push only.
 - Do not store secrets in Cursor settings, prompts, files, comments, or logs.
 - Before any unclear operation, run `pnpm agent:dry-run -- --operation "<operation>"`.
-- Use `pnpm agent:route -- --task "Start/Stop과 worker process/handoff 연동"` before expensive reasoning work.
+- Use `pnpm agent:route -- --task "Windows exe packaging"` before expensive reasoning work.
 
 ### Cursor Completion Output
 
@@ -74,7 +74,7 @@ Quality is first. Use efficient models for routine reading, setup, and simple do
 Before heavy work, run:
 
 ```bash
-pnpm agent:route -- --task "Start/Stop과 worker process/handoff 연동"
+pnpm agent:route -- --task "Windows exe packaging"
 ```
 
 ## Safety Rules

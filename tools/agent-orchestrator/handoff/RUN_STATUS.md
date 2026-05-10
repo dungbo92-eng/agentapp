@@ -357,3 +357,12 @@ NEXT_TASK.md 템플릿 확정: agent-next 생성물을 Required Reads, Execution
 - Git: pending commit/push
 - Decisions: none
 - Next: Start/Stop과 worker process/handoff 연동
+
+## 2026-05-10T07:42:09.880Z
+
+- Status: completed
+- Summary: dashboard 계정에 needs-login/ready 세션 상태를 추가하고 Ready 계정만 자동 라우팅에 사용하도록 변경했다. Start/Stop은 DASHBOARD_RUN.md와 run-states/dashboard-current.json을 갱신해 prompt 본문은 local-only로 두면서 실행 상태를 handoff에 남긴다.
+- Verification: pnpm validate 통과; pnpm dashboard:build 통과; 브라우저에서 Ready 전환 전 Ready 세션 없음 차단, Ready 전환 후 codex-google-a/gpt-5.4 라우팅, Start/Stop handoff path 표시 확인
+- Git: not recorded
+- Decisions: none
+- Next: Windows exe packaging

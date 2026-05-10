@@ -1,0 +1,52 @@
+{
+  "version": 1,
+  "run_id": "run-1778398824123",
+  "worker_id": "codex",
+  "worker_kind": "codex",
+  "workspace": "E:\\agentApp",
+  "task": {
+    "id": "dashboard-run",
+    "title": "Dashboard start request",
+    "source": "dashboard"
+  },
+  "status": "interrupted",
+  "reason": "user_stopped",
+  "timestamps": {
+    "started_at": "2026-05-10T07:40:24.123Z",
+    "updated_at": "2026-05-10T07:40:25.824Z"
+  },
+  "usage": {
+    "provider": "codex",
+    "account_id": "codex-google-a",
+    "login_label": "google-a",
+    "model_tier": "gpt-5.4",
+    "reasoning_effort": "high",
+    "estimated_units": 8,
+    "budget_status": "reserved"
+  },
+  "verification": {
+    "commands": [],
+    "result": "not_run"
+  },
+  "handoff": {
+    "summary": "Dashboard recorded interrupted for codex. Prompt body is stored local-only in data/dashboard-runtime.json.",
+    "next_step": "Review the local run history and continue from NEXT_TASK.md or start a new dashboard run.",
+    "files": [
+      "data/dashboard-runtime.json",
+      "tools/agent-orchestrator/handoff/DASHBOARD_RUN.md",
+      "tools/agent-orchestrator/handoff/run-states/dashboard-current.json"
+    ]
+  },
+  "git": {
+    "branch": "main",
+    "commit": "not_created",
+    "pushed": false,
+    "dirty": true
+  },
+  "safety": {
+    "contains_secrets": false,
+    "prompt_body_stored_local_only": true,
+    "external_write": false,
+    "policy_action": "auto_allowed"
+  }
+}

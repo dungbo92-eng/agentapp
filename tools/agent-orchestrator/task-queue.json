@@ -347,14 +347,24 @@
       "reason": "등록된 AI 계정은 유지하되 사용자가 enabled 토글로 사용 여부를 바꾸고, 꺼진 계정은 Start 라우팅 후보에서 제외되도록 했다."
     },
     {
+      "id": "account-session-readiness",
+      "title": "계정 session ready/login 상태와 동적 계정 수 관리",
+      "phase": "phase-8",
+      "priority": 32,
+      "status": "done",
+      "depends_on": ["account-enable-toggle"],
+      "blocked_by": [],
+      "reason": "사용자가 계정을 2개, 3개, 4개 등 동적으로 등록하고 공식 앱/CLI 로그인 후 Ready 상태로 표시할 수 있게 했다. Ready가 아닌 계정은 자동 라우팅에서 제외된다."
+    },
+    {
       "id": "worker-process-handoff-api",
       "title": "Start/Stop과 worker process/handoff 연동",
       "phase": "phase-8",
-      "priority": 32,
-      "status": "pending",
-      "depends_on": ["dashboard-local-execution-api", "account-enable-toggle"],
+      "priority": 31,
+      "status": "done",
+      "depends_on": ["dashboard-local-execution-api", "account-session-readiness"],
       "blocked_by": [],
-      "reason": "Start/Stop이 local runtime 상태를 관리하므로 다음 단계에서 실제 child process 실행과 RUN_STATUS/handoff 기록을 연결한다."
+      "reason": "Start/Stop이 local runtime 상태와 DASHBOARD_RUN/run-state handoff를 갱신해 다음 worker가 현재 실행 상태를 읽을 수 있게 했다. 실제 외부 worker 자동 실행은 계정/승인 우회 없이 별도 어댑터에서 진행한다."
     },
     {
       "id": "windows-exe-packaging",

@@ -76,5 +76,6 @@
 - [x] 프로젝트 registry local-only 저장소
 - [x] 계정 예산 편집 local-only 저장소
 - [x] 계정 enable/disable 토글과 라우팅 제외
-- [ ] Start/Stop과 worker process/handoff 연동
+- [x] 계정 session ready/login 상태와 동적 계정 수 관리
+- [x] Start/Stop과 worker process/handoff 연동
 - [ ] Windows exe packaging

@@ -1,33 +1,48 @@
 # Dashboard Control Surface
 
-AgentApp dashboard는 단순 상태판이 아니라 Claude, Codex, Cursor, Gemini 같은 worker를 한 화면에서 다루는 통합 콘솔로 확장한다.
+AgentApp dashboard는 단순 상태판이 아니라 Claude, Codex, Cursor, Gemini 같은 worker를 한 화면에서 준비하고 실행 상태를 이어받게 하는 통합 콘솔이다.
 
 ## 현재 화면
 
-- 좌측: 로컬 프로젝트 등록, 계정 별칭 등록
-- 중앙: 다음 계획, worker 선택, 난이도 선택, 프롬프트 입력, Start/Stop
-- 우측: 사용량 예산, 다음 queue
-- 하단: active run, 연결 정책, handoff, plan, 명령, workers
+- 좌측: 로컬 프로젝트 등록, 계정 등록, enable 토글, 세션 ready 표시
+- 중앙: 다음 계획, worker 선택, 난이도 선택, 프로젝트 선택, 프롬프트 입력, Start/Stop
+- 우측: 사용량 예산과 다음 queue
+- 하단: active run, 연결 정책, handoff 문서, plan, 명령, worker 상태
 
 ## 계정 연결 기준
 
-실제 로그인은 Claude, Codex, Cursor 등 각 공식 앱에서 사용자가 직접 유지한다. AgentApp dashboard에는 아래 값만 둔다.
+실제 로그인은 Claude, Codex, Cursor 등의 공식 앱이나 CLI에서 사용자가 직접 수행한다. AgentApp은 비밀값 없이 아래 정보만 로컬 설정으로 저장한다.
 
 - account alias
 - provider
 - plan
+- login label
+- enable 여부
+- session status: `needs-login`, `ready`, `paused`
 - 남은 로컬 예산 단위
 - 주간 예산 단위
 
 API key, password, session cookie, OAuth token은 저장하지 않는다.
 
-기본 예산 파일은 `tools/agent-orchestrator/usage-budget.example.json`이고, 화면에서 추가한 임시 계정은 브라우저 localStorage에만 저장된다.
+계정 수는 고정하지 않는다. 사용자는 Claude 1개, Codex 1개부터 Claude 2개와 Codex 2개, 또는 지인처럼 총 3개 계정 구성까지 필요한 만큼 등록할 수 있다. 라우팅은 `enabled=true`이고 `sessionStatus=ready`인 계정만 후보로 사용한다.
+
+기본 예산 파일은 `tools/agent-orchestrator/usage-budget.example.json`이고, dashboard에서 추가한 임시 계정은 git에 올라가지 않는 `data/dashboard-runtime.json`에 저장된다.
+
+## 세션 준비 흐름
+
+1. dashboard에서 계정을 등록한다.
+2. 사용자가 공식 앱/CLI에서 해당 Google 계정으로 로그인한다.
+3. dashboard에서 해당 계정을 `Ready`로 표시한다.
+4. Start 실행 시 worker와 난이도에 맞는 ready 계정과 모델이 자동 추천된다.
+5. 사용하지 않을 계정은 삭제하지 않고 enable 토글을 off로 바꾼다.
+
+자동 로그인, 자동 계정 전환, captcha/MFA 우회, 계정 제한 우회는 구현하지 않는다.
 
 ## 프로젝트 등록 기준
 
 현재 repo는 자동으로 `AgentApp` 프로젝트로 표시된다. 추가 프로젝트는 dashboard 좌측 Projects에서 로컬 경로로 등록한다.
 
-새 프로젝트를 실제 관리 대상으로 승격할 때는 아래 기준 파일을 먼저 갖춘다.
+새 프로젝트를 실제 관리 대상으로 연결할 때는 아래 기본 파일을 먼저 갖춘다.
 
 - `AGENTS.md`
 - `CLAUDE.md`
@@ -38,31 +53,28 @@ API key, password, session cookie, OAuth token은 저장하지 않는다.
 
 ## Start/Stop 기준
 
-현재 Start/Stop은 dashboard 화면에서 run 상태를 관리하는 UX MVP다. 실제 worker 프로세스 실행은 다음 단계에서 로컬 API로 연결한다.
+Start는 로컬 runtime에서 다음 정보를 생성한다.
 
-다음 단계의 실행 API는 아래 경계를 따른다.
+- active run 상태
+- 추천 계정, 모델, reasoning effort, 예상 예산
+- `tools/agent-orchestrator/handoff/DASHBOARD_RUN.md`
+- `tools/agent-orchestrator/handoff/run-states/dashboard-current.json`
 
-- 실행 전 `approval-policy.yaml`로 작업을 분류한다.
-- 자동 허용 작업만 로컬 프로세스로 시작한다.
-- 중단은 active run 상태와 handoff를 남긴다.
-- 외부 쓰기, connector 권한 변경, 계정 작업은 실행하지 않고 decision queue에 남긴다.
+Stop은 active run을 중단 상태로 바꾸고 같은 handoff 파일을 갱신한다. 프롬프트 본문은 비밀값 유출을 피하기 위해 `data/dashboard-runtime.json`에만 local-only로 저장한다.
 
 ## 다음 구현 후보
 
-- dashboard dev server에 local API 추가: 완료
-- 계정 예산 편집을 secret 없는 `data/dashboard-runtime.json` local-only 설정으로 저장: 완료
-- 등록된 계정의 enabled 토글로 사용 여부 전환: 완료
-- 프로젝트 registry를 `data/dashboard-runtime.json` local-only 설정으로 저장: 완료
-- Start가 worker/provider에 맞는 계정 alias와 모델 profile을 자동 선택하고 예상 예산을 차감: 완료
-- Stop이 active run을 중단 상태로 local run history에 남김: 완료
-- 다음 단계: 실제 worker child process 실행, handoff 기록, exe packaging
+- 실제 worker child process 실행 어댑터
+- worker별 수동/자동 실행 모드 설정
+- 실행 로그와 validation 결과 dashboard 표시
+- Windows `.exe` packaging
 
 ## EXE packaging 방향
 
 최종 실행파일은 로컬 API와 dashboard UI를 한 프로세스에서 띄우는 desktop shell 형태로 만든다.
 
 - 후보: Electron 또는 Tauri
-- 기본 포트 충돌 없이 localhost API를 내부에서 실행
+- 기본 포트 충돌 없이 내부 localhost API 실행
 - `data/` local-only 설정 유지
-- build 산출물에는 secret을 포함하지 않음
-- Windows `.exe`와 portable zip을 우선 목표로 함
+- 빌드 산출물에 secret 미포함
+- Windows `.exe`와 portable zip을 우선 목표로 한다.

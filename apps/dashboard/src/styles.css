@@ -294,6 +294,29 @@ textarea:focus {
   font-weight: 700;
 }
 
+.setupStrip {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  align-items: center;
+  gap: 8px;
+  min-height: 36px;
+  margin-bottom: 10px;
+  padding: 7px 9px;
+  border: 1px solid #dbeafe;
+  border-radius: 7px;
+  background: #f8fbff;
+}
+
+.setupStrip strong {
+  color: #1d4ed8;
+}
+
+.setupStrip span {
+  color: #64748b;
+  font-size: 0.8rem;
+  font-weight: 700;
+}
+
 .accountItem:first-child {
   padding-top: 0;
   border-top: 0;
@@ -330,6 +353,38 @@ textarea:focus {
   min-width: 16px;
   margin: 0;
   accent-color: #2563eb;
+}
+
+.sessionRow {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.sessionActions {
+  display: inline-flex;
+  gap: 4px;
+  padding: 3px;
+  border-radius: 7px;
+  background: #edf2f7;
+}
+
+.segButton {
+  min-height: 24px;
+  padding: 0 7px;
+  border: 0;
+  border-radius: 5px;
+  background: transparent;
+  color: #475569;
+  font-size: 0.74rem;
+  font-weight: 800;
+}
+
+.segButton.selected {
+  background: #ffffff;
+  color: #1d4ed8;
+  box-shadow: 0 1px 2px rgba(15, 23, 42, 0.09);
 }
 
 .topbar {
@@ -621,9 +676,16 @@ label {
 .pill.failed,
 .pill.quota_limited,
 .pill.needs_user,
-.pill.needs_decision {
+.pill.needs_decision,
+.pill.needs-login {
   background: #fee2e2;
   color: #991b1b;
+}
+
+.pill.paused,
+.pill.queued {
+  background: #fef3c7;
+  color: #92400e;
 }
 
 .bigNumber {
