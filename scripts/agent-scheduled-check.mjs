@@ -1,12 +1,13 @@
 #!/usr/bin/env node
 
-import { appendFile } from "node:fs/promises";
+import { appendFile, readFile } from "node:fs/promises";
 import path from "node:path";
 import { spawnSync } from "node:child_process";
 import { fileURLToPath } from "node:url";
 
 const REPO_ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 const RUN_STATUS = path.join(REPO_ROOT, "tools", "agent-orchestrator", "handoff", "RUN_STATUS.md");
+const DECISIONS_REQUIRED = path.join(REPO_ROOT, "tools", "agent-orchestrator", "handoff", "DECISIONS_REQUIRED.md");
 
 function parseArgs(argv) {
   const options = {
@@ -66,15 +67,37 @@ function commandOk(result) {
   return result.status === 0;
 }
 
+async function pendingDecisionSummary() {
+  try {
+    const markdown = await readFile(DECISIONS_REQUIRED, "utf8");
+    const pendingSection = markdown.match(/##\s+대기\n([\s\S]*?)(?=\n## |\n?$)/)?.[1] || "";
+    const headings = [...pendingSection.matchAll(/^###\s+DEC-.+$/gm)];
+    const pending = headings.filter((heading, index) => {
+      const next = headings[index + 1];
+      const section = pendingSection.slice(heading.index || 0, next?.index ?? undefined);
+      return /^- Status:\s*pending\s*$/m.test(section);
+    });
+    return {
+      count: pending.length,
+      level: pending.length > 0 ? "attention" : "clear",
+    };
+  } catch {
+    return {
+      count: 0,
+      level: "unknown",
+    };
+  }
+}
+
 async function writeReport(summary) {
   const entry = `
 ## ${summary.generated_at}
 
-- Status: completed
-- Summary: Scheduled check completed. next=${summary.next_task || "unknown"} git_clean=${summary.git.clean} sync_ok=${summary.sync_ok}
+- Status: ${summary.decisions.count > 0 ? "in_progress" : "completed"}
+- Summary: Scheduled check completed. next=${summary.next_task || "unknown"} git_clean=${summary.git.clean} sync_ok=${summary.sync_ok} pending_decisions=${summary.decisions.count}
 - Verification: agent:scheduled-check commands completed; progress=${summary.progress || "unknown"}
 - Git: read-only check
-- Decisions: none
+- Decisions: ${summary.decisions.count > 0 ? `${summary.decisions.count} pending` : "none"}
 - Next: ${summary.next_task || "See NEXT_TASK.md"}
 `;
 
@@ -88,6 +111,7 @@ const budget = runNode("scripts/agent-budget.mjs", ["--json"]);
 const next = options["write-next"] ? runNode("scripts/agent-next.mjs") : null;
 const dashboard = options["prepare-dashboard"] ? runNode("scripts/dashboard-prepare.mjs") : null;
 const git = gitSummary();
+const decisions = await pendingDecisionSummary();
 
 const summary = {
   generated_at: new Date().toISOString(),
@@ -101,6 +125,7 @@ const summary = {
   next_task: options["write-next"]
     ? firstLineMatching(next?.stdout || "", "next-task=").replace("next-task=", "")
     : firstLineMatching(progress.stdout, "next=").replace("next=", ""),
+  decisions,
   git,
   budget_ok: commandOk(budget),
   commands: {
@@ -125,6 +150,8 @@ if (options.json) {
   console.log(`sync_ok=${summary.sync_ok}`);
   console.log(`progress=${summary.progress || "unknown"}`);
   console.log(`next=${summary.next_task || "unknown"}`);
+  console.log(`pending_decisions=${summary.decisions.count}`);
+  console.log(`decision_level=${summary.decisions.level}`);
   console.log(`write_next=${summary.mode.write_next}`);
   console.log(`write_report=${summary.mode.write_report}`);
   console.log(`prepare_dashboard=${summary.mode.prepare_dashboard}`);

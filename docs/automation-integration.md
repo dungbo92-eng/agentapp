@@ -71,6 +71,8 @@ pnpm agent:scheduled-check -- --write-report
 
 기본 실행은 read-only 점검이다. `--write-next`를 명시한 경우에만 `NEXT_TASK.md`를 재생성하고, `--write-report`를 명시한 경우에만 `RUN_STATUS.md`에 scheduled check 결과를 남긴다.
 
+scheduled check는 pending decision 개수와 알림 level도 함께 출력한다. 세부 기준은 `docs/decision-notifications.md`를 따른다.
+
 ## 운영 원칙
 
 - 자동화는 정상 인증된 사용자의 도구 상태를 전제로 한다.

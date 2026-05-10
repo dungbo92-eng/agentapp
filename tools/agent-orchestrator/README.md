@@ -191,6 +191,8 @@ pnpm agent:scheduled-check -- --write-next --prepare-dashboard
 pnpm agent:scheduled-check -- --write-report
 ```
 
+보류 결정 알림 기준은 `../../docs/decision-notifications.md`를 따른다. 기본 구현은 외부 메시지를 보내지 않고 pending decision 수와 level을 로컬 출력/report/dashboard에 표시한다.
+
 ## 원칙
 
 - 이 디렉터리는 계정 제한 우회용이 아니다.

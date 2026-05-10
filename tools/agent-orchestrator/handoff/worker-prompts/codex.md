@@ -25,16 +25,16 @@ Auth: user-managed only
 
 ## Current Task
 
-- Selected task: 보류 결정 알림 방식 정리
-- Task id: decision-notification-plan
-- Priority: 26
-- Generated: 2026-05-10T02:24:20.462Z
+- Selected task: git sync 상태 자동 점검
+- Task id: git-sync-auto-check
+- Priority: 24
+- Generated: 2026-05-10T02:27:44.785Z
 
 위 Required Reads를 먼저 읽고 시작한다.
 
 다음 작업을 진행한다:
 
-> 보류 결정 알림 방식 정리
+> git sync 상태 자동 점검
 
 ## Codex Adapter
 
@@ -48,7 +48,7 @@ Use this prompt when opening a fresh Codex Desktop thread for the current task.
 - Continue implementation autonomously for local code, docs, tests, validation, handoff updates, commit, and approved push.
 - Send short progress updates while exploring, editing, validating, and pushing.
 - Before any unclear operation, run `pnpm agent:dry-run -- --operation "<operation>"`.
-- Use `pnpm agent:route -- --task "보류 결정 알림 방식 정리" --provider codex` before expensive reasoning work.
+- Use `pnpm agent:route -- --task "git sync 상태 자동 점검" --provider codex` before expensive reasoning work.
 
 ### Codex Completion Output
 
@@ -74,7 +74,7 @@ Quality is first. Use efficient models for routine reading, setup, and simple do
 Before heavy work, run:
 
 ```bash
-pnpm agent:route -- --task "보류 결정 알림 방식 정리"
+pnpm agent:route -- --task "git sync 상태 자동 점검"
 ```
 
 ## Safety Rules

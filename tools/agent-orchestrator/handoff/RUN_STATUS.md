@@ -267,3 +267,12 @@ NEXT_TASK.md 템플릿 확정: agent-next 생성물을 Required Reads, Execution
 - Git: pending commit/push
 - Decisions: none
 - Next: 보류 결정 알림 방식 정리
+
+## 2026-05-10T02:27:44.107Z
+
+- Status: completed
+- Summary: 보류 결정 알림 방식을 정리하고 agent:scheduled-check에 pending decision 개수와 level 요약을 추가했다. 기본 알림은 dashboard, scheduled check, handoff report에만 표시한다.
+- Verification: pnpm agent:scheduled-check -- --json pending_decisions=1 level=attention; pnpm validate 통과; pnpm dashboard:build 통과; pnpm agent:progress=86%
+- Git: pending commit/push
+- Decisions: none
+- Next: git sync 상태 점검 자동화
