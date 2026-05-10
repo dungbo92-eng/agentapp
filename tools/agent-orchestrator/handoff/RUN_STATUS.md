@@ -375,3 +375,12 @@ NEXT_TASK.md 템플릿 확정: agent-next 생성물을 Required Reads, Execution
 - Git: not recorded
 - Decisions: none
 - Next: none
+
+## 2026-05-10T08:30:11.166Z
+
+- Status: completed
+- Summary: 사용자별 계정 수가 다른 상황을 위해 dashboard Login setup 마법사를 추가했다. Claude/Codex 계정 수와 예산 단위를 입력하거나 1+1, 2+1, 2+2 빠른 설정으로 needs-login 체크리스트를 만들 수 있다. EXE 공유를 위해 desktop:artifact checksum 산출도 추가했다.
+- Verification: pnpm validate 통과; pnpm dashboard:build 통과; accounts/preset API 2 Claude + 1 Codex 생성 확인; 브라우저에서 Login setup/Build checklist/2+1 표시 확인; pnpm desktop:artifact -- --json 통과
+- Git: not recorded
+- Decisions: none
+- Next: none

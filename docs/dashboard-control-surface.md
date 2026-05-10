@@ -30,8 +30,8 @@ API key, password, session cookie, OAuth token은 저장하지 않는다.
 
 ## 세션 준비 흐름
 
-1. dashboard에서 계정을 등록한다.
-2. 사용자가 공식 앱/CLI에서 해당 Google 계정으로 로그인한다.
+1. dashboard의 `Login setup`에서 Claude/Codex 계정 수를 입력하거나 `1+1`, `2+1`, `2+2` 빠른 설정을 누른다.
+2. 생성된 계정 체크리스트에 맞춰 사용자가 공식 앱/CLI에서 해당 Google 계정으로 로그인한다.
 3. dashboard에서 해당 계정을 `Ready`로 표시한다.
 4. Start 실행 시 worker와 난이도에 맞는 ready 계정과 모델이 자동 추천된다.
 5. 사용하지 않을 계정은 삭제하지 않고 enable 토글을 off로 바꾼다.

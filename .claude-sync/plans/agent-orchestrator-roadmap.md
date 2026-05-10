@@ -79,3 +79,8 @@
 - [x] 계정 session ready/login 상태와 동적 계정 수 관리
 - [x] Start/Stop과 worker process/handoff 연동
 - [x] Windows exe packaging
+
+## Phase 9 — 사용성 강화
+
+- [x] 계정 수 기반 Login setup 마법사
+- [x] release artifact checksum과 실행 가이드 정리

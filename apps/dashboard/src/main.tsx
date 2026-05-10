@@ -326,6 +326,12 @@ function App() {
     remainingUnits: "70",
     weeklyUnits: "100",
   });
+  const [accountPack, setAccountPack] = React.useState({
+    claudeCount: "2",
+    codexCount: "2",
+    remainingUnits: "70",
+    weeklyUnits: "100",
+  });
   const [projectForm, setProjectForm] = React.useState({ name: "", path: "" });
 
   React.useEffect(() => {
@@ -464,8 +470,28 @@ function App() {
     void updateRuntime(runtimeRequest("runs/stop", {}));
   }
 
-  function applyPreset() {
-    void updateRuntime(runtimeRequest("accounts/preset-four", {}));
+  function applyPreset(claudeCount = 2, codexCount = 2) {
+    setAccountPack({ ...accountPack, claudeCount: String(claudeCount), codexCount: String(codexCount) });
+    void updateRuntime(
+      runtimeRequest("accounts/preset", {
+        claudeCount,
+        codexCount,
+        remainingUnits: Number(accountPack.remainingUnits) || 70,
+        weeklyUnits: Number(accountPack.weeklyUnits) || 100,
+      }),
+    );
+  }
+
+  function applyAccountPack(event: React.FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    void updateRuntime(
+      runtimeRequest("accounts/preset", {
+        claudeCount: Number(accountPack.claudeCount) || 0,
+        codexCount: Number(accountPack.codexCount) || 0,
+        remainingUnits: Number(accountPack.remainingUnits) || 70,
+        weeklyUnits: Number(accountPack.weeklyUnits) || 100,
+      }),
+    );
   }
 
   function toggleAccount(account: ManagedAccount) {
@@ -556,6 +582,66 @@ function App() {
             </strong>
             <span>ready sessions</span>
           </div>
+          <form className="accountWizard" onSubmit={applyAccountPack}>
+            <header>
+              <strong>Login setup</strong>
+              <span>등록할 계정 수만 맞추고, 공식 앱 로그인 후 Ready로 표시하세요.</span>
+            </header>
+            <div className="packQuickActions">
+              <button type="button" onClick={() => applyPreset(1, 1)}>
+                1+1
+              </button>
+              <button type="button" onClick={() => applyPreset(2, 1)}>
+                2+1
+              </button>
+              <button type="button" onClick={() => applyPreset(2, 2)}>
+                2+2
+              </button>
+            </div>
+            <div className="splitInputs">
+              <label>
+                Claude
+                <input
+                  aria-label="claude account count"
+                  inputMode="numeric"
+                  value={accountPack.claudeCount}
+                  onChange={(event) => setAccountPack({ ...accountPack, claudeCount: event.target.value })}
+                />
+              </label>
+              <label>
+                Codex
+                <input
+                  aria-label="codex account count"
+                  inputMode="numeric"
+                  value={accountPack.codexCount}
+                  onChange={(event) => setAccountPack({ ...accountPack, codexCount: event.target.value })}
+                />
+              </label>
+            </div>
+            <div className="splitInputs">
+              <label>
+                Remain
+                <input
+                  aria-label="pack remaining units"
+                  inputMode="numeric"
+                  value={accountPack.remainingUnits}
+                  onChange={(event) => setAccountPack({ ...accountPack, remainingUnits: event.target.value })}
+                />
+              </label>
+              <label>
+                Weekly
+                <input
+                  aria-label="pack weekly units"
+                  inputMode="numeric"
+                  value={accountPack.weeklyUnits}
+                  onChange={(event) => setAccountPack({ ...accountPack, weeklyUnits: event.target.value })}
+                />
+              </label>
+            </div>
+            <IconButton icon={KeyRound} type="submit">
+              Build checklist
+            </IconButton>
+          </form>
           <div className="accountList">
             {accounts.map((account) => {
               const percent = account.weeklyUnits > 0 ? Math.round((account.remainingUnits / account.weeklyUnits) * 100) : 0;
@@ -595,9 +681,6 @@ function App() {
               );
             })}
           </div>
-          <IconButton icon={Zap} onClick={applyPreset}>
-            2 Claude + 2 Codex
-          </IconButton>
           <form className="miniForm" onSubmit={addAccount}>
             <select
               aria-label="provider"

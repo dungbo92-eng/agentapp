@@ -7,6 +7,7 @@ import { fileURLToPath } from "node:url";
 import {
   addAccount,
   addProject,
+  applyAccountPreset,
   applyFourAccountPreset,
   readRuntime,
   setAccountEnabled,
@@ -60,6 +61,10 @@ async function handleApi(req, res, url) {
   }
   if (req.method === "POST" && url === "/api/agentapp/accounts/preset-four") {
     sendJson(res, 200, await applyFourAccountPreset());
+    return true;
+  }
+  if (req.method === "POST" && url === "/api/agentapp/accounts/preset") {
+    sendJson(res, 200, await applyAccountPreset(await readBody(req)));
     return true;
   }
   if (req.method === "POST" && url === "/api/agentapp/accounts/enabled") {

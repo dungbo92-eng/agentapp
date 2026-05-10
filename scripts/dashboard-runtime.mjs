@@ -161,12 +161,43 @@ export async function writeRuntime(runtime) {
 }
 
 export function defaultFourAccountPreset() {
-  return [
-    normalizeAccount({ provider: "claude", plan: "pro", loginLabel: "google-a", id: "claude-google-a", remainingUnits: 70, weeklyUnits: 100 }),
-    normalizeAccount({ provider: "claude", plan: "pro", loginLabel: "google-b", id: "claude-google-b", remainingUnits: 70, weeklyUnits: 100 }),
-    normalizeAccount({ provider: "codex", plan: "plus", loginLabel: "google-a", id: "codex-google-a", remainingUnits: 70, weeklyUnits: 100 }),
-    normalizeAccount({ provider: "codex", plan: "plus", loginLabel: "google-b", id: "codex-google-b", remainingUnits: 70, weeklyUnits: 100 }),
+  return buildAccountPreset({ claudeCount: 2, codexCount: 2 });
+}
+
+function loginLabelFor(index) {
+  const alphabet = "abcdefghijklmnopqrstuvwxyz";
+  return `google-${alphabet[index] || index + 1}`;
+}
+
+function countFrom(input, key) {
+  const count = Number(input[key] ?? 0);
+  return Math.min(8, Math.max(0, Number.isFinite(count) ? Math.floor(count) : 0));
+}
+
+export function buildAccountPreset(input = {}) {
+  const remainingUnits = Number(input.remainingUnits ?? input.remaining_units ?? 70);
+  const weeklyUnits = Number(input.weeklyUnits ?? input.weekly_units ?? 100);
+  const counts = [
+    { provider: "claude", plan: "pro", count: countFrom(input, "claudeCount") },
+    { provider: "codex", plan: "plus", count: countFrom(input, "codexCount") },
+    { provider: "cursor", plan: "team", count: countFrom(input, "cursorCount") },
+    { provider: "gemini", plan: "pro", count: countFrom(input, "geminiCount") },
   ];
+
+  return counts.flatMap(({ provider, plan, count }) =>
+    Array.from({ length: count }, (_, index) => {
+      const loginLabel = loginLabelFor(index);
+      return normalizeAccount({
+        provider,
+        plan,
+        loginLabel,
+        id: `${provider}-${loginLabel}`,
+        remainingUnits,
+        weeklyUnits,
+        sessionStatus: "needs-login",
+      });
+    }),
+  );
 }
 
 export async function addAccount(input) {
@@ -202,8 +233,12 @@ export async function setAccountSession(input) {
 }
 
 export async function applyFourAccountPreset() {
+  return applyAccountPreset({ claudeCount: 2, codexCount: 2 });
+}
+
+export async function applyAccountPreset(input) {
   const runtime = await readRuntime();
-  runtime.accounts = uniqueById([...runtime.accounts, ...defaultFourAccountPreset()]);
+  runtime.accounts = uniqueById([...runtime.accounts, ...buildAccountPreset(input)]);
   return writeRuntime(runtime);
 }
 

@@ -3,6 +3,7 @@ import react from "@vitejs/plugin-react";
 import {
   addAccount,
   addProject,
+  applyAccountPreset,
   applyFourAccountPreset,
   readRuntime,
   setAccountEnabled,
@@ -48,6 +49,10 @@ export default defineConfig({
             }
             if (req.method === "POST" && url === "/api/agentapp/accounts/preset-four") {
               sendJson(res, 200, await applyFourAccountPreset());
+              return;
+            }
+            if (req.method === "POST" && url === "/api/agentapp/accounts/preset") {
+              sendJson(res, 200, await applyAccountPreset(await readBody(req)));
               return;
             }
             if (req.method === "POST" && url === "/api/agentapp/accounts/enabled") {

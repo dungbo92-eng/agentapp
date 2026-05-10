@@ -375,6 +375,26 @@
       "depends_on": ["worker-process-handoff-api"],
       "blocked_by": [],
       "reason": "Electron shell, dashboard local server, portable EXE build script를 추가했고 `pnpm desktop:pack`으로 dist-desktop/AgentApp-0.0.1-x64.exe 생성을 확인했다."
+    },
+    {
+      "id": "account-login-setup-wizard",
+      "title": "계정 수 기반 Login setup 마법사",
+      "phase": "phase-9",
+      "priority": 29,
+      "status": "done",
+      "depends_on": ["windows-exe-packaging"],
+      "blocked_by": [],
+      "reason": "Claude/Codex 계정 수가 2개, 3개, 4개 등 사용자마다 달라서 dashboard에서 계정 수와 예산을 입력하면 동적 로그인 체크리스트를 생성하도록 했다."
+    },
+    {
+      "id": "release-artifact-checksum-guide",
+      "title": "release artifact checksum과 실행 가이드 정리",
+      "phase": "phase-9",
+      "priority": 28,
+      "status": "done",
+      "depends_on": ["account-login-setup-wizard"],
+      "blocked_by": [],
+      "reason": "desktop:artifact 스크립트와 RELEASE_ARTIFACTS.md 산출물을 추가해 EXE 파일 크기와 SHA256을 기록할 수 있게 했다."
     }
   ]
 }
