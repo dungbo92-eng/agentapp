@@ -161,3 +161,9 @@ pnpm validate
 ## 9. 다음 작업 기준
 
 항상 `.claude-sync/memory/project_state.md`의 **다음 작업 후보**와 `tools/agent-orchestrator/handoff/NEXT_TASK.md`를 먼저 본다. 새 결정이 생기면 같은 파일들에 기록한다.
+
+## 10. 프로젝트별 기본 동기화 원칙
+
+- AgentApp이 관리하는 모든 프로젝트는 공통 memory, plan, handoff, git sync 기준을 기본 포함 사항으로 둔다.
+- 새 프로젝트는 기능 개발보다 먼저 `AGENTS.md`, `CLAUDE.md`, `.claude-sync`, task queue, handoff 문서, git remote/branch 점검 흐름을 갖춘다.
+- 세부 기준은 `docs/project-baseline-sync.md`를 따른다.

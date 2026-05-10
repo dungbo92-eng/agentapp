@@ -7,6 +7,24 @@ import { fileURLToPath } from "node:url";
 const REPO_ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 const DASHBOARD_PUBLIC = path.join(REPO_ROOT, "apps", "dashboard", "public");
 const SNAPSHOT = path.join(DASHBOARD_PUBLIC, "agent-snapshot.json");
+const DAY_INDEX = {
+  sunday: 0,
+  monday: 1,
+  tuesday: 2,
+  wednesday: 3,
+  thursday: 4,
+  friday: 5,
+  saturday: 6,
+};
+const INDEX_DAY = Object.fromEntries(Object.entries(DAY_INDEX).map(([day, index]) => [index, day]));
+const MODEL_RANK = {
+  efficient: 1,
+  balanced: 2,
+  sonnet: 3,
+  best_available: 4,
+  opus: 5,
+  other: 0,
+};
 
 const FILES = {
   roadmap: path.join(REPO_ROOT, ".claude-sync", "plans", "agent-orchestrator-roadmap.md"),
@@ -199,13 +217,130 @@ function summarizeApprovalQueue(decisions, taskQueue, approvalPolicy) {
   };
 }
 
+function dayName(date) {
+  return INDEX_DAY[date.getDay()];
+}
+
+function daysUntil(fromIndex, targetIndex) {
+  const diff = (targetIndex - fromIndex + 7) % 7;
+  return diff === 0 ? 7 : diff;
+}
+
+function daysInWindow(todayIndex, count) {
+  return Array.from({ length: count }, (_, offset) => INDEX_DAY[(todayIndex + offset) % 7]);
+}
+
+function scoreUsageCandidate(candidate, complexity) {
+  const rank = MODEL_RANK[candidate.profile.model_tier] || 0;
+  const remaining = Number(candidate.account.remaining_units || 0);
+  const estimated = Number(candidate.profile.estimated_units || 0);
+
+  if (complexity === "routine") return remaining * 2 - estimated * 10 + rank;
+  if (complexity === "standard") return rank * 20 + remaining - estimated * 2;
+  return rank * 100 + remaining - estimated;
+}
+
+function modelReason(complexity, reserveOk) {
+  if (!reserveOk && ["complex", "critical"].includes(complexity)) {
+    return "Quality-first route, but split the task or ask for approval before spending weekend reserve.";
+  }
+  if (complexity === "routine") return "Use an efficient profile for context review, setup, and simple documentation.";
+  if (complexity === "standard") return "Use a balanced profile for normal implementation and bug fixing.";
+  return "Use the highest quality profile for architecture, trading logic, AI integration, and high-risk reasoning.";
+}
+
+function recommendForComplexity(accounts, complexity, totalRemaining, reserve) {
+  const candidates = accounts
+    .map((account) => ({ account, profile: account.model_profiles?.[complexity] }))
+    .filter((candidate) => candidate.profile)
+    .filter((candidate) => Number(candidate.account.remaining_units || 0) >= Number(candidate.profile.estimated_units || 0))
+    .sort((left, right) => scoreUsageCandidate(right, complexity) - scoreUsageCandidate(left, complexity));
+
+  if (candidates.length === 0) {
+    return {
+      complexity,
+      status: "blocked",
+      reason: "No configured account has enough remaining local budget units for this complexity.",
+    };
+  }
+
+  const selected = candidates[0];
+  const estimated = Number(selected.profile.estimated_units || 0);
+  const remainingAfter = totalRemaining - estimated;
+  const reserveOk = remainingAfter >= reserve;
+
+  return {
+    complexity,
+    status: reserveOk || complexity === "routine" ? "recommended" : "needs_decision",
+    account_id: selected.account.id,
+    provider: selected.account.provider,
+    model_tier: selected.profile.model_tier,
+    reasoning_effort: selected.profile.reasoning_effort,
+    estimated_units: estimated,
+    weekend_reserve_after_run: remainingAfter - reserve,
+    weekend_reserve_ok: reserveOk,
+    reason: modelReason(complexity, reserveOk),
+  };
+}
+
 function summarizeUsageBudget(usageBudget) {
   const accounts = Array.isArray(usageBudget?.accounts) ? usageBudget.accounts : [];
+  const now = new Date();
+  const today = dayName(now);
+  const todayIndex = DAY_INDEX[today];
+  const resetDay = usageBudget?.week_start_day || "monday";
+  const resetIndex = DAY_INDEX[resetDay] ?? DAY_INDEX.monday;
+  const daysToReset = daysUntil(todayIndex, resetIndex);
+  const periodDays = daysInWindow(todayIndex, daysToReset);
+  const reserveDays = new Set(usageBudget?.weekend_reserve?.days || []);
+  const weekendDaysLeft = periodDays.filter((day) => reserveDays.has(day));
+  const workingDaysLeft = Math.max(1, periodDays.length - weekendDaysLeft.length);
+  const totalRemaining = accounts.reduce((sum, account) => sum + Number(account.remaining_units || 0), 0);
+  const weekendReserve = usageBudget?.weekend_reserve?.enabled ? Number(usageBudget.weekend_reserve.minimum_units || 0) : 0;
+  const spendableBeforeReserve = Math.max(0, totalRemaining - weekendReserve);
+  const providerMap = new Map();
+
+  for (const account of accounts) {
+    const summary = providerMap.get(account.provider) || {
+      provider: account.provider,
+      accounts: 0,
+      remaining_units: 0,
+      weekly_budget_units: 0,
+    };
+    summary.accounts += 1;
+    summary.remaining_units += Number(account.remaining_units || 0);
+    summary.weekly_budget_units += Number(account.weekly_budget_units || 0);
+    providerMap.set(account.provider, summary);
+  }
+
   return {
-    total_remaining_units: accounts.reduce((sum, account) => sum + Number(account.remaining_units || 0), 0),
+    total_remaining_units: totalRemaining,
     account_count: accounts.length,
     providers: [...new Set(accounts.map((account) => account.provider))],
-    weekend_reserve_units: Number(usageBudget?.weekend_reserve?.minimum_units || 0),
+    weekend_reserve_units: weekendReserve,
+    spendable_before_reserve: spendableBeforeReserve,
+    recommended_today_budget_units: Number((spendableBeforeReserve / workingDaysLeft).toFixed(2)),
+    reset_day: resetDay,
+    days_to_reset: daysToReset,
+    weekend_days_left: weekendDaysLeft,
+    reserve_ok_now: totalRemaining >= weekendReserve,
+    provider_summaries: Array.from(providerMap.values()),
+    accounts: accounts.map((account) => ({
+      id: account.id,
+      provider: account.provider,
+      plan: account.plan,
+      auth: account.auth,
+      remaining_units: Number(account.remaining_units || 0),
+      weekly_budget_units: Number(account.weekly_budget_units || 0),
+      remaining_percent:
+        Number(account.weekly_budget_units || 0) > 0
+          ? Math.round((Number(account.remaining_units || 0) / Number(account.weekly_budget_units || 0)) * 100)
+          : 0,
+      reset_day: account.reset_day || resetDay,
+    })),
+    recommendations: ["routine", "standard", "complex", "critical"].map((complexity) =>
+      recommendForComplexity(accounts, complexity, totalRemaining, weekendReserve),
+    ),
   };
 }
 

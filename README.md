@@ -65,3 +65,7 @@ pnpm validate        # 로컬 스크립트 문법 검증
 - 외부 운영계 쓰기, 결제, 배포, 비밀값 변경, 파괴적 파일/DB 작업은 사용자 승인을 요구한다.
 - 검증된 변경은 로컬 git commit으로 남긴다.
 - remote push는 remote가 설정되고 사용자 승인 범위가 명확할 때 수행한다.
+
+## 프로젝트별 기본 동기화
+
+AgentApp이 관리하는 각 프로젝트는 공통 memory, plan, handoff, git sync 기준을 기본 운영 골격으로 가진다. 새 프로젝트를 등록할 때는 기능 개발보다 먼저 이 기준을 갖춘다. 세부 기준은 `docs/project-baseline-sync.md`를 따른다.

@@ -299,7 +299,8 @@ select {
 
 .pill.available,
 .pill.completed,
-.pill.running {
+.pill.running,
+.pill.recommended {
   background: #dff3ed;
   color: #216457;
 }
@@ -307,7 +308,8 @@ select {
 .pill.blocked,
 .pill.failed,
 .pill.quota_limited,
-.pill.needs_user {
+.pill.needs_user,
+.pill.needs_decision {
   background: #f8e6df;
   color: #88452d;
 }
@@ -336,7 +338,22 @@ select {
   margin-bottom: 16px;
 }
 
+.usageSummary {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 10px;
+  margin-bottom: 16px;
+}
+
 .approvalSummary div {
+  min-height: 82px;
+  padding: 14px;
+  border: 1px solid #e2e9ec;
+  border-radius: 8px;
+  background: #fbfcfd;
+}
+
+.usageSummary div {
   min-height: 82px;
   padding: 14px;
   border: 1px solid #e2e9ec;
@@ -351,9 +368,63 @@ select {
   line-height: 1.1;
 }
 
+.usageSummary strong {
+  display: block;
+  color: #13242c;
+  font-size: 1.55rem;
+  line-height: 1.1;
+}
+
 .approvalSummary span {
   color: #607883;
   font-size: 0.82rem;
+}
+
+.usageSummary span {
+  color: #607883;
+  font-size: 0.82rem;
+}
+
+.accountGrid,
+.routingGrid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 12px;
+  margin-top: 12px;
+}
+
+.accountCard,
+.routeCard {
+  display: grid;
+  gap: 10px;
+  min-width: 0;
+  padding: 14px;
+  border: 1px solid #e2e9ec;
+  border-radius: 8px;
+  background: #fbfcfd;
+}
+
+.accountCard > div,
+.routeCard header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 10px;
+}
+
+.accountCard strong,
+.routeCard strong {
+  color: #20333c;
+  font-size: 0.95rem;
+}
+
+.accountCard span,
+.accountCard small,
+.routeCard p,
+.routeCard small {
+  margin: 0;
+  color: #607883;
+  font-size: 0.84rem;
 }
 
 .approvalGrid {
@@ -495,6 +566,9 @@ select {
   }
 
   .approvalSummary,
+  .usageSummary,
+  .accountGrid,
+  .routingGrid,
   .approvalGrid {
     grid-template-columns: 1fr;
   }

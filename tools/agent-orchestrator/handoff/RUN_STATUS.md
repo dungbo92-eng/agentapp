@@ -240,3 +240,12 @@ NEXT_TASK.md 템플릿 확정: agent-next 생성물을 Required Reads, Execution
 - Git: pending commit/push
 - Decisions: none
 - Next: 주간 사용량/주말 예비분/모델 추천 화면
+
+## 2026-05-10T02:19:14.446Z
+
+- Status: completed
+- Summary: 대시보드에 주간 사용량/주말 예비분/모델 추천 화면을 추가하고, 프로젝트별 공통 memory/plan/git sync를 기본 운영 골격으로 문서화했다.
+- Verification: pnpm validate 통과; pnpm dashboard:build 통과; usage accounts=2 recommendations=4; pnpm agent:progress=79% Phase5=100%
+- Git: pending commit/push
+- Decisions: none
+- Next: OS 작업 스케줄러 또는 Codex automation 연동 방식 정리

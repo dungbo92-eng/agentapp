@@ -80,6 +80,40 @@ type Snapshot = {
     account_count: number;
     providers: string[];
     weekend_reserve_units: number;
+    spendable_before_reserve: number;
+    recommended_today_budget_units: number;
+    reset_day: string;
+    days_to_reset: number;
+    weekend_days_left: string[];
+    reserve_ok_now: boolean;
+    provider_summaries: {
+      provider: string;
+      accounts: number;
+      remaining_units: number;
+      weekly_budget_units: number;
+    }[];
+    accounts: {
+      id: string;
+      provider: string;
+      plan: string;
+      auth: string;
+      remaining_units: number;
+      weekly_budget_units: number;
+      remaining_percent: number;
+      reset_day: string;
+    }[];
+    recommendations: {
+      complexity: string;
+      status: string;
+      account_id?: string;
+      provider?: string;
+      model_tier?: string;
+      reasoning_effort?: string;
+      estimated_units?: number;
+      weekend_reserve_after_run?: number;
+      weekend_reserve_ok?: boolean;
+      reason: string;
+    }[];
   };
   workers: {
     id: string;
@@ -249,6 +283,65 @@ function App() {
             <span>remaining units</span>
             <p>{snapshot.usage_budget.account_count} user-managed accounts tracked</p>
             <p>{snapshot.usage_budget.weekend_reserve_units} units reserved for weekend continuity</p>
+          </div>
+        </div>
+
+        <div className="panel wide">
+          <div className="sectionTitle">
+            <h2>Usage Routing</h2>
+            <span>{snapshot.usage_budget.reserve_ok_now ? "reserve ok" : "reserve low"}</span>
+          </div>
+          <div className="usageSummary">
+            <div>
+              <strong>{numberFormatter.format(snapshot.usage_budget.spendable_before_reserve)}</strong>
+              <span>spendable before reserve</span>
+            </div>
+            <div>
+              <strong>{numberFormatter.format(snapshot.usage_budget.recommended_today_budget_units)}</strong>
+              <span>today budget units</span>
+            </div>
+            <div>
+              <strong>{snapshot.usage_budget.days_to_reset}</strong>
+              <span>days to reset</span>
+            </div>
+            <div>
+              <strong>{snapshot.usage_budget.weekend_days_left.length}</strong>
+              <span>weekend days left</span>
+            </div>
+          </div>
+          <div className="accountGrid">
+            {snapshot.usage_budget.accounts.map((account) => (
+              <article className="accountCard" key={account.id}>
+                <div>
+                  <strong>{account.id}</strong>
+                  <span>
+                    {account.provider} / {account.plan}
+                  </span>
+                </div>
+                <ProgressBar value={account.remaining_percent} />
+                <small>
+                  {account.remaining_units}/{account.weekly_budget_units} units / reset {account.reset_day}
+                </small>
+              </article>
+            ))}
+          </div>
+          <div className="routingGrid">
+            {snapshot.usage_budget.recommendations.map((recommendation) => (
+              <article className="routeCard" key={recommendation.complexity}>
+                <header>
+                  <strong>{recommendation.complexity}</strong>
+                  <span className={`pill ${recommendation.status}`}>{recommendation.status}</span>
+                </header>
+                {recommendation.account_id ? (
+                  <p>
+                    {recommendation.account_id} / {recommendation.model_tier} / {recommendation.reasoning_effort}
+                  </p>
+                ) : (
+                  <p>No account available</p>
+                )}
+                <small>{recommendation.reason}</small>
+              </article>
+            ))}
           </div>
         </div>
 
