@@ -3,7 +3,7 @@
 import { mkdir, readFile, writeFile } from "node:fs/promises";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
-import { storeCredential } from "./credential-vault.mjs";
+import { deleteCredential, storeCredential } from "./credential-vault.mjs";
 
 const REPO_ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 const DATA_DIR = path.resolve(process.env.AGENTAPP_DATA_DIR || path.join(REPO_ROOT, "data"));
@@ -259,6 +259,19 @@ export async function saveAccountCredential(input) {
   return writeRuntime(runtime);
 }
 
+export async function deleteAccount(input) {
+  const runtime = await readRuntime();
+  const id = normalizeId(input.id || input.accountId || input.account_id);
+  const account = runtime.accounts.find((item) => item.id === id);
+  runtime.accounts = runtime.accounts.filter((item) => item.id !== id);
+
+  if (account?.credentialRef) {
+    await deleteCredential({ credentialRef: account.credentialRef, accountId: account.id });
+  }
+
+  return writeRuntime(runtime);
+}
+
 export async function setAccountEnabled(input) {
   const runtime = await readRuntime();
   const id = normalizeId(input.id);
@@ -325,7 +338,7 @@ export function selectRoute(accounts, request) {
   if (enabledAccounts.length === 0) {
     return {
       status: "blocked",
-      reason: "No enabled user-managed account is available for this worker.",
+      reason: "이 작업 도구에 사용할 수 있는 활성 계정이 없습니다.",
       complexity,
     };
   }
@@ -333,7 +346,7 @@ export function selectRoute(accounts, request) {
   if (providerAccounts.length === 0) {
     return {
       status: "blocked",
-      reason: "No ready user-managed session is available for this worker. Mark a logged-in account as ready first.",
+      reason: "준비된 세션이 없습니다. 로그인된 계정을 준비 상태로 먼저 바꿔 주세요.",
       complexity,
     };
   }
@@ -347,7 +360,7 @@ export function selectRoute(accounts, request) {
   if (candidates.length === 0) {
     return {
       status: "blocked",
-      reason: "No user-managed account has enough local budget units for this worker and complexity.",
+      reason: "이 작업과 난이도에 맞는 남은 사용량이 충분한 계정이 없습니다.",
       complexity,
     };
   }
@@ -366,8 +379,8 @@ export function selectRoute(accounts, request) {
     complexity,
     reason:
       complexity === "routine"
-        ? "Routine work uses the most efficient user-managed profile with enough remaining budget."
-        : "Quality-first routing selected the strongest configured profile with enough remaining budget.",
+        ? "단순 작업이므로 남은 사용량이 충분한 가장 효율적인 프로필을 선택했습니다."
+        : "품질 우선 기준으로 남은 사용량이 충분한 가장 강한 프로필을 선택했습니다.",
   };
 }
 
@@ -382,7 +395,7 @@ function dashboardRunState(run, status, reason) {
     workspace: REPO_ROOT,
     task: {
       id: "dashboard-run",
-      title: "Dashboard start request",
+      title: "대시보드 시작 요청",
       source: "dashboard",
     },
     status,
@@ -418,16 +431,16 @@ function dashboardRunState(run, status, reason) {
     handoff: {
       summary:
         status === "running"
-          ? `Dashboard started ${run.workerId} with ${run.routing?.accountId || "no-account"} / ${run.routing?.model || "model-pending"}. Adapter ${run.adapter?.mode || "pending"} is ${run.adapter?.status || "pending"}. Prompt body is stored local-only in data/dashboard-runtime.json.`
+          ? `대시보드가 ${run.workerId} 작업을 ${run.routing?.accountId || "계정 없음"} / ${run.routing?.model || "모델 대기"} 조합으로 시작했습니다. 어댑터 ${run.adapter?.mode || "pending"} 상태는 ${run.adapter?.status || "pending"} 입니다. 프롬프트 본문은 data/dashboard-runtime.json 에만 저장됩니다.`
           : status === "queued"
-            ? `Dashboard queued ${run.workerId} because no ready account or local budget route is available. Prompt body is stored local-only in data/dashboard-runtime.json.`
-          : `Dashboard recorded ${status} for ${run.workerId}. Prompt body is stored local-only in data/dashboard-runtime.json.`,
+            ? `준비된 계정이나 사용 가능한 예산 경로가 없어 ${run.workerId} 작업을 대기 상태로 기록했습니다. 프롬프트 본문은 data/dashboard-runtime.json 에만 저장됩니다.`
+            : `대시보드가 ${run.workerId} 작업의 상태를 ${status} 로 기록했습니다. 프롬프트 본문은 data/dashboard-runtime.json 에만 저장됩니다.`,
       next_step:
         status === "running"
-          ? "Monitor the dashboard run, validation result, and adapter log. Stop it from the dashboard if the worker needs handoff."
+          ? "대시보드에서 실행 상태, 검증 결과, 어댑터 로그를 확인하세요. 인수인계가 필요하면 여기서 중지하면 됩니다."
           : status === "queued"
-            ? "Open the dashboard, make one account ready, then start the run again if needed."
-          : "Review the local run history and continue from NEXT_TASK.md or start a new dashboard run.",
+            ? "대시보드에서 계정을 하나 준비 상태로 바꾼 뒤 다시 시작하세요."
+          : "로컬 실행 기록을 확인하고 NEXT_TASK.md 에서 이어가거나 새 작업을 시작하세요.",
       files: [
         "data/dashboard-runtime.json",
         "tools/agent-orchestrator/handoff/DASHBOARD_RUN.md",
@@ -452,21 +465,21 @@ function dashboardRunState(run, status, reason) {
 function dashboardRunMarkdown(state) {
   return `# DASHBOARD_RUN
 
-- Generated: ${state.timestamps.updated_at}
-- Run state: ${relativePath(DASHBOARD_RUN_STATE)}
-- Worker: ${state.worker_id}
-- Status: ${state.status}
-- Reason: ${state.reason}
-- Account: ${state.usage.account_id || "none"}
-- Model: ${state.usage.model_tier || "none"}
-- Prompt body: local-only in data/dashboard-runtime.json
-- Contains secrets: ${state.safety.contains_secrets}
+- 생성 시각: ${state.timestamps.updated_at}
+- 실행 상태 파일: ${relativePath(DASHBOARD_RUN_STATE)}
+- 작업 도구: ${state.worker_id}
+- 상태: ${state.status}
+- 사유: ${state.reason}
+- 계정: ${state.usage.account_id || "없음"}
+- 모델: ${state.usage.model_tier || "없음"}
+- 프롬프트 본문: data/dashboard-runtime.json 에만 저장
+- 비밀 포함 여부: ${state.safety.contains_secrets}
 
-## Summary
+## 요약
 
 ${state.handoff.summary}
 
-## Next Step
+## 다음 단계
 
 ${state.handoff.next_step}
 `;
@@ -608,7 +621,7 @@ export async function startRun(input) {
     validation: {
       status: "not_run",
       command: "pnpm validate",
-      summary: "Pending preflight validation.",
+      summary: "사전 검증 대기 중",
     },
     adapter: {
       status: routing.status === "blocked" ? "blocked" : "queued",
@@ -616,16 +629,16 @@ export async function startRun(input) {
       sessionProfile: routing.sessionProfile || "",
     },
     events: [
-      { at: new Date().toISOString(), level: "info", message: "Prompt queued from dashboard." },
+      { at: new Date().toISOString(), level: "info", message: "대시보드에서 작업 요청을 등록했습니다." },
       {
         at: new Date().toISOString(),
         level: routing.status === "blocked" ? "warn" : "info",
         message:
           routing.status === "blocked"
             ? routing.reason
-            : `Selected ${routing.accountId} / ${routing.model} / ${routing.reasoningEffort}.`,
+            : `선택 계정 ${routing.accountId} / 모델 ${routing.model} / 추론 ${routing.reasoningEffort}`,
       },
-      { at: new Date().toISOString(), level: "info", message: "Waiting for worker adapter execution." },
+      { at: new Date().toISOString(), level: "info", message: "작업 실행 어댑터를 준비하는 중입니다." },
     ],
   };
   run.handoffPath = await writeDashboardRunHandoff(
@@ -666,7 +679,7 @@ export async function stopRun() {
     },
     events: [
       ...(runtime.activeRun.events || []),
-      { at: new Date().toISOString(), level: "warn", message: "Run stopped from dashboard." },
+      { at: new Date().toISOString(), level: "warn", message: "대시보드에서 실행을 중지했습니다." },
     ],
   };
   stopped.handoffPath = await writeDashboardRunHandoff(stopped, "interrupted", "user_stopped");

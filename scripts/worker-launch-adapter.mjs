@@ -169,7 +169,7 @@ async function resolveAdapter(run, files) {
       return {
         status: "blocked",
         mode: "command",
-        summary: "Codex CLI was not found on this machine.",
+        summary: "이 PC에서 Codex CLI 를 찾지 못했습니다.",
       };
     }
 
@@ -200,7 +200,7 @@ async function resolveAdapter(run, files) {
         AGENTAPP_MODEL: run.routing?.model || run.modelOverride || "auto",
       },
       sessionDir,
-      summary: "Codex exec adapter is ready.",
+      summary: "Codex exec 어댑터 준비 완료",
     };
   }
 
@@ -211,7 +211,7 @@ async function resolveAdapter(run, files) {
       return {
         status: "blocked",
         mode: "open-window",
-        summary: "Cursor CLI was not found on this machine.",
+        summary: "이 PC에서 Cursor CLI 를 찾지 못했습니다.",
       };
     }
 
@@ -235,7 +235,7 @@ async function resolveAdapter(run, files) {
         AGENTAPP_MODEL: run.routing?.model || run.modelOverride || "auto",
       },
       sessionDir,
-      summary: "Cursor window adapter is ready.",
+      summary: "Cursor 창 어댑터 준비 완료",
     };
   }
 
@@ -243,7 +243,7 @@ async function resolveAdapter(run, files) {
     return {
       status: "manual",
       mode: "manual",
-      summary: "Claude Code is not auto-configured on this machine. Open the worker prompt manually in the authenticated terminal session.",
+      summary: "이 PC에서는 Claude Code 자동 실행이 설정되지 않았습니다. 로그인된 터미널 세션에서 worker 프롬프트를 수동으로 열어 주세요.",
     };
   }
 
@@ -251,14 +251,14 @@ async function resolveAdapter(run, files) {
     return {
       status: "manual",
       mode: "manual",
-      summary: "Gemini CLI is not auto-configured on this machine. Open the worker prompt manually in the authenticated terminal session.",
+      summary: "이 PC에서는 Gemini CLI 자동 실행이 설정되지 않았습니다. 로그인된 터미널 세션에서 worker 프롬프트를 수동으로 열어 주세요.",
     };
   }
 
   return {
     status: "blocked",
     mode: "manual",
-    summary: `No launch adapter is defined for worker ${run.workerId}.`,
+    summary: `${run.workerId} 용 실행 어댑터가 아직 정의되지 않았습니다.`,
   };
 }
 
@@ -338,10 +338,10 @@ async function runPreflight(run, files) {
       status: "running",
       command: "pnpm validate",
       logPath: relativePath(files.validationLogPath),
-      summary: "Running pnpm validate before launch.",
+      summary: "실행 전 pnpm validate 검사 중",
     },
   });
-  await appendRunEvent(run.id, { level: "info", message: "Preflight validation started." });
+  await appendRunEvent(run.id, { level: "info", message: "사전 검증을 시작했습니다." });
 
   const result = await streamProcess(
     process.platform === "win32" ? "cmd.exe" : "sh",
@@ -359,10 +359,10 @@ async function runPreflight(run, files) {
         status: "passed",
         command: "pnpm validate",
         logPath: relativePath(files.validationLogPath),
-        summary: "Preflight validation passed.",
+        summary: "사전 검증 통과",
       },
     });
-    await appendRunEvent(run.id, { level: "info", message: "Preflight validation passed." });
+    await appendRunEvent(run.id, { level: "info", message: "사전 검증을 통과했습니다." });
     return true;
   }
 
@@ -374,7 +374,7 @@ async function runPreflight(run, files) {
         status: "failed",
         command: "pnpm validate",
         logPath: relativePath(files.validationLogPath),
-        summary: "Preflight validation failed.",
+        summary: "사전 검증 실패",
       },
       adapter: {
         status: "blocked",
@@ -382,7 +382,7 @@ async function runPreflight(run, files) {
       },
       events: [
         ...(run.events || []),
-        { at: nowIso(), level: "error", message: "Preflight validation failed. Check validate.log before launching a worker." },
+        { at: nowIso(), level: "error", message: "사전 검증에 실패했습니다. worker 실행 전에 validate.log 를 확인하세요." },
       ],
     },
     {
@@ -406,7 +406,7 @@ async function launchCommandWorker(run, files, adapter, promptText) {
   });
   await appendRunEvent(run.id, {
     level: "info",
-    message: `Starting ${run.workerId} with session profile ${run.routing?.sessionProfile || "default"}.`,
+    message: `${run.workerId} 작업을 세션 프로필 ${run.routing?.sessionProfile || "default"} 로 시작합니다.`,
   });
 
   const result = await streamProcess(adapter.command, adapter.args, {
@@ -446,7 +446,7 @@ async function launchCommandWorker(run, files, adapter, promptText) {
     if (lastMessage) {
       await appendRunEvent(run.id, {
         level: "info",
-        message: `Worker final message saved to ${relativePath(files.lastMessagePath)}.`,
+        message: `작업 최종 메시지를 ${relativePath(files.lastMessagePath)} 에 저장했습니다.`,
       });
     }
     await finishRunRecord(
@@ -477,7 +477,7 @@ async function launchCommandWorker(run, files, adapter, promptText) {
     await updateAccountSession(run.routing?.accountId || "", "needs-login");
     await appendRunEvent(run.id, {
       level: "warn",
-      message: "The worker reported a login or session problem. This session profile was marked needs-login.",
+      message: "작업 도구가 로그인 또는 세션 문제를 보고했습니다. 이 세션 프로필을 로그인 필요 상태로 바꿨습니다.",
     });
     await finishRunRecord(
       run.id,
@@ -555,7 +555,7 @@ async function launchWindowWorker(run, files, adapter) {
   if (result.code === 0) {
     await appendRunEvent(run.id, {
       level: "info",
-      message: `Opened ${run.workerId} with session profile directory ${relativePath(adapter.sessionDir)}.`,
+      message: `${run.workerId} 창을 세션 프로필 디렉터리 ${relativePath(adapter.sessionDir)} 로 열었습니다.`,
     });
     await patchRunRecord(
       run.id,
@@ -661,7 +661,7 @@ export async function executeRun(runId) {
   const promptText = await writeLaunchPrompt(run, files);
   await appendRunEvent(run.id, {
     level: "info",
-    message: `Launch prompt written to ${relativePath(files.promptPath)}.`,
+    message: `실행 프롬프트를 ${relativePath(files.promptPath)} 에 기록했습니다.`,
   });
 
   if (!(await runPreflight(run, files))) {
@@ -684,7 +684,7 @@ export async function executeRun(runId) {
   await reserveAccountBudget(run.routing?.accountId || "", run.routing?.estimatedUnits || 0);
   await appendRunEvent(run.id, {
     level: "info",
-    message: `${run.routing?.estimatedUnits || 0} local budget units reserved for this run.`,
+    message: `이번 실행을 위해 로컬 예산 ${run.routing?.estimatedUnits || 0} 단위를 예약했습니다.`,
   });
 
   if (adapter.mode === "open-window") {
@@ -713,7 +713,7 @@ export async function launchDashboardWorker(run) {
   });
   await appendRunEvent(run.id, {
     level: "info",
-    message: `Worker launch adapter started in the background (pid ${child.pid}).`,
+    message: `작업 실행 어댑터를 백그라운드에서 시작했습니다 (pid ${child.pid}).`,
   });
 }
 

@@ -1,6 +1,6 @@
 # NEXT_TASK
 
-- Generated: 2026-05-10T14:17:27.261Z
+- Generated: 2026-05-10T14:35:07.559Z
 - Selected task: Claude Code command-mode adapter profile
 - Selection source: task-queue
 - Task id: claude-command-mode-adapter

@@ -6,6 +6,7 @@ import path from "node:path";
 import { fileURLToPath } from "node:url";
 import {
   addAccount,
+  deleteAccount,
   addProject,
   applyAccountPreset,
   applyFourAccountPreset,
@@ -58,6 +59,10 @@ async function handleApi(req, res, url) {
   }
   if (req.method === "POST" && url === "/api/agentapp/accounts") {
     sendJson(res, 200, await addAccount(await readBody(req)));
+    return true;
+  }
+  if (req.method === "POST" && url === "/api/agentapp/accounts/delete") {
+    sendJson(res, 200, await deleteAccount(await readBody(req)));
     return true;
   }
   if (req.method === "POST" && url === "/api/agentapp/accounts/preset-four") {

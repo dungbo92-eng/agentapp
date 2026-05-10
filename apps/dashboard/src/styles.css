@@ -209,6 +209,25 @@ button:disabled {
   margin-top: 12px;
 }
 
+.formHint {
+  display: grid;
+  gap: 2px;
+  padding: 9px 10px;
+  border: 1px solid #dbeafe;
+  border-radius: 7px;
+  background: #f8fbff;
+}
+
+.formHint strong {
+  color: #1d4ed8;
+  font-size: 0.82rem;
+}
+
+.formHint span {
+  color: #64748b;
+  font-size: 0.77rem;
+}
+
 .splitInputs {
   display: grid;
   grid-template-columns: 1fr 1fr;
@@ -371,6 +390,9 @@ textarea:focus {
 }
 
 .segButton {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
   min-height: 24px;
   padding: 0 7px;
   border: 0;
@@ -385,6 +407,14 @@ textarea:focus {
   background: #ffffff;
   color: #1d4ed8;
   box-shadow: 0 1px 2px rgba(15, 23, 42, 0.09);
+}
+
+.segButton.danger {
+  color: #b91c1c;
+}
+
+.segButton.danger:disabled {
+  color: #94a3b8;
 }
 
 .topbar {

@@ -2,6 +2,7 @@ import { defineConfig } from "vite";
 import react from "@vitejs/plugin-react";
 import {
   addAccount,
+  deleteAccount,
   addProject,
   applyAccountPreset,
   applyFourAccountPreset,
@@ -46,6 +47,10 @@ export default defineConfig({
             }
             if (req.method === "POST" && url === "/api/agentapp/accounts") {
               sendJson(res, 200, await addAccount(await readBody(req)));
+              return;
+            }
+            if (req.method === "POST" && url === "/api/agentapp/accounts/delete") {
+              sendJson(res, 200, await deleteAccount(await readBody(req)));
               return;
             }
             if (req.method === "POST" && url === "/api/agentapp/accounts/preset-four") {

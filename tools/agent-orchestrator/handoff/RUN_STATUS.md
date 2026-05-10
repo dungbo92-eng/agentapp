@@ -402,3 +402,12 @@ NEXT_TASK.md 템플릿 확정: agent-next 생성물을 Required Reads, Execution
 - Git: not recorded
 - Decisions: none
 - Next: Claude Code command-mode adapter profile
+
+## 2026-05-10T14:35:02.421Z
+
+- Status: completed
+- Summary: 대시보드 UI를 한글로 통일하고 계정 삭제 버튼, 입력/버튼 툴팁, 남은 사용량/주간 예산 설명을 추가했다. 계정 삭제 API를 붙이고 삭제 시 로컬 credential vault 정리까지 반영했다.
+- Verification: pnpm validate; pnpm dashboard:build; Edge headless DOM/screenshot; temp account delete API verified
+- Git: not recorded
+- Decisions: none
+- Next: See tools/agent-orchestrator/handoff/NEXT_TASK.md

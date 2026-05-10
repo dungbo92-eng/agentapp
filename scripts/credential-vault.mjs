@@ -118,6 +118,32 @@ export async function credentialMetadata(accountId, kind = "password") {
   };
 }
 
+export async function deleteCredential(input = {}) {
+  const vault = await readVault();
+  const credentialRef = String(input.credentialRef || "").trim();
+  const accountId = normalizeId(input.accountId || input.account_id);
+  const kind = normalizeId(input.kind || "");
+  let deleted = false;
+
+  if (credentialRef && vault.credentials[credentialRef]) {
+    delete vault.credentials[credentialRef];
+    deleted = true;
+  } else if (accountId) {
+    for (const [ref, item] of Object.entries(vault.credentials)) {
+      if (item.accountId !== accountId) continue;
+      if (kind && item.kind !== kind) continue;
+      delete vault.credentials[ref];
+      deleted = true;
+    }
+  }
+
+  if (deleted) {
+    await writeVault(vault);
+  }
+
+  return { deleted };
+}
+
 if (process.argv[1] === fileURLToPath(import.meta.url)) {
   const accountId = process.argv[2];
   const secret = process.env.AGENTAPP_SECRET;
