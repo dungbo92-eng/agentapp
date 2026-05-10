@@ -51,6 +51,8 @@ AgentApp이 자동으로 할 수 있는 일:
 - ready session profile 중 작업에 맞는 profile 선택
 - 로컬 예산 차감과 run state 기록
 - handoff와 dashboard 실행 로그 갱신
+- Codex는 session profile별 `CODEX_HOME` 경로에서 launch
+- Cursor는 session profile별 `--user-data-dir`로 launch
 
 AgentApp이 하지 않는 일:
 
@@ -60,3 +62,13 @@ AgentApp이 하지 않는 일:
 - 결제, 요금제, quota 변경
 
 세션이 만료되었거나 보안 확인이 필요하면 해당 계정은 `needs-login`으로 두고 사용자가 공식 경로에서 다시 로그인한 뒤 `Ready`로 바꾼다.
+
+## Launch Adapter
+
+현재 기본 adapter는 tool마다 다르게 동작한다.
+
+- Codex: `data/session-profiles/codex/<session-profile>`를 `CODEX_HOME`으로 사용해 `codex exec`를 실행한다.
+- Cursor: `data/session-profiles/cursor/<session-profile>`를 `--user-data-dir`로 사용해 창을 연다.
+- Claude Code, Gemini CLI: machine-specific command profile이 없으면 worker prompt 파일을 기준으로 manual fallback한다.
+
+자세한 실행 기준은 `docs/worker-launch-adapters.md`를 따른다.

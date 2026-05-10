@@ -63,16 +63,24 @@ Start는 로컬 runtime에서 다음 정보를 생성한다.
 
 - active run 상태
 - 추천 계정, 모델, reasoning effort, 예상 예산
+- `pnpm validate` preflight 결과
+- worker adapter mode, prompt path, log path
 - `tools/agent-orchestrator/handoff/DASHBOARD_RUN.md`
 - `tools/agent-orchestrator/handoff/run-states/dashboard-current.json`
 
 Stop은 active run을 중단 상태로 바꾸고 같은 handoff 파일을 갱신한다. 프롬프트 본문은 비밀값 유출을 피하기 위해 `data/dashboard-runtime.json`에만 local-only로 저장한다.
 
+현재 adapter 동작은 아래와 같다.
+
+- Codex: session profile별 `CODEX_HOME` 디렉터리로 `codex exec` 실행
+- Cursor: session profile별 `--user-data-dir`로 창 오픈
+- Claude Code, Gemini CLI: 아직 machine-specific command profile이 없으면 manual fallback
+
 ## 다음 구현 후보
 
-- worker별 session profile launch adapter
-- worker별 수동/자동 실행 모드 설정
-- 실행 로그와 validation 결과 dashboard 표시
+- Claude Code command-mode adapter profile
+- Gemini CLI command-mode adapter profile
+- tool별 login/session-expired detector 보강
 - credential vault 복호화가 필요한 worker adapter별 안전 경계
 
 ## EXE packaging 방향

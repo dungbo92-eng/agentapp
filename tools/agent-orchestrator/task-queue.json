@@ -421,10 +421,60 @@
       "title": "worker별 session profile launch adapter",
       "phase": "phase-10",
       "priority": 35,
-      "status": "todo",
+      "status": "done",
       "depends_on": ["local-encrypted-credential-vault", "model-override-run-console"],
       "blocked_by": [],
-      "reason": "다음 단계는 ready session profile을 실제 Codex/Claude/Cursor/Gemini 실행 어댑터에 연결하고, 세션 만료 시 needs-login handoff를 남기는 것이다."
+      "reason": "ready session profile을 실제 launch adapter에 연결했다. Codex는 command mode, Cursor는 open-window mode, Claude/Gemini는 manual fallback으로 시작하고 prompt/log/session dir를 runtime에 기록한다."
+    },
+    {
+      "id": "worker-log-tail-and-validation",
+      "title": "worker 로그와 validation 상태를 dashboard active run에 연결",
+      "phase": "phase-10",
+      "priority": 34,
+      "status": "done",
+      "depends_on": ["worker-session-profile-launch-adapters"],
+      "blocked_by": [],
+      "reason": "launch 전 pnpm validate preflight를 실행하고 결과를 active run과 DASHBOARD_RUN에 남기며, worker log path와 event tail을 dashboard runtime에 기록한다."
+    },
+    {
+      "id": "session-expiry-needs-login-handoff",
+      "title": "세션 만료 감지와 needs-login handoff",
+      "phase": "phase-10",
+      "priority": 33,
+      "status": "done",
+      "depends_on": ["worker-session-profile-launch-adapters"],
+      "blocked_by": [],
+      "reason": "worker output에서 login/session expired 패턴을 감지하면 해당 계정을 needs-login으로 바꾸고 run을 needs_user handoff로 마감한다."
+    },
+    {
+      "id": "claude-command-mode-adapter",
+      "title": "Claude Code command-mode adapter profile",
+      "phase": "phase-11",
+      "priority": 32,
+      "status": "todo",
+      "depends_on": ["worker-session-profile-launch-adapters"],
+      "blocked_by": [],
+      "reason": "현재 Claude Code는 machine-specific command profile이 없어 manual fallback이다. 설치된 CLI와 세션 홈 경계를 확인한 뒤 command mode를 추가한다."
+    },
+    {
+      "id": "gemini-command-mode-adapter",
+      "title": "Gemini CLI command-mode adapter profile",
+      "phase": "phase-11",
+      "priority": 31,
+      "status": "todo",
+      "depends_on": ["worker-session-profile-launch-adapters"],
+      "blocked_by": [],
+      "reason": "현재 Gemini CLI는 machine-specific command profile이 없어 manual fallback이다. 설치된 CLI와 세션 홈 경계를 확인한 뒤 command mode를 추가한다."
+    },
+    {
+      "id": "session-profile-readiness-doctor",
+      "title": "doctor에 session profile readiness 진단 추가",
+      "phase": "phase-11",
+      "priority": 30,
+      "status": "todo",
+      "depends_on": ["session-expiry-needs-login-handoff"],
+      "blocked_by": [],
+      "reason": "다음 단계는 각 session profile 디렉터리와 worker command availability를 doctor 출력에서 함께 확인하는 것이다."
     }
   ]
 }

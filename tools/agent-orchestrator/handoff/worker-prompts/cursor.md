@@ -7,8 +7,8 @@ Auth: user-managed only
 
 ## Launch
 
-- Open E:\\agentApp in Cursor.
-- Paste the Agent Prompt from tools/agent-orchestrator/handoff/NEXT_TASK.md.
+- Dashboard adapter opens Cursor with a session-profile-specific --user-data-dir.
+- If the session profile is not authenticated yet, log in inside that Cursor profile and mark the account Ready again.
 
 - Paste this prompt into Cursor with `E:\agentApp` opened as the workspace.
 
@@ -28,7 +28,7 @@ Auth: user-managed only
 - Selected task: worker별 session profile launch adapter
 - Task id: worker-session-profile-launch-adapters
 - Priority: 35
-- Generated: 2026-05-10T14:00:01.274Z
+- Generated: 2026-05-10T14:00:29.124Z
 
 위 Required Reads를 먼저 읽고 시작한다.
 

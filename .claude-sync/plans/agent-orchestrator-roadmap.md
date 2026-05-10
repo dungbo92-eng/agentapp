@@ -89,7 +89,14 @@
 
 ## Phase 10 — Worker 실행 어댑터
 
-- [ ] worker별 session profile launch adapter
-- [ ] Codex/Claude/Cursor/Gemini 실행 로그 수집
-- [ ] 세션 만료 감지 시 needs-login handoff
-- [ ] validation 결과를 dashboard active run에 연결
+- [x] worker별 session profile launch adapter
+- [x] Codex/Claude/Cursor/Gemini 실행 로그 수집
+- [x] 세션 만료 감지 시 needs-login handoff
+- [x] validation 결과를 dashboard active run에 연결
+
+## Phase 11 — Tool별 확장
+
+- [ ] Claude Code command-mode adapter profile
+- [ ] Gemini CLI command-mode adapter profile
+- [ ] tool별 login/session-expired detector 보강
+- [ ] doctor에 session profile readiness 진단 추가

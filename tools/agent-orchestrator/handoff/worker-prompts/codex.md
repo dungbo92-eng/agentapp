@@ -7,8 +7,8 @@ Auth: user-managed only
 
 ## Launch
 
-- Open Codex with workspace E:\\agentApp.
-- Ask it to read tools/agent-orchestrator/handoff/NEXT_TASK.md.
+- Dashboard adapter launches `codex exec` with a session-profile-specific CODEX_HOME.
+- If the session profile is not authenticated yet, run Codex login in that profile and mark the account Ready again.
 
 - Codex should start from `AGENTS.md`, then use `NEXT_TASK.md` as the handoff source.
 
@@ -28,7 +28,7 @@ Auth: user-managed only
 - Selected task: worker별 session profile launch adapter
 - Task id: worker-session-profile-launch-adapters
 - Priority: 35
-- Generated: 2026-05-10T14:00:01.274Z
+- Generated: 2026-05-10T14:00:29.124Z
 
 위 Required Reads를 먼저 읽고 시작한다.
 

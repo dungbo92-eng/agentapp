@@ -40,6 +40,8 @@ const MODEL_RANK = {
 const SESSION_STATUSES = new Set(["needs-login", "ready", "paused"]);
 const AUTH_METHODS = new Set(["google", "email_password", "api_key", "cli_session", "browser_profile", "manual"]);
 
+export { REPO_ROOT, DATA_DIR, HANDOFF_DIR, RUN_STATES_DIR, DASHBOARD_RUN_STATE, DASHBOARD_RUN_HANDOFF };
+
 function clone(value) {
   return JSON.parse(JSON.stringify(value));
 }
@@ -73,11 +75,17 @@ function relativePath(file) {
   return path.relative(REPO_ROOT, file).replaceAll("\\", "/");
 }
 
+export { relativePath };
+
 function providerForWorker(workerId) {
   if (String(workerId).includes("claude")) return "claude";
   if (String(workerId).includes("codex")) return "codex";
+  if (String(workerId).includes("cursor")) return "cursor";
+  if (String(workerId).includes("gemini")) return "gemini";
   return "";
 }
+
+export { providerForWorker };
 
 function defaultProfiles(provider) {
   if (provider === "claude") {
@@ -365,6 +373,7 @@ export function selectRoute(accounts, request) {
 
 function dashboardRunState(run, status, reason) {
   const now = new Date().toISOString();
+  const validationResult = run.validation?.status === "passed" ? "passed" : run.validation?.status === "failed" ? "failed" : run.validation?.status === "running" ? "partial" : "not_run";
   return {
     version: 1,
     run_id: run.id,
@@ -394,19 +403,28 @@ function dashboardRunState(run, status, reason) {
       budget_status: run.routing?.status === "recommended" ? "reserved" : "blocked",
     },
     verification: {
-      commands: [],
-      result: "not_run",
+      commands: run.validation?.command ? [run.validation.command] : [],
+      result: validationResult,
+      summary: run.validation?.summary || "",
+      log_path: run.validation?.logPath || "",
+    },
+    adapter: {
+      mode: run.adapter?.mode || "pending",
+      status: run.adapter?.status || "pending",
+      prompt_path: run.adapter?.promptPath || "",
+      log_path: run.adapter?.logPath || "",
+      session_dir: run.adapter?.sessionDir || "",
     },
     handoff: {
       summary:
         status === "running"
-          ? `Dashboard started ${run.workerId} with ${run.routing?.accountId || "no-account"} / ${run.routing?.model || "model-pending"}. Prompt body is stored local-only in data/dashboard-runtime.json.`
+          ? `Dashboard started ${run.workerId} with ${run.routing?.accountId || "no-account"} / ${run.routing?.model || "model-pending"}. Adapter ${run.adapter?.mode || "pending"} is ${run.adapter?.status || "pending"}. Prompt body is stored local-only in data/dashboard-runtime.json.`
           : status === "queued"
             ? `Dashboard queued ${run.workerId} because no ready account or local budget route is available. Prompt body is stored local-only in data/dashboard-runtime.json.`
           : `Dashboard recorded ${status} for ${run.workerId}. Prompt body is stored local-only in data/dashboard-runtime.json.`,
       next_step:
         status === "running"
-          ? "Monitor the dashboard run or stop it from the dashboard if the worker needs handoff."
+          ? "Monitor the dashboard run, validation result, and adapter log. Stop it from the dashboard if the worker needs handoff."
           : status === "queued"
             ? "Open the dashboard, make one account ready, then start the run again if needed."
           : "Review the local run history and continue from NEXT_TASK.md or start a new dashboard run.",
@@ -462,6 +480,117 @@ async function writeDashboardRunHandoff(run, status, reason) {
   return relativePath(DASHBOARD_RUN_STATE);
 }
 
+function nowIso() {
+  return new Date().toISOString();
+}
+
+function cappedEvents(events, nextEvent) {
+  return [...(events || []), nextEvent].slice(-120);
+}
+
+async function mutateRuntimeRun(runId, mutator, options = {}) {
+  const runtime = await readRuntime();
+  let nextRun = null;
+  const buildNext = (current) => {
+    if (!nextRun) nextRun = mutator({ ...current });
+    return nextRun;
+  };
+
+  if (runtime.activeRun?.id === runId) {
+    const updated = buildNext(runtime.activeRun);
+    runtime.activeRun = options.clearActive ? null : updated;
+  }
+
+  runtime.runHistory = runtime.runHistory.map((item) => (item.id === runId ? buildNext(item) : item));
+  if (!nextRun) return runtime;
+
+  if (options.handoffStatus || options.handoffReason) {
+    nextRun.handoffPath = await writeDashboardRunHandoff(
+      nextRun,
+      options.handoffStatus || nextRun.status || "running",
+      options.handoffReason || "unknown",
+    );
+    if (runtime.activeRun?.id === runId) runtime.activeRun = nextRun;
+    runtime.runHistory = runtime.runHistory.map((item) => (item.id === runId ? nextRun : item));
+  }
+
+  return writeRuntime(runtime);
+}
+
+export async function updateAccountSession(accountId, sessionStatus) {
+  const runtime = await readRuntime();
+  const id = normalizeId(accountId);
+  runtime.accounts = runtime.accounts.map((account) =>
+    account.id === id
+      ? {
+          ...account,
+          sessionStatus: normalizeSessionStatus(sessionStatus),
+          lastVerifiedAt: sessionStatus === "ready" ? nowIso() : "",
+        }
+      : account,
+  );
+  return writeRuntime(runtime);
+}
+
+export async function reserveAccountBudget(accountId, estimatedUnits) {
+  if (!accountId || !estimatedUnits) return readRuntime();
+  const runtime = await readRuntime();
+  const id = normalizeId(accountId);
+  runtime.accounts = runtime.accounts.map((account) =>
+    account.id === id
+      ? {
+          ...account,
+          remainingUnits: Math.max(0, Number(account.remainingUnits || 0) - Number(estimatedUnits || 0)),
+        }
+      : account,
+  );
+  return writeRuntime(runtime);
+}
+
+export async function appendRunEvent(runId, event, handoff = null) {
+  const nextEvent = {
+    at: event.at || nowIso(),
+    level: event.level || "info",
+    message: String(event.message || "").trim(),
+  };
+  return mutateRuntimeRun(
+    runId,
+    (run) => ({ ...run, events: cappedEvents(run.events, nextEvent) }),
+    handoff || {},
+  );
+}
+
+export async function patchRunRecord(runId, patch, handoff = null) {
+  return mutateRuntimeRun(
+    runId,
+    (run) => ({
+      ...run,
+      ...patch,
+      adapter: patch.adapter ? { ...(run.adapter || {}), ...patch.adapter } : run.adapter,
+      validation: patch.validation ? { ...(run.validation || {}), ...patch.validation } : run.validation,
+    }),
+    handoff || {},
+  );
+}
+
+export async function finishRunRecord(runId, patch, handoff = null) {
+  const finishedAt = nowIso();
+  return mutateRuntimeRun(
+    runId,
+    (run) => ({
+      ...run,
+      ...patch,
+      stoppedAt: patch.stoppedAt || patch.completedAt || finishedAt,
+      adapter: patch.adapter ? { ...(run.adapter || {}), ...patch.adapter } : run.adapter,
+      validation: patch.validation ? { ...(run.validation || {}), ...patch.validation } : run.validation,
+    }),
+    {
+      clearActive: true,
+      ...(handoff || {}),
+    },
+  );
+}
+
 export async function startRun(input) {
   const runtime = await readRuntime();
   const routing = selectRoute(runtime.accounts, input);
@@ -476,6 +605,16 @@ export async function startRun(input) {
     modelOverride: String(input.modelOverride || "auto"),
     startedAt: new Date().toISOString(),
     routing,
+    validation: {
+      status: "not_run",
+      command: "pnpm validate",
+      summary: "Pending preflight validation.",
+    },
+    adapter: {
+      status: routing.status === "blocked" ? "blocked" : "queued",
+      mode: "pending",
+      sessionProfile: routing.sessionProfile || "",
+    },
     events: [
       { at: new Date().toISOString(), level: "info", message: "Prompt queued from dashboard." },
       {
@@ -495,26 +634,36 @@ export async function startRun(input) {
     routing.status === "blocked" ? "missing_credentials" : "in_progress",
   );
 
-  if (routing.accountId && routing.estimatedUnits) {
-    runtime.accounts = runtime.accounts.map((account) =>
-      account.id === routing.accountId
-        ? { ...account, remainingUnits: Math.max(0, Number(account.remainingUnits || 0) - Number(routing.estimatedUnits || 0)) }
-        : account,
-    );
-  }
-
   runtime.activeRun = run.status === "running" ? run : null;
   runtime.runHistory = [run, ...runtime.runHistory.filter((item) => item.id !== id)].slice(0, 20);
-  return writeRuntime(runtime);
+  const saved = await writeRuntime(runtime);
+
+  if (run.status !== "running") {
+    return saved;
+  }
+
+  const { launchDashboardWorker } = await import("./worker-launch-adapter.mjs");
+  await launchDashboardWorker(run);
+  return readRuntime();
 }
 
 export async function stopRun() {
   const runtime = await readRuntime();
   if (!runtime.activeRun) return runtime;
+  try {
+    const { stopDashboardWorker } = await import("./worker-launch-adapter.mjs");
+    await stopDashboardWorker(runtime.activeRun);
+  } catch {
+    // If the adapter is unavailable we still record a local stop.
+  }
   const stopped = {
     ...runtime.activeRun,
     status: "stopped",
     stoppedAt: new Date().toISOString(),
+    adapter: {
+      ...(runtime.activeRun.adapter || {}),
+      status: "stopped",
+    },
     events: [
       ...(runtime.activeRun.events || []),
       { at: new Date().toISOString(), level: "warn", message: "Run stopped from dashboard." },

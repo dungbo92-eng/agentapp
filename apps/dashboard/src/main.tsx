@@ -176,7 +176,7 @@ type ManagedProject = {
 
 type RunRecord = {
   id: string;
-  status: "running" | "stopped" | "queued";
+  status: string;
   workerId: string;
   projectId: string;
   prompt: string;
@@ -184,8 +184,27 @@ type RunRecord = {
   modelOverride?: string;
   startedAt: string;
   stoppedAt?: string;
+  completedAt?: string;
   handoffPath?: string;
   events?: { at: string; level: "info" | "warn" | "error"; message: string }[];
+  validation?: {
+    status?: string;
+    command?: string;
+    summary?: string;
+    logPath?: string;
+  };
+  adapter?: {
+    status?: string;
+    mode?: string;
+    pid?: number;
+    runnerPid?: number;
+    command?: string;
+    promptPath?: string;
+    logPath?: string;
+    sessionDir?: string;
+    lastMessagePath?: string;
+    exitCode?: number;
+  };
   routing?: {
     status: string;
     accountId?: string;
@@ -364,6 +383,21 @@ function App() {
         setRuntimeStatus(caught instanceof Error ? caught.message : "local settings unavailable");
       });
   }, []);
+
+  React.useEffect(() => {
+    const interval = window.setInterval(() => {
+      runtimeRequest("runtime")
+        .then((next) => {
+          setRuntime(next);
+          setRuntimeStatus("local settings synced");
+        })
+        .catch((caught: unknown) => {
+          setRuntimeStatus(caught instanceof Error ? caught.message : "local settings unavailable");
+        });
+    }, runtime.activeRun ? 2000 : 5000);
+
+    return () => window.clearInterval(interval);
+  }, [runtime.activeRun?.id]);
 
   React.useEffect(() => {
     if (snapshot?.next_task.title && !prompt) {
@@ -820,6 +854,18 @@ function App() {
                     {activeRun.routing.estimatedUnits || 0} units
                   </span>
                 ) : null}
+                {activeRun.validation ? (
+                  <span>
+                    validate / {activeRun.validation.status || "not_run"} / {activeRun.validation.summary || "pending"}
+                  </span>
+                ) : null}
+                {activeRun.adapter ? (
+                  <span>
+                    adapter / {activeRun.adapter.mode || "pending"} / {activeRun.adapter.status || "pending"}
+                  </span>
+                ) : null}
+                {activeRun.adapter?.promptPath ? <small>{activeRun.adapter.promptPath}</small> : null}
+                {activeRun.adapter?.logPath ? <small>{activeRun.adapter.logPath}</small> : null}
                 {activeRun.handoffPath ? <small>{activeRun.handoffPath}</small> : null}
                 <small>{activeRun.startedAt}</small>
                 <div className="eventLog">

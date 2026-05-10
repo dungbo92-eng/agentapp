@@ -37,6 +37,13 @@ auto_allowed:
       - "local only"
       - "no production deploy"
       - "no destructive database operation"
+  - id: local_worker_launch
+    description: "Start or stop local user-managed worker adapters from ready session profiles."
+    limits:
+      - "local only"
+      - "use only normal user-authenticated tools already installed on the machine"
+      - "no automatic login, captcha, MFA, or approval bypass"
+      - "record handoff and runtime state without storing secrets"
   - id: read_only_checks
     description: "Run read-only local or external checks that do not mutate production systems."
     examples:

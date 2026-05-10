@@ -47,10 +47,10 @@ workers:
     workspace: "E:\\agentApp"
     status: "available"
     launch:
-      mode: "manual"
+      mode: "adapter"
       instructions:
-        - "Open Codex with workspace E:\\agentApp."
-        - "Ask it to read tools/agent-orchestrator/handoff/NEXT_TASK.md."
+        - "Dashboard adapter launches `codex exec` with a session-profile-specific CODEX_HOME."
+        - "If the session profile is not authenticated yet, run Codex login in that profile and mark the account Ready again."
     capabilities:
       auto_allowed:
         - local_file_edits
@@ -162,10 +162,10 @@ workers:
     workspace: "E:\\agentApp"
     status: "available"
     launch:
-      mode: "manual"
+      mode: "adapter"
       instructions:
-        - "Open E:\\agentApp in Cursor."
-        - "Paste the Agent Prompt from tools/agent-orchestrator/handoff/NEXT_TASK.md."
+        - "Dashboard adapter opens Cursor with a session-profile-specific --user-data-dir."
+        - "If the session profile is not authenticated yet, log in inside that Cursor profile and mark the account Ready again."
     capabilities:
       auto_allowed:
         - local_file_edits

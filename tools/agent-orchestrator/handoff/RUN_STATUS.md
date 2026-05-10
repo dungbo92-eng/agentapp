@@ -393,3 +393,12 @@ NEXT_TASK.md 템플릿 확정: agent-next 생성물을 Required Reads, Execution
 - Git: not recorded
 - Decisions: none
 - Next: worker별 session profile launch adapter
+
+## 2026-05-10T14:17:20.025Z
+
+- Status: completed
+- Summary: worker launch adapter를 추가해 Start가 실제 launch request를 처리하도록 연결했다. Codex는 session-profile별 CODEX_HOME으로 codex exec를 실행하고, Cursor는 session-profile별 user-data-dir로 창을 연다. launch 전 pnpm validate preflight를 실행해 결과를 active run에 반영하고, login/session expired 패턴이 보이면 계정을 needs-login으로 되돌리며 needs_user handoff를 남긴다.
+- Verification: pnpm validate 통과; pnpm dashboard:build 통과; worker-launch-adapter-test 통과; in-app browser에서 Projects/Accounts/Prompt/Workers/Connection policy 표시 확인
+- Git: not recorded
+- Decisions: none
+- Next: Claude Code command-mode adapter profile
