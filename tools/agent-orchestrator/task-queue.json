@@ -251,10 +251,20 @@
       "title": "설치 가이드",
       "phase": "phase-7",
       "priority": 22,
-      "status": "pending",
+      "status": "done",
       "depends_on": ["git-sync-auto-check"],
       "blocked_by": [],
       "reason": "MVP 기능과 자동화 점검이 갖춰졌으므로 새 PC/새 프로젝트 설치 가이드를 제품화 문서로 정리한다."
+    },
+    {
+      "id": "security-model-doc",
+      "title": "보안 모델 문서화",
+      "phase": "phase-7",
+      "priority": 20,
+      "status": "pending",
+      "depends_on": ["installation-guide"],
+      "blocked_by": [],
+      "reason": "설치 가이드가 완성되었으므로 비밀값, 계정, 자동화, 외부 쓰기 경계를 제품화 문서로 정리한다."
     }
   ]
 }

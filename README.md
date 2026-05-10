@@ -30,6 +30,8 @@ pnpm agent:status
 pnpm agent:next
 ```
 
+자세한 설치/새 프로젝트 등록 절차는 `docs/installation-guide.md`를 따른다.
+
 ## 자주 쓰는 명령
 
 ```bash

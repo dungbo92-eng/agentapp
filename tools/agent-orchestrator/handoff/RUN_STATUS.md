@@ -285,3 +285,12 @@ NEXT_TASK.md 템플릿 확정: agent-next 생성물을 Required Reads, Execution
 - Git: pending commit/push
 - Decisions: none
 - Next: 설치 가이드
+
+## 2026-05-10T02:42:39.947Z
+
+- Status: completed
+- Summary: 설치 가이드를 추가하고 새 PC/새 프로젝트 등록 시 공통 memory/plan/handoff/git sync를 기본 세팅으로 확인하는 절차를 문서화했다.
+- Verification: pnpm validate 통과; pnpm dashboard:build 통과; pnpm agent:progress=91%; pnpm agent:scheduled-check 통과
+- Git: pending commit/push
+- Decisions: none
+- Next: 보안 모델 문서화

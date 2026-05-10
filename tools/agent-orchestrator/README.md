@@ -211,3 +211,5 @@ pnpm agent:doctor
 ```
 
 이 명령은 git hooks, `.claude-sync`, 로컬 `~/.claude` 경로, git UTF-8 설정, 현재 sync 상태를 점검한다.
+
+설치와 새 프로젝트 등록 기준은 `../../docs/installation-guide.md`를 따른다.
