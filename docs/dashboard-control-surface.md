@@ -49,8 +49,19 @@ API key, password, session cookie, OAuth token은 저장하지 않는다.
 
 ## 다음 구현 후보
 
-- dashboard dev server에 local API 추가
-- Start가 `pnpm agent:route`, `agent:prompt`, worker adapter를 순서대로 호출
-- Stop이 로컬 child process를 종료하고 `RUN_STATUS.md`에 중단 상태 기록
-- 프로젝트 registry를 `data/` 아래 local-only 파일로 저장
-- 계정 예산 편집을 secret 없는 local-only 설정으로 저장
+- dashboard dev server에 local API 추가: 완료
+- 계정 예산 편집을 secret 없는 `data/dashboard-runtime.json` local-only 설정으로 저장: 완료
+- 프로젝트 registry를 `data/dashboard-runtime.json` local-only 설정으로 저장: 완료
+- Start가 worker/provider에 맞는 계정 alias와 모델 profile을 자동 선택하고 예상 예산을 차감: 완료
+- Stop이 active run을 중단 상태로 local run history에 남김: 완료
+- 다음 단계: 실제 worker child process 실행, handoff 기록, exe packaging
+
+## EXE packaging 방향
+
+최종 실행파일은 로컬 API와 dashboard UI를 한 프로세스에서 띄우는 desktop shell 형태로 만든다.
+
+- 후보: Electron 또는 Tauri
+- 기본 포트 충돌 없이 localhost API를 내부에서 실행
+- `data/` local-only 설정 유지
+- build 산출물에는 secret을 포함하지 않음
+- Windows `.exe`와 portable zip을 우선 목표로 함

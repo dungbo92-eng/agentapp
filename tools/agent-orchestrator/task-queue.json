@@ -311,30 +311,50 @@
       "title": "dashboard local execution API",
       "phase": "phase-8",
       "priority": 38,
-      "status": "pending",
+      "status": "done",
       "depends_on": ["dashboard-control-surface"],
       "blocked_by": [],
-      "reason": "Start/Stop UX가 생겼으므로 실제 로컬 프로세스 실행, 중단, handoff 기록을 안전 정책 안에서 연결한다."
+      "reason": "dashboard dev server에 local-only runtime API를 추가해 계정/프로젝트 저장, Start 라우팅, Stop 상태 기록을 연결했다."
     },
     {
       "id": "project-registry-local-store",
       "title": "프로젝트 registry local-only 저장소",
       "phase": "phase-8",
       "priority": 36,
-      "status": "pending",
+      "status": "done",
       "depends_on": ["dashboard-control-surface"],
       "blocked_by": [],
-      "reason": "dashboard에서 추가한 로컬 프로젝트를 브라우저 localStorage가 아니라 gitignore된 data/ 저장소에 유지한다."
+      "reason": "dashboard에서 추가한 로컬 프로젝트를 브라우저 localStorage가 아니라 gitignore된 data/dashboard-runtime.json 저장소에 유지한다."
     },
     {
       "id": "account-budget-local-store",
       "title": "계정 예산 편집 local-only 저장소",
       "phase": "phase-8",
       "priority": 34,
-      "status": "pending",
+      "status": "done",
       "depends_on": ["dashboard-control-surface"],
       "blocked_by": [],
-      "reason": "Claude/Codex/Cursor 계정 별칭과 남은 예산 단위를 비밀값 없이 로컬 전용 파일로 편집할 수 있게 한다."
+      "reason": "Claude/Codex/Cursor 계정 별칭과 남은 예산 단위를 비밀값 없이 로컬 전용 파일로 편집할 수 있게 했다."
+    },
+    {
+      "id": "worker-process-handoff-api",
+      "title": "Start/Stop과 worker process/handoff 연동",
+      "phase": "phase-8",
+      "priority": 32,
+      "status": "pending",
+      "depends_on": ["dashboard-local-execution-api"],
+      "blocked_by": [],
+      "reason": "Start/Stop이 local runtime 상태를 관리하므로 다음 단계에서 실제 child process 실행과 RUN_STATUS/handoff 기록을 연결한다."
+    },
+    {
+      "id": "windows-exe-packaging",
+      "title": "Windows exe packaging",
+      "phase": "phase-8",
+      "priority": 30,
+      "status": "pending",
+      "depends_on": ["worker-process-handoff-api"],
+      "blocked_by": [],
+      "reason": "사용자가 실행파일 형태를 요구했으므로 dashboard UI와 local API를 묶는 Windows exe packaging 방식을 구현한다."
     }
   ]
 }

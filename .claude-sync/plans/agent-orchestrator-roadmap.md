@@ -72,7 +72,8 @@
 ## Phase 8 — 통합 에이전트 UX
 
 - [x] Codex 스타일 dashboard control surface MVP
-- [ ] dashboard local execution API
-- [ ] 프로젝트 registry local-only 저장소
-- [ ] 계정 예산 편집 local-only 저장소
+- [x] dashboard local execution API
+- [x] 프로젝트 registry local-only 저장소
+- [x] 계정 예산 편집 local-only 저장소
 - [ ] Start/Stop과 worker process/handoff 연동
+- [ ] Windows exe packaging

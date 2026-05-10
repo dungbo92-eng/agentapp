@@ -339,3 +339,12 @@ NEXT_TASK.md 템플릿 확정: agent-next 생성물을 Required Reads, Execution
 - Git: pending commit/push
 - Decisions: none
 - Next: dashboard local execution API
+
+## 2026-05-10T07:23:10.353Z
+
+- Status: completed
+- Summary: dashboard local runtime API를 추가해 Claude/Codex Google A/B 계정 프리셋, 비밀값 없는 로컬 계정 예산 저장, 프로젝트 registry 저장, Start 모델/계정 자동 라우팅과 예산 차감, Stop run history 기록을 구현했다.
+- Verification: pnpm validate 통과; pnpm dashboard:build 통과; 브라우저에서 claude-google-a/codex-google-b 표시, Start=codex-google/gpt-5.4 라우팅, Stop 상태 확인
+- Git: pending commit/push
+- Decisions: none
+- Next: Start/Stop과 worker process/handoff 연동

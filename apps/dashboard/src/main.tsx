@@ -149,10 +149,12 @@ type ManagedAccount = {
   id: string;
   provider: string;
   plan: string;
+  loginLabel: string;
   remainingUnits: number;
   weeklyUnits: number;
   resetDay: string;
   source: "config" | "local";
+  modelProfiles?: Record<string, { model: string; reasoningEffort: string; estimatedUnits: number }>;
 };
 
 type ManagedProject = {
@@ -172,9 +174,20 @@ type RunRecord = {
   complexity: string;
   startedAt: string;
   stoppedAt?: string;
+  routing?: {
+    status: string;
+    accountId?: string;
+    provider?: string;
+    loginLabel?: string;
+    model?: string;
+    reasoningEffort?: string;
+    estimatedUnits?: number;
+    reason: string;
+  };
 };
 
 type RuntimeState = {
+  version?: number;
   accounts: ManagedAccount[];
   projects: ManagedProject[];
   activeRun: RunRecord | null;
@@ -183,25 +196,6 @@ type RuntimeState = {
 
 const numberFormatter = new Intl.NumberFormat("ko-KR");
 const emptyRuntime: RuntimeState = { accounts: [], projects: [], activeRun: null, runHistory: [] };
-
-function safeParse<T>(value: string | null, fallback: T): T {
-  if (!value) return fallback;
-  try {
-    return JSON.parse(value) as T;
-  } catch {
-    return fallback;
-  }
-}
-
-function useStoredState<T>(key: string, initialValue: T) {
-  const [value, setValue] = React.useState<T>(() => safeParse(window.localStorage.getItem(key), initialValue));
-
-  React.useEffect(() => {
-    window.localStorage.setItem(key, JSON.stringify(value));
-  }, [key, value]);
-
-  return [value, setValue] as const;
-}
 
 function StatusPill({ status }: { status: string }) {
   return <span className={`pill ${status}`}>{status || "unknown"}</span>;
@@ -254,10 +248,54 @@ function uniqById<T extends { id: string }>(items: T[]) {
   return Array.from(new Map(items.map((item) => [item.id, item])).values());
 }
 
+async function runtimeRequest(path: string, body?: unknown) {
+  const response = await fetch(`/api/agentapp/${path}`, {
+    method: body ? "POST" : "GET",
+    headers: body ? { "Content-Type": "application/json" } : undefined,
+    body: body ? JSON.stringify(body) : undefined,
+  });
+  if (!response.ok) throw new Error(`runtime API failed: ${response.status}`);
+  return (await response.json()) as RuntimeState;
+}
+
+function providerForWorker(workerId: string) {
+  if (workerId.includes("claude")) return "claude";
+  if (workerId.includes("codex")) return "codex";
+  return "";
+}
+
+function profileFor(account: ManagedAccount, complexity: string) {
+  return account.modelProfiles?.[complexity];
+}
+
+function recommendLocalRoute(accounts: ManagedAccount[], complexity: string, workerId: string) {
+  const provider = providerForWorker(workerId);
+  const candidates = accounts
+    .filter((account) => !provider || account.provider === provider)
+    .map((account) => ({ account, profile: profileFor(account, complexity) }))
+    .filter((candidate): candidate is { account: ManagedAccount; profile: { model: string; reasoningEffort: string; estimatedUnits: number } } =>
+      Boolean(candidate.profile),
+    )
+    .filter((candidate) => candidate.account.remainingUnits >= candidate.profile.estimatedUnits)
+    .sort((left, right) => right.account.remainingUnits - left.account.remainingUnits);
+
+  const selected = candidates[0];
+  if (!selected) return null;
+  return {
+    accountId: selected.account.id,
+    provider: selected.account.provider,
+    loginLabel: selected.account.loginLabel,
+    model: selected.profile.model,
+    reasoningEffort: selected.profile.reasoningEffort,
+    estimatedUnits: selected.profile.estimatedUnits,
+  };
+}
+
 function App() {
   const [snapshot, setSnapshot] = React.useState<Snapshot | null>(null);
   const [error, setError] = React.useState("");
-  const [runtime, setRuntime] = useStoredState<RuntimeState>("agent-app-runtime", emptyRuntime);
+  const [runtime, setRuntime] = React.useState<RuntimeState>(emptyRuntime);
+  const [runtimeStatus, setRuntimeStatus] = React.useState("loading local settings");
   const [prompt, setPrompt] = React.useState("");
   const [complexity, setComplexity] = React.useState("standard");
   const [selectedWorker, setSelectedWorker] = React.useState("codex");
@@ -266,6 +304,7 @@ function App() {
     provider: "claude",
     plan: "pro",
     alias: "",
+    loginLabel: "google-a",
     remainingUnits: "70",
     weeklyUnits: "100",
   });
@@ -279,6 +318,17 @@ function App() {
       })
       .then(setSnapshot)
       .catch((caught: unknown) => setError(caught instanceof Error ? caught.message : "snapshot load failed"));
+  }, []);
+
+  React.useEffect(() => {
+    runtimeRequest("runtime")
+      .then((next) => {
+        setRuntime(next);
+        setRuntimeStatus("local settings synced");
+      })
+      .catch((caught: unknown) => {
+        setRuntimeStatus(caught instanceof Error ? caught.message : "local settings unavailable");
+      });
   }, []);
 
   React.useEffect(() => {
@@ -321,20 +371,29 @@ function App() {
     id: account.id,
     provider: account.provider,
     plan: account.plan,
+    loginLabel: "configured",
     remainingUnits: account.remaining_units,
     weeklyUnits: account.weekly_budget_units,
     resetDay: account.reset_day,
     source: "config",
+    modelProfiles: undefined,
   }));
   const accounts = uniqById([...configuredAccounts, ...runtime.accounts]);
   const selectedRecommendation = snapshot.usage_budget.recommendations.find((item) => item.complexity === complexity);
+  const localRecommendation = recommendLocalRoute(accounts, complexity, selectedWorker);
   const selectedProjectRecord = projects.find((project) => project.id === selectedProject) || currentProject;
   const activeRun = runtime.activeRun;
   const approvalCount = snapshot.approval_queue.pending_decisions.length + snapshot.approval_queue.held_tasks.length;
   const nextTaskTitle = snapshot.next_task.title === "none" ? "새 계획 작성" : snapshot.next_task.title;
 
-  function updateRuntime(next: RuntimeState) {
-    setRuntime(next);
+  async function updateRuntime(operation: Promise<RuntimeState>) {
+    try {
+      const next = await operation;
+      setRuntime(next);
+      setRuntimeStatus("local settings synced");
+    } catch (caught) {
+      setRuntimeStatus(caught instanceof Error ? caught.message : "local settings update failed");
+    }
   }
 
   function addAccount(event: React.FormEvent<HTMLFormElement>) {
@@ -342,22 +401,17 @@ function App() {
     const alias = accountForm.alias.trim();
     if (!alias) return;
 
-    updateRuntime({
-      ...runtime,
-      accounts: uniqById([
-        ...runtime.accounts,
-        {
-          id: alias,
-          provider: accountForm.provider,
-          plan: accountForm.plan,
-          remainingUnits: Number(accountForm.remainingUnits) || 0,
-          weeklyUnits: Number(accountForm.weeklyUnits) || 100,
-          resetDay: "monday",
-          source: "local",
-        },
-      ]),
-    });
-    setAccountForm({ ...accountForm, alias: "" });
+    void updateRuntime(
+      runtimeRequest("accounts", {
+        id: alias,
+        provider: accountForm.provider,
+        plan: accountForm.plan,
+        loginLabel: accountForm.loginLabel,
+        remainingUnits: Number(accountForm.remainingUnits) || 0,
+        weeklyUnits: Number(accountForm.weeklyUnits) || 100,
+      }),
+    );
+    setAccountForm({ ...accountForm, alias: "", loginLabel: "google-a" });
   }
 
   function addProject(event: React.FormEvent<HTMLFormElement>) {
@@ -366,40 +420,29 @@ function App() {
     const name = projectForm.name.trim() || path.split(/[\\/]/).filter(Boolean).at(-1) || "Local project";
     if (!path) return;
 
-    const project: ManagedProject = {
-      id: `local-${Date.now()}`,
-      name,
-      path,
-      status: "needs-baseline",
-      progress: 0,
-    };
-    updateRuntime({ ...runtime, projects: [...runtime.projects, project] });
-    setSelectedProject(project.id);
+    void updateRuntime(runtimeRequest("projects", { id: `local-${Date.now()}`, name, path }));
     setProjectForm({ name: "", path: "" });
   }
 
   function startRun() {
     const text = prompt.trim() || nextTaskTitle;
-    const run: RunRecord = {
-      id: `run-${Date.now()}`,
-      status: "running",
-      workerId: selectedWorker,
-      projectId: selectedProjectRecord.id,
-      prompt: text,
-      complexity,
-      startedAt: new Date().toISOString(),
-    };
-    updateRuntime({ ...runtime, activeRun: run, runHistory: [run, ...runtime.runHistory].slice(0, 8) });
+    void updateRuntime(
+      runtimeRequest("runs/start", {
+        workerId: selectedWorker,
+        projectId: selectedProjectRecord.id,
+        prompt: text,
+        complexity,
+      }),
+    );
   }
 
   function stopRun() {
     if (!activeRun) return;
-    const stopped: RunRecord = { ...activeRun, status: "stopped", stoppedAt: new Date().toISOString() };
-    updateRuntime({
-      ...runtime,
-      activeRun: null,
-      runHistory: [stopped, ...runtime.runHistory.filter((run) => run.id !== activeRun.id)].slice(0, 8),
-    });
+    void updateRuntime(runtimeRequest("runs/stop", {}));
+  }
+
+  function applyPreset() {
+    void updateRuntime(runtimeRequest("accounts/preset-four", {}));
   }
 
   return (
@@ -475,6 +518,7 @@ function App() {
             <h2>Accounts</h2>
             <UserCheck aria-hidden="true" size={16} />
           </div>
+          <div className="runtimeStatus">{runtimeStatus}</div>
           <div className="accountList">
             {accounts.map((account) => {
               const percent = account.weeklyUnits > 0 ? Math.round((account.remainingUnits / account.weeklyUnits) * 100) : 0;
@@ -485,13 +529,16 @@ function App() {
                     <span>{account.source}</span>
                   </header>
                   <small>
-                    {account.provider} / {account.plan}
+                    {account.provider} / {account.plan} / {account.loginLabel}
                   </small>
                   <ProgressBar value={percent} />
                 </article>
               );
             })}
           </div>
+          <IconButton icon={Zap} onClick={applyPreset}>
+            2 Claude + 2 Codex
+          </IconButton>
           <form className="miniForm" onSubmit={addAccount}>
             <select
               aria-label="provider"
@@ -515,9 +562,15 @@ function App() {
             </select>
             <input
               aria-label="account alias"
-              placeholder="claude-pro-2"
+              placeholder="claude-google-a"
               value={accountForm.alias}
               onChange={(event) => setAccountForm({ ...accountForm, alias: event.target.value })}
+            />
+            <input
+              aria-label="google account label"
+              placeholder="google-a"
+              value={accountForm.loginLabel}
+              onChange={(event) => setAccountForm({ ...accountForm, loginLabel: event.target.value })}
             />
             <div className="splitInputs">
               <input
@@ -619,10 +672,13 @@ function App() {
           <div className="routeStrip">
             <MessageSquareText aria-hidden="true" size={17} />
             <span>
-              {selectedRecommendation?.account_id || "no account"} / {selectedRecommendation?.model_tier || "model pending"} /{" "}
-              {selectedRecommendation?.reasoning_effort || "effort pending"}
+              {localRecommendation
+                ? `${localRecommendation.accountId} (${localRecommendation.loginLabel}) / ${localRecommendation.model} / ${localRecommendation.reasoningEffort}`
+                : `${selectedRecommendation?.account_id || "no account"} / ${selectedRecommendation?.model_tier || "model pending"} / ${
+                    selectedRecommendation?.reasoning_effort || "effort pending"
+                  }`}
             </span>
-            <StatusPill status={selectedRecommendation?.status || "unknown"} />
+            <StatusPill status={localRecommendation ? "recommended" : selectedRecommendation?.status || "unknown"} />
           </div>
         </section>
 
@@ -638,6 +694,12 @@ function App() {
                 <span>
                   {activeRun.workerId} / {activeRun.complexity}
                 </span>
+                {activeRun.routing ? (
+                  <span>
+                    {activeRun.routing.accountId || "queued"} / {activeRun.routing.model || "model pending"} /{" "}
+                    {activeRun.routing.estimatedUnits || 0} units
+                  </span>
+                ) : null}
                 <small>{activeRun.startedAt}</small>
               </div>
             ) : (
@@ -649,7 +711,10 @@ function App() {
                   <StatusPill status={run.status} />
                   <div>
                     <strong>{run.prompt}</strong>
-                    <span>{run.workerId}</span>
+                    <span>
+                      {run.workerId}
+                      {run.routing?.accountId ? ` / ${run.routing.accountId} / ${run.routing.model}` : ""}
+                    </span>
                   </div>
                 </article>
               ))}

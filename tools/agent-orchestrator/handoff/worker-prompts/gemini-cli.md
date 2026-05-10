@@ -26,16 +26,16 @@ Auth: user-managed only
 
 ## Current Task
 
-- Selected task: dashboard local execution API
-- Task id: dashboard-local-execution-api
-- Priority: 38
-- Generated: 2026-05-10T03:13:06.734Z
+- Selected task: Start/Stop과 worker process/handoff 연동
+- Task id: worker-process-handoff-api
+- Priority: 32
+- Generated: 2026-05-10T07:23:14.679Z
 
 위 Required Reads를 먼저 읽고 시작한다.
 
 다음 작업을 진행한다:
 
-> dashboard local execution API
+> Start/Stop과 worker process/handoff 연동
 
 
 ## Model Routing
@@ -50,7 +50,7 @@ Quality is first. Use efficient models for routine reading, setup, and simple do
 Before heavy work, run:
 
 ```bash
-pnpm agent:route -- --task "dashboard local execution API"
+pnpm agent:route -- --task "Start/Stop과 worker process/handoff 연동"
 ```
 
 ## Safety Rules
