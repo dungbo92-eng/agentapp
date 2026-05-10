@@ -451,10 +451,10 @@
       "title": "Claude Code command-mode adapter profile",
       "phase": "phase-11",
       "priority": 32,
-      "status": "todo",
+      "status": "done",
       "depends_on": ["worker-session-profile-launch-adapters"],
       "blocked_by": [],
-      "reason": "현재 Claude Code는 machine-specific command profile이 없어 manual fallback이다. 설치된 CLI와 세션 홈 경계를 확인한 뒤 command mode를 추가한다."
+      "reason": "claude --print --permission-mode acceptEdits 를 session-profile별 CLAUDE_CONFIG_DIR 로 실행하는 command-mode adapter 를 추가했다. AGENTAPP_CLAUDE_COMMAND 환경변수로 CLI 경로를 override 할 수 있고 stdout 은 last-message 파일로 저장한다."
     },
     {
       "id": "gemini-command-mode-adapter",

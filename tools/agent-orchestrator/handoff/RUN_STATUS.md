@@ -411,3 +411,12 @@ NEXT_TASK.md 템플릿 확정: agent-next 생성물을 Required Reads, Execution
 - Git: not recorded
 - Decisions: none
 - Next: See tools/agent-orchestrator/handoff/NEXT_TASK.md
+
+## 2026-05-10T23:02:58.933Z
+
+- Status: completed
+- Summary: Phase 11 Claude Code command-mode adapter profile 추가
+- Verification: pnpm validate; pnpm agent:progress
+- Git: not recorded
+- Decisions: none
+- Next: See tools/agent-orchestrator/handoff/NEXT_TASK.md

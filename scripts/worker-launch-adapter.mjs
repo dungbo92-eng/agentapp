@@ -159,6 +159,21 @@ function buildSessionProfileDir(provider, sessionProfile) {
   return path.join(DATA_DIR, "session-profiles", sanitizeSegment(provider), sanitizeSegment(sessionProfile));
 }
 
+const CLAUDE_MODEL_ALIASES = {
+  auto: "",
+  best_available: "opus",
+  opus: "opus",
+  sonnet: "sonnet",
+  haiku: "haiku",
+};
+
+function mapClaudeModel(modelInput) {
+  if (!modelInput) return "";
+  const key = String(modelInput).toLowerCase();
+  if (key in CLAUDE_MODEL_ALIASES) return CLAUDE_MODEL_ALIASES[key];
+  return key.startsWith("claude-") || key.includes("opus") || key.includes("sonnet") || key.includes("haiku") ? key : "";
+}
+
 async function resolveAdapter(run, files) {
   const sessionProfile = run.routing?.sessionProfile || `${run.workerId}-${run.routing?.accountId || "default"}`;
   const workspace = REPO_ROOT;
@@ -240,10 +255,37 @@ async function resolveAdapter(run, files) {
   }
 
   if (run.workerId === "claude-code") {
+    const command = process.env.AGENTAPP_CLAUDE_COMMAND || (await commandPathFor("claude"));
+    if (!command) {
+      return {
+        status: "blocked",
+        mode: "command",
+        summary: "이 PC에서 Claude Code CLI 를 찾지 못했습니다.",
+      };
+    }
+
+    const sessionDir = buildSessionProfileDir("claude-code", sessionProfile);
+    await mkdir(sessionDir, { recursive: true });
+    const claudeModel = mapClaudeModel(run.routing?.model || run.modelOverride);
     return {
-      status: "manual",
-      mode: "manual",
-      summary: "이 PC에서는 Claude Code 자동 실행이 설정되지 않았습니다. 로그인된 터미널 세션에서 worker 프롬프트를 수동으로 열어 주세요.",
+      status: "ready",
+      mode: "command",
+      command,
+      args: [
+        "--print",
+        "--permission-mode",
+        "acceptEdits",
+        ...(claudeModel ? ["--model", claudeModel] : []),
+      ],
+      env: {
+        CLAUDE_CONFIG_DIR: sessionDir,
+        AGENTAPP_SESSION_PROFILE: sessionProfile,
+        AGENTAPP_ACCOUNT_ID: run.routing?.accountId || "",
+        AGENTAPP_MODEL: claudeModel || "auto",
+      },
+      sessionDir,
+      summary: "Claude Code --print 어댑터 준비 완료",
+      writeLastMessageFromStdout: true,
     };
   }
 
@@ -284,12 +326,14 @@ async function streamProcess(command, args, options = {}) {
     let stdoutBuffer = "";
     let stderrBuffer = "";
     let combined = "";
+    let stdoutOnly = "";
 
     const forwardLines = async (lines, level) => {
       for (const line of lines) {
         const trimmed = line.trim();
         if (!trimmed) continue;
         combined += `${trimmed}\n`;
+        if (level === "stdout") stdoutOnly += `${trimmed}\n`;
         await appendLog(options.logPath, `[${level}] ${trimmed}`);
         if (options.onLine) await options.onLine(trimmed, level, child.pid);
       }
@@ -316,6 +360,7 @@ async function streamProcess(command, args, options = {}) {
         signal: signal || "",
         pid: child.pid,
         combinedOutput: combined.trim(),
+        stdoutOnly: stdoutOnly.trim(),
       });
     });
 
@@ -434,6 +479,14 @@ async function launchCommandWorker(run, files, adapter, promptText) {
       });
     },
   });
+
+  if (adapter.writeLastMessageFromStdout && result.stdoutOnly) {
+    try {
+      await writeFile(files.lastMessagePath, `${result.stdoutOnly}\n`, "utf8");
+    } catch {
+      // last message capture is best-effort
+    }
+  }
 
   let lastMessage = "";
   try {

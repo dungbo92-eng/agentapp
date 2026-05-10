@@ -104,11 +104,11 @@ workers:
     workspace: "E:\\agentApp"
     status: "available"
     launch:
-      mode: "manual"
+      mode: "adapter"
       instructions:
-        - "Open a terminal in E:\\agentApp."
-        - "Run Claude Code from the repository root."
-        - "Claude Code reads CLAUDE.md automatically; still check AGENTS.md for shared rules."
+        - "Dashboard adapter runs `claude --print` with a session-profile-specific CLAUDE_CONFIG_DIR."
+        - "Permission mode defaults to acceptEdits so local edits do not require interactive approval."
+        - "If the session profile is not authenticated yet, run `claude` once in that profile and mark the account Ready again."
     capabilities:
       auto_allowed:
         - local_file_edits
