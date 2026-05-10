@@ -26,16 +26,16 @@ Auth: user-managed only
 
 ## Current Task
 
-- Selected task: 보안 모델 문서화
-- Task id: security-model-doc
-- Priority: 20
-- Generated: 2026-05-10T02:42:44.241Z
+- Selected task: plugin/MCP 확장 전략
+- Task id: plugin-mcp-extension-plan
+- Priority: 18
+- Generated: 2026-05-10T02:47:59.183Z
 
 위 Required Reads를 먼저 읽고 시작한다.
 
 다음 작업을 진행한다:
 
-> 보안 모델 문서화
+> plugin/MCP 확장 전략
 
 ## Claude Code Adapter
 
@@ -49,7 +49,7 @@ Use this prompt when opening Claude Code from a terminal at the repository root.
 - Keep all implementation, docs, tests, validation, handoff updates, commit, and approved push moving without asking.
 - Do not rely on terminal history or unstated local context; read the required files first.
 - Before any unclear operation, run `pnpm agent:dry-run -- --operation "<operation>"`.
-- Use `pnpm agent:route -- --task "보안 모델 문서화" --provider claude` before expensive reasoning work.
+- Use `pnpm agent:route -- --task "plugin/MCP 확장 전략" --provider claude` before expensive reasoning work.
 
 ### Claude Code Completion Output
 
@@ -74,7 +74,7 @@ Quality is first. Use efficient models for routine reading, setup, and simple do
 Before heavy work, run:
 
 ```bash
-pnpm agent:route -- --task "보안 모델 문서화"
+pnpm agent:route -- --task "plugin/MCP 확장 전략"
 ```
 
 ## Safety Rules

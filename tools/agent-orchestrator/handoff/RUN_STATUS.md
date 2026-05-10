@@ -294,3 +294,12 @@ NEXT_TASK.md 템플릿 확정: agent-next 생성물을 Required Reads, Execution
 - Git: pending commit/push
 - Decisions: none
 - Next: 보안 모델 문서화
+
+## 2026-05-10T02:47:55.833Z
+
+- Status: completed
+- Summary: 보안 모델 문서를 추가해 비밀값, 계정, MCP/connector, 자동화, git remote, 외부 쓰기 경계를 제품화 기준으로 정리했다.
+- Verification: pnpm validate 통과; pnpm agent:progress=93%
+- Git: pending commit/push
+- Decisions: none
+- Next: plugin/MCP 확장 전략

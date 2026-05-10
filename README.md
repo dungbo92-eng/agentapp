@@ -14,6 +14,7 @@
 | `.claude-sync/plans` | 로드맵/큰 계획 |
 | `docs/handoff-completion-protocol.md` | 작업 완료/중단 시 갱신 규칙 |
 | `docs/usage-budget-model-routing.md` | 주간 사용량 예산과 모델 선택 방향 |
+| `docs/security-model.md` | 비밀값, 계정, 자동화, git/외부 쓰기 보안 경계 |
 | `tools/agent-orchestrator` | worker, 승인 정책, handoff 문서 |
 | `scripts/claude-sync.mjs` | repo `.claude-sync` ↔ 로컬 `~/.claude` 동기화 |
 | `scripts/agent-next.mjs` | 다음 작업 선정 및 프롬프트 생성 |
@@ -74,5 +75,7 @@ pnpm validate        # 로컬 스크립트 문법 검증
 AgentApp이 관리하는 각 프로젝트는 공통 memory, plan, handoff, git sync 기준을 기본 운영 골격으로 가진다. 새 프로젝트를 등록할 때는 기능 개발보다 먼저 이 기준을 갖춘다. 세부 기준은 `docs/project-baseline-sync.md`를 따른다.
 
 자동화 연동 기준은 `docs/automation-integration.md`에 둔다. 기본 자동화는 상태 점검과 handoff 갱신 중심이며, 실제 예약 생성은 사용자가 명시 요청할 때만 수행한다.
+
+보안 모델은 `docs/security-model.md`를 따른다. 비밀값, 계정, MCP/connector, git remote, 외부 쓰기 경계는 이 문서와 `tools/agent-orchestrator/approval-policy.yaml`을 함께 기준으로 판단한다.
 
 보류 결정 알림 기준은 `docs/decision-notifications.md`에 둔다. 기본 알림은 로컬 dashboard, scheduled check, handoff report에만 표시한다.

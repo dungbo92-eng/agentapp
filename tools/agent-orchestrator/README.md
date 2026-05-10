@@ -195,6 +195,10 @@ pnpm agent:scheduled-check -- --write-report
 
 scheduled check는 git branch/upstream/remote/ahead/behind/synced 상태도 함께 요약한다. 자동 push나 destructive git 작업은 수행하지 않는다.
 
+## Security model
+
+보안 모델은 `../../docs/security-model.md`를 따른다. AgentApp은 자동 로그인, 자동 계정 전환, captcha/MFA 우회, quota 우회를 구현하지 않고, MCP/connector와 외부 쓰기는 read-only 우선 및 사용자 결정 원칙을 따른다.
+
 ## 원칙
 
 - 이 디렉터리는 계정 제한 우회용이 아니다.

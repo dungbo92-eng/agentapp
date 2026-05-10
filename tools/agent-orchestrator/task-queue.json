@@ -261,10 +261,20 @@
       "title": "보안 모델 문서화",
       "phase": "phase-7",
       "priority": 20,
-      "status": "pending",
+      "status": "done",
       "depends_on": ["installation-guide"],
       "blocked_by": [],
-      "reason": "설치 가이드가 완성되었으므로 비밀값, 계정, 자동화, 외부 쓰기 경계를 제품화 문서로 정리한다."
+      "reason": "설치 가이드가 완성되었으므로 비밀값, 계정, 자동화, 외부 쓰기 경계를 제품화 문서로 정리했다."
+    },
+    {
+      "id": "plugin-mcp-extension-plan",
+      "title": "plugin/MCP 확장 전략",
+      "phase": "phase-7",
+      "priority": 18,
+      "status": "pending",
+      "depends_on": ["security-model-doc"],
+      "blocked_by": [],
+      "reason": "보안 모델이 정리되었으므로 외부 MCP/플러그인을 어떤 권한 경계로 확장할지 제품화 전략으로 정리한다."
     }
   ]
 }
