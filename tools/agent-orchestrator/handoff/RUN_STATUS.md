@@ -303,3 +303,12 @@ NEXT_TASK.md 템플릿 확정: agent-next 생성물을 Required Reads, Execution
 - Git: pending commit/push
 - Decisions: none
 - Next: plugin/MCP 확장 전략
+
+## 2026-05-10T02:50:23.864Z
+
+- Status: completed
+- Summary: plugin/MCP 확장 전략 문서를 추가해 Browser, Figma, GitHub, OpenAI Developers, local tools를 권한 계층별로 분류하고 외부 쓰기와 connector 변경은 decision queue로 보류하는 기준을 정리했다.
+- Verification: pnpm validate 통과; pnpm agent:progress=95%
+- Git: pending commit/push
+- Decisions: none
+- Next: 테스트 시나리오

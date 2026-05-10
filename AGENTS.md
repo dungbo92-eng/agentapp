@@ -111,6 +111,7 @@ New-ItemProperty -Path HKCU:\Console -Name VirtualTerminalLevel -PropertyType DW
 - OpenAI Developers: OpenAI API 최신 문서 확인이 필요할 때
 - 파일 시스템/터미널 MCP: 로컬 코드 수정 및 검증
 - MCP/커넥터에는 운영 비밀값을 저장하지 않는다.
+- 확장 도입 기준은 `docs/plugin-mcp-extension-strategy.md`를 따른다.
 
 ## 6. 에이전트 작업 흐름
 

@@ -26,16 +26,16 @@ Auth: user-managed only
 
 ## Current Task
 
-- Selected task: plugin/MCP 확장 전략
-- Task id: plugin-mcp-extension-plan
-- Priority: 18
-- Generated: 2026-05-10T02:47:59.183Z
+- Selected task: 테스트 시나리오
+- Task id: test-scenarios
+- Priority: 16
+- Generated: 2026-05-10T02:50:27.230Z
 
 위 Required Reads를 먼저 읽고 시작한다.
 
 다음 작업을 진행한다:
 
-> plugin/MCP 확장 전략
+> 테스트 시나리오
 
 
 ## Model Routing
@@ -50,7 +50,7 @@ Quality is first. Use efficient models for routine reading, setup, and simple do
 Before heavy work, run:
 
 ```bash
-pnpm agent:route -- --task "plugin/MCP 확장 전략"
+pnpm agent:route -- --task "테스트 시나리오"
 ```
 
 ## Safety Rules

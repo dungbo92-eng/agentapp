@@ -271,10 +271,20 @@
       "title": "plugin/MCP 확장 전략",
       "phase": "phase-7",
       "priority": 18,
-      "status": "pending",
+      "status": "done",
       "depends_on": ["security-model-doc"],
       "blocked_by": [],
-      "reason": "보안 모델이 정리되었으므로 외부 MCP/플러그인을 어떤 권한 경계로 확장할지 제품화 전략으로 정리한다."
+      "reason": "보안 모델이 정리되었으므로 외부 MCP/플러그인을 어떤 권한 경계로 확장할지 제품화 전략으로 정리했다."
+    },
+    {
+      "id": "test-scenarios",
+      "title": "테스트 시나리오",
+      "phase": "phase-7",
+      "priority": 16,
+      "status": "pending",
+      "depends_on": ["plugin-mcp-extension-plan"],
+      "blocked_by": [],
+      "reason": "제품화 문서와 확장 전략이 정리되었으므로 새 PC 시작, handoff 이어받기, 예산 라우팅, 보류 결정, dashboard smoke test를 시나리오로 정리한다."
     }
   ]
 }
