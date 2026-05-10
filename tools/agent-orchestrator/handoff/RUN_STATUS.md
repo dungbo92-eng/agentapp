@@ -276,3 +276,12 @@ NEXT_TASK.md 템플릿 확정: agent-next 생성물을 Required Reads, Execution
 - Git: pending commit/push
 - Decisions: none
 - Next: git sync 상태 점검 자동화
+
+## 2026-05-10T02:29:50.701Z
+
+- Status: completed
+- Summary: git sync 상태 자동 점검을 agent:scheduled-check에 추가했다. branch, upstream, remote 설정 여부, ahead/behind, synced 상태를 read-only로 요약한다.
+- Verification: pnpm agent:scheduled-check -- --json git.upstream=origin/main git.synced=true; pnpm validate 통과; pnpm agent:progress=88% Phase6=100%
+- Git: pending commit/push
+- Decisions: none
+- Next: 설치 가이드

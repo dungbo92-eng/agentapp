@@ -1,9 +1,9 @@
 {
-  "generated_at": "2026-05-10T02:27:47.306Z",
+  "generated_at": "2026-05-10T02:30:08.144Z",
   "repo_root": "E:\\agentApp",
   "progress": {
-    "percent": 86,
-    "done": 37,
+    "percent": 88,
+    "done": 38,
     "total": 43,
     "phases": [
       {
@@ -186,7 +186,7 @@
       },
       {
         "title": "Phase 6 — 자동화 연동",
-        "done": 3,
+        "done": 4,
         "total": 4,
         "items": [
           {
@@ -203,7 +203,7 @@
           },
           {
             "title": "git sync 상태 점검 자동화",
-            "done": false
+            "done": true
           }
         ]
       },
@@ -237,11 +237,11 @@
     ]
   },
   "next_task": {
-    "generated": "2026-05-10T02:27:44.785Z",
-    "title": "git sync 상태 자동 점검",
+    "generated": "2026-05-10T02:29:51.571Z",
+    "title": "설치 가이드",
     "source": "task-queue",
-    "id": "git-sync-auto-check",
-    "priority": "24"
+    "id": "installation-guide",
+    "priority": "22"
   },
   "pending_decisions": [
     {
@@ -252,11 +252,11 @@
     }
   ],
   "latest_run": {
-    "at": "2026-05-10T02:27:44.107Z",
+    "at": "2026-05-10T02:29:50.701Z",
     "status": "completed",
-    "summary": "보류 결정 알림 방식을 정리하고 agent:scheduled-check에 pending decision 개수와 level 요약을 추가했다. 기본 알림은 dashboard, scheduled check, handoff report에만 표시한다.",
-    "verification": "pnpm agent:scheduled-check -- --json pending_decisions=1 level=attention; pnpm validate 통과; pnpm dashboard:build 통과; pnpm agent:progress=86%",
-    "next": "git sync 상태 점검 자동화"
+    "summary": "git sync 상태 자동 점검을 agent:scheduled-check에 추가했다. branch, upstream, remote 설정 여부, ahead/behind, synced 상태를 read-only로 요약한다.",
+    "verification": "pnpm agent:scheduled-check -- --json git.upstream=origin/main git.synced=true; pnpm validate 통과; pnpm agent:progress=88% Phase6=100%",
+    "next": "설치 가이드"
   },
   "approval_queue": {
     "pending_decisions": [
@@ -376,11 +376,11 @@
       "path": "tools/agent-orchestrator/handoff/NEXT_TASK.md",
       "heading": "NEXT_TASK",
       "status": "task-queue",
-      "next": "git sync 상태 자동 점검",
-      "generated": "2026-05-10T02:27:44.785Z",
+      "next": "설치 가이드",
+      "generated": "2026-05-10T02:29:51.571Z",
       "decision_count": 0,
       "line_count": 498,
-      "excerpt": "# NEXT_TASK\n\n- Generated: 2026-05-10T02:27:44.785Z\n- Selected task: git sync 상태 자동 점검\n- Selection source: task-queue\n- Task id: git-sync-auto-check\n- Task priority: 24\n- Workspace: E:\\agentApp\n- Policy: tools/agent-orchestrator/approval-policy.yaml\n\n## Required Reads\n\n1. AGENTS.md\n2. .claude-sync/memory/project_state.md\n3. .claude-sync/plans/agent-orchestrator-roadmap.md\n4. tools/agent-orchestrator/approval-policy.yaml\n5. docs/usage-budget-model-routing.md\n6. docs/handoff-completion-protocol.md\n7. tools/agent-orchestrator/task-queue.json\n8. tools/agent-orchestrator/workers.example.yaml\n\n## Agent Prompt\n\n위 Required Reads를 먼저 읽고 시작한다.\n\n다음 작업을 진행한다:\n\n> git sync 상태 자동 점검\n\n## Execution Rules\n\n- `auto_allowed`에 해당하는 로컬 작업은 바로 진행한다.\n- `hold_for_user` 또는 `user_required`에 해당하는 작업은 실행하지 말고 DECISIONS_REQUIRED.md에 남긴다.\n- `deny`에 해당하는 작업은 구현하지 않는다.\n- 비밀값, 계정 정보, 토큰, 쿠키, 운영 인증 정보는 파일/로그/문서에 남기지 않는다.\n- 작업 범위가 섞여 있으면 안전한 로컬 부분만 완료하고 보류 항목을 기록한다.\n- 개발 구현, 문서화, 테스트, 로컬 검증, handoff 갱신, commit/push는 추가 확인 없이 계속 진행한다.\n\n## Completion Checklist\n\n- pnpm validate\n- pnpm agent:doctor\n- pnpm agent:progress\n- pnpm agent:next\n- pnpm agent:sync\n- git status 확인\n- 검증된 변경 commit\n- 승인된 remote가 있으면 push\n\n## Handoff Updates\n\n- tools/agent-orchestrator/handoff/RUN_STATUS.md: 수행 내용과 검증 결과 추가\n- tools/agent-orchestrator/handoff/DECISIONS_REQUIRED.md: 사용자 결정 필요 항목 추가/해결 처리\n- .claude-sync/memory/project_state.md: 의미 있는 진행 반영\n- .claude-sync/plans/agent-orchestrator-roadmap.md: 완료된 roadmap 체크박스 갱신\n\n## Context Snapshot\n\n### Project State\n\n```md\n# Project State\n\nLast updated: 2026-05-09\n\n## 프로젝트 한 줄\n\nAgentApp은 여러 AI 개발 에이전트가 같은 memory/plan/handoff를 공유하며 안전한 작업을 이어받게 하는 멀티 에이전트 개발 오케스트레이터다.\n\n## 현재 상태\n\n- `AGENTS.md`, `CLAUDE.md` 공통 규칙 초안 생성.\n- `.claude-sync` memory/plan 동기화 구조 생성.\n- `scripts/claude-sync.mjs`, `install-hooks.mjs` 생성.\n- `scripts/agent-doctor.mjs`, `agent-next.mjs`, `agent-progress.mjs`, `agent-report.mjs` 생성.\n- `tools/agent-orchestrator` 아래 승인 정책, worker 예시, handoff 초안 생성.\n- `git init`, `pnpm install`, hook 설치 완료.\n- `pnpm validate`, `pnpm agent:doctor`, `pnpm agent:progress`, `pnpm agent:next`, `pnpm agent:status` 검증 완료.\n- 새 PC/새 에이전트 세션에서 `pnpm agent:doctor`로 Node/pnpm/git, hooks, `.claude-syn..."
+      "excerpt": "# NEXT_TASK\n\n- Generated: 2026-05-10T02:29:51.571Z\n- Selected task: 설치 가이드\n- Selection source: task-queue\n- Task id: installation-guide\n- Task priority: 22\n- Workspace: E:\\agentApp\n- Policy: tools/agent-orchestrator/approval-policy.yaml\n\n## Required Reads\n\n1. AGENTS.md\n2. .claude-sync/memory/project_state.md\n3. .claude-sync/plans/agent-orchestrator-roadmap.md\n4. tools/agent-orchestrator/approval-policy.yaml\n5. docs/usage-budget-model-routing.md\n6. docs/handoff-completion-protocol.md\n7. tools/agent-orchestrator/task-queue.json\n8. tools/agent-orchestrator/workers.example.yaml\n\n## Agent Prompt\n\n위 Required Reads를 먼저 읽고 시작한다.\n\n다음 작업을 진행한다:\n\n> 설치 가이드\n\n## Execution Rules\n\n- `auto_allowed`에 해당하는 로컬 작업은 바로 진행한다.\n- `hold_for_user` 또는 `user_required`에 해당하는 작업은 실행하지 말고 DECISIONS_REQUIRED.md에 남긴다.\n- `deny`에 해당하는 작업은 구현하지 않는다.\n- 비밀값, 계정 정보, 토큰, 쿠키, 운영 인증 정보는 파일/로그/문서에 남기지 않는다.\n- 작업 범위가 섞여 있으면 안전한 로컬 부분만 완료하고 보류 항목을 기록한다.\n- 개발 구현, 문서화, 테스트, 로컬 검증, handoff 갱신, commit/push는 추가 확인 없이 계속 진행한다.\n\n## Completion Checklist\n\n- pnpm validate\n- pnpm agent:doctor\n- pnpm agent:progress\n- pnpm agent:next\n- pnpm agent:sync\n- git status 확인\n- 검증된 변경 commit\n- 승인된 remote가 있으면 push\n\n## Handoff Updates\n\n- tools/agent-orchestrator/handoff/RUN_STATUS.md: 수행 내용과 검증 결과 추가\n- tools/agent-orchestrator/handoff/DECISIONS_REQUIRED.md: 사용자 결정 필요 항목 추가/해결 처리\n- .claude-sync/memory/project_state.md: 의미 있는 진행 반영\n- .claude-sync/plans/agent-orchestrator-roadmap.md: 완료된 roadmap 체크박스 갱신\n\n## Context Snapshot\n\n### Project State\n\n```md\n# Project State\n\nLast updated: 2026-05-09\n\n## 프로젝트 한 줄\n\nAgentApp은 여러 AI 개발 에이전트가 같은 memory/plan/handoff를 공유하며 안전한 작업을 이어받게 하는 멀티 에이전트 개발 오케스트레이터다.\n\n## 현재 상태\n\n- `AGENTS.md`, `CLAUDE.md` 공통 규칙 초안 생성.\n- `.claude-sync` memory/plan 동기화 구조 생성.\n- `scripts/claude-sync.mjs`, `install-hooks.mjs` 생성.\n- `scripts/agent-doctor.mjs`, `agent-next.mjs`, `agent-progress.mjs`, `agent-report.mjs` 생성.\n- `tools/agent-orchestrator` 아래 승인 정책, worker 예시, handoff 초안 생성.\n- `git init`, `pnpm install`, hook 설치 완료.\n- `pnpm validate`, `pnpm agent:doctor`, `pnpm agent:progress`, `pnpm agent:next`, `pnpm agent:status` 검증 완료.\n- 새 PC/새 에이전트 세션에서 `pnpm agent:doctor`로 Node/pnpm/git, hooks, `.claude-sync`, 로컬 `~/.claude`, git..."
     },
     {
       "id": "run-status",
@@ -388,11 +388,11 @@
       "path": "tools/agent-orchestrator/handoff/RUN_STATUS.md",
       "heading": "RUN_STATUS",
       "status": "completed",
-      "next": "git sync 상태 점검 자동화",
-      "generated": "2026-05-10T02:27:44.107Z",
+      "next": "설치 가이드",
+      "generated": "2026-05-10T02:29:50.701Z",
       "decision_count": 0,
-      "line_count": 210,
-      "excerpt": "...다.\n- Verification: pnpm validate 통과; pnpm dashboard:build 통과; handoff_documents=3; pnpm agent:progress=74%\n- Git: pending commit/push\n- Decisions: none\n- Next: 승인 필요 큐 화면\n\n## 2026-05-09T21:58:44.172Z\n\n- Status: completed\n- Summary: 대시보드에 승인 필요 큐 화면을 추가했다. approval-policy.yaml의 hold_for_user/deny/user_required 경계와 DECISIONS_REQUIRED 대기 항목, hold/blocked task를 snapshot에 모아 UI에서 확인할 수 있게 했다.\n- Verification: pnpm validate 통과; pnpm dashboard:build 통과; approval pending=1 holdRules=10 denyRules=3; pnpm agent:progress=77%\n- Git: pending commit/push\n- Decisions: none\n- Next: 주간 사용량/주말 예비분/모델 추천 화면\n\n## 2026-05-10T02:19:14.446Z\n\n- Status: completed\n- Summary: 대시보드에 주간 사용량/주말 예비분/모델 추천 화면을 추가하고, 프로젝트별 공통 memory/plan/git sync를 기본 운영 골격으로 문서화했다.\n- Verification: pnpm validate 통과; pnpm dashboard:build 통과; usage accounts=2 recommendations=4; pnpm agent:progress=79% Phase5=100%\n- Git: pending commit/push\n- Decisions: none\n- Next: OS 작업 스케줄러 또는 Codex automation 연동 방식 정리\n\n## 2026-05-10T02:21:30.533Z\n\n- Status: completed\n- Summary: OS 작업 스케줄러/Codex automation 연동 방식을 정리했다. 자동화는 read-only 점검과 handoff 갱신 중심으로 제한하고, 실제 예약 생성은 사용자 명시 요청 시에만 수행하도록 문서화했다.\n- Verification: pnpm validate 통과; pnpm agent:progress=81% Phase6=25%; pnpm dashboard:prepare 통과\n- Git: pending commit/push\n- Decisions: none\n- Next: 주기적 agent-next 실행 방식 구현\n\n## 2026-05-10T02:24:19.564Z\n\n- Status: completed\n- Summary: 주기적 agent-next 실행을 위한 agent:scheduled-check CLI를 추가했다. 기본은 read-only 상태 점검이며, --write-next/--write-report/--prepare-dashboard 옵션으로 handoff 갱신 범위를 명시하게 했다.\n- Verification: pnpm agent:scheduled-check -- --json 통과; pnpm agent:scheduled-check -- --write-next --prepare-dashboard --json 통과; pnpm validate 통과; pnpm agent:progress=84%\n- Git: pending commit/push\n- Decisions: none\n- Next: 보류 결정 알림 방식 정리\n\n## 2026-05-10T02:27:44.107Z\n\n- Status: completed\n- Summary: 보류 결정 알림 방식을 정리하고 agent:scheduled-check에 pending decision 개수와 level 요약을 추가했다. 기본 알림은 dashboard, scheduled check, handoff report에만 표시한다.\n- Verification: pnpm agent:scheduled-check -- --json pending_decisions=1 level=attention; pnpm validate 통과; pnpm dashboard:build 통과; pnpm agent:progress=86%\n- Git: pending commit/push\n- Decisions: none\n- Next: git sync 상태 점검 자동화"
+      "line_count": 217,
+      "excerpt": "... Verification: pnpm validate 통과; pnpm dashboard:build 통과; approval pending=1 holdRules=10 denyRules=3; pnpm agent:progress=77%\n- Git: pending commit/push\n- Decisions: none\n- Next: 주간 사용량/주말 예비분/모델 추천 화면\n\n## 2026-05-10T02:19:14.446Z\n\n- Status: completed\n- Summary: 대시보드에 주간 사용량/주말 예비분/모델 추천 화면을 추가하고, 프로젝트별 공통 memory/plan/git sync를 기본 운영 골격으로 문서화했다.\n- Verification: pnpm validate 통과; pnpm dashboard:build 통과; usage accounts=2 recommendations=4; pnpm agent:progress=79% Phase5=100%\n- Git: pending commit/push\n- Decisions: none\n- Next: OS 작업 스케줄러 또는 Codex automation 연동 방식 정리\n\n## 2026-05-10T02:21:30.533Z\n\n- Status: completed\n- Summary: OS 작업 스케줄러/Codex automation 연동 방식을 정리했다. 자동화는 read-only 점검과 handoff 갱신 중심으로 제한하고, 실제 예약 생성은 사용자 명시 요청 시에만 수행하도록 문서화했다.\n- Verification: pnpm validate 통과; pnpm agent:progress=81% Phase6=25%; pnpm dashboard:prepare 통과\n- Git: pending commit/push\n- Decisions: none\n- Next: 주기적 agent-next 실행 방식 구현\n\n## 2026-05-10T02:24:19.564Z\n\n- Status: completed\n- Summary: 주기적 agent-next 실행을 위한 agent:scheduled-check CLI를 추가했다. 기본은 read-only 상태 점검이며, --write-next/--write-report/--prepare-dashboard 옵션으로 handoff 갱신 범위를 명시하게 했다.\n- Verification: pnpm agent:scheduled-check -- --json 통과; pnpm agent:scheduled-check -- --write-next --prepare-dashboard --json 통과; pnpm validate 통과; pnpm agent:progress=84%\n- Git: pending commit/push\n- Decisions: none\n- Next: 보류 결정 알림 방식 정리\n\n## 2026-05-10T02:27:44.107Z\n\n- Status: completed\n- Summary: 보류 결정 알림 방식을 정리하고 agent:scheduled-check에 pending decision 개수와 level 요약을 추가했다. 기본 알림은 dashboard, scheduled check, handoff report에만 표시한다.\n- Verification: pnpm agent:scheduled-check -- --json pending_decisions=1 level=attention; pnpm validate 통과; pnpm dashboard:build 통과; pnpm agent:progress=86%\n- Git: pending commit/push\n- Decisions: none\n- Next: git sync 상태 점검 자동화\n\n## 2026-05-10T02:29:50.701Z\n\n- Status: completed\n- Summary: git sync 상태 자동 점검을 agent:scheduled-check에 추가했다. branch, upstream, remote 설정 여부, ahead/behind, synced 상태를 read-only로 요약한다.\n- Verification: pnpm agent:scheduled-check -- --json git.upstream=origin/main git.synced=true; pnpm validate 통과; pnpm agent:progress=88% Phase6=100%\n- Git: pending commit/push\n- Decisions: none\n- Next: 설치 가이드"
     },
     {
       "id": "decisions",
@@ -408,17 +408,17 @@
     }
   ],
   "task_queue": {
-    "total": 24,
+    "total": 25,
     "statuses": {
-      "done": 23,
+      "done": 24,
       "pending": 1
     },
     "next": [
       {
-        "id": "git-sync-auto-check",
-        "title": "git sync 상태 자동 점검",
-        "phase": "phase-6",
-        "priority": 24
+        "id": "installation-guide",
+        "title": "설치 가이드",
+        "phase": "phase-7",
+        "priority": 22
       }
     ]
   },

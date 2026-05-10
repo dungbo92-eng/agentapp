@@ -73,6 +73,8 @@ pnpm agent:scheduled-check -- --write-report
 
 scheduled check는 pending decision 개수와 알림 level도 함께 출력한다. 세부 기준은 `docs/decision-notifications.md`를 따른다.
 
+git 상태는 branch, upstream, remote 설정 여부, clean 여부, ahead/behind, synced 여부로 요약한다. 이 값은 자동 push나 history rewrite를 수행하지 않고 상태 판단에만 사용한다.
+
 ## 운영 원칙
 
 - 자동화는 정상 인증된 사용자의 도구 상태를 전제로 한다.

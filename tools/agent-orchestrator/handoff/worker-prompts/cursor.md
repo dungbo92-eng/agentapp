@@ -25,16 +25,16 @@ Auth: user-managed only
 
 ## Current Task
 
-- Selected task: git sync 상태 자동 점검
-- Task id: git-sync-auto-check
-- Priority: 24
-- Generated: 2026-05-10T02:27:44.785Z
+- Selected task: 설치 가이드
+- Task id: installation-guide
+- Priority: 22
+- Generated: 2026-05-10T02:29:51.571Z
 
 위 Required Reads를 먼저 읽고 시작한다.
 
 다음 작업을 진행한다:
 
-> git sync 상태 자동 점검
+> 설치 가이드
 
 ## Cursor Adapter
 
@@ -49,7 +49,7 @@ Use this prompt when opening the repository in Cursor.
 - Use Cursor for local code, docs, tests, validation, handoff updates, commit, and approved push only.
 - Do not store secrets in Cursor settings, prompts, files, comments, or logs.
 - Before any unclear operation, run `pnpm agent:dry-run -- --operation "<operation>"`.
-- Use `pnpm agent:route -- --task "git sync 상태 자동 점검"` before expensive reasoning work.
+- Use `pnpm agent:route -- --task "설치 가이드"` before expensive reasoning work.
 
 ### Cursor Completion Output
 
@@ -74,7 +74,7 @@ Quality is first. Use efficient models for routine reading, setup, and simple do
 Before heavy work, run:
 
 ```bash
-pnpm agent:route -- --task "git sync 상태 자동 점검"
+pnpm agent:route -- --task "설치 가이드"
 ```
 
 ## Safety Rules

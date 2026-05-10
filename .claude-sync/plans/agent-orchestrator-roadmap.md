@@ -59,7 +59,7 @@
 - [x] OS 작업 스케줄러 또는 Codex automation 연동 방식 정리
 - [x] 주기적 `agent-next` 실행
 - [x] 보류 결정 알림 방식 정리
-- [ ] git sync 상태 점검 자동화
+- [x] git sync 상태 점검 자동화
 
 ## Phase 7 — 제품화
 

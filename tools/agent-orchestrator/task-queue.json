@@ -241,10 +241,20 @@
       "title": "git sync 상태 자동 점검",
       "phase": "phase-6",
       "priority": 24,
-      "status": "pending",
+      "status": "done",
       "depends_on": ["decision-notification-plan"],
       "blocked_by": [],
       "reason": "주기 점검과 보류 결정 알림이 생겼으므로 git/sync 상태를 자동 점검 결과에 더 명확히 반영한다."
+    },
+    {
+      "id": "installation-guide",
+      "title": "설치 가이드",
+      "phase": "phase-7",
+      "priority": 22,
+      "status": "pending",
+      "depends_on": ["git-sync-auto-check"],
+      "blocked_by": [],
+      "reason": "MVP 기능과 자동화 점검이 갖춰졌으므로 새 PC/새 프로젝트 설치 가이드를 제품화 문서로 정리한다."
     }
   ]
 }

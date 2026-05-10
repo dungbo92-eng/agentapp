@@ -53,12 +53,23 @@ function firstLineMatching(output, prefix) {
 function gitSummary() {
   const branch = run("git", ["rev-parse", "--abbrev-ref", "HEAD"]);
   const status = run("git", ["status", "--porcelain=v1"]);
+  const upstream = run("git", ["rev-parse", "--abbrev-ref", "--symbolic-full-name", "@{u}"]);
+  const remote = run("git", ["remote", "get-url", "origin"]);
+  const divergence = upstream.status === 0 ? run("git", ["rev-list", "--left-right", "--count", "HEAD...@{u}"]) : null;
   const changed = status.stdout ? status.stdout.split(/\r?\n/).filter(Boolean).length : 0;
+  const [aheadRaw, behindRaw] = divergence?.stdout.split(/\s+/) || ["0", "0"];
+  const ahead = Number(aheadRaw || 0);
+  const behind = Number(behindRaw || 0);
 
   return {
     branch: branch.stdout || "unknown",
+    upstream: upstream.status === 0 ? upstream.stdout : "",
+    remote_configured: remote.status === 0,
+    ahead,
+    behind,
     changed,
     clean: changed === 0,
+    synced: upstream.status === 0 && ahead === 0 && behind === 0,
     status_ok: branch.status === 0 && status.status === 0,
   };
 }
@@ -94,7 +105,7 @@ async function writeReport(summary) {
 ## ${summary.generated_at}
 
 - Status: ${summary.decisions.count > 0 ? "in_progress" : "completed"}
-- Summary: Scheduled check completed. next=${summary.next_task || "unknown"} git_clean=${summary.git.clean} sync_ok=${summary.sync_ok} pending_decisions=${summary.decisions.count}
+- Summary: Scheduled check completed. next=${summary.next_task || "unknown"} git_clean=${summary.git.clean} git_synced=${summary.git.synced} sync_ok=${summary.sync_ok} pending_decisions=${summary.decisions.count}
 - Verification: agent:scheduled-check commands completed; progress=${summary.progress || "unknown"}
 - Git: read-only check
 - Decisions: ${summary.decisions.count > 0 ? `${summary.decisions.count} pending` : "none"}
@@ -146,7 +157,12 @@ if (options.json) {
 } else {
   console.log(`generated_at=${summary.generated_at}`);
   console.log(`git_branch=${summary.git.branch}`);
+  console.log(`git_upstream=${summary.git.upstream || "none"}`);
+  console.log(`git_remote_configured=${summary.git.remote_configured}`);
   console.log(`git_clean=${summary.git.clean}`);
+  console.log(`git_synced=${summary.git.synced}`);
+  console.log(`git_ahead=${summary.git.ahead}`);
+  console.log(`git_behind=${summary.git.behind}`);
   console.log(`sync_ok=${summary.sync_ok}`);
   console.log(`progress=${summary.progress || "unknown"}`);
   console.log(`next=${summary.next_task || "unknown"}`);
