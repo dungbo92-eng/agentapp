@@ -181,6 +181,10 @@ pnpm agent:budget
 pnpm agent:budget -- --date 2026-05-09 --json
 ```
 
+## Automation integration
+
+자동화 연동 기준은 `../../docs/automation-integration.md`를 따른다. MVP 자동화는 `agent:status`, `agent:doctor`, `agent:progress`, `agent:next`, `dashboard:prepare` 같은 read-only 또는 handoff 갱신 중심 명령만 대상으로 한다.
+
 ## 원칙
 
 - 이 디렉터리는 계정 제한 우회용이 아니다.

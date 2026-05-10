@@ -211,10 +211,20 @@
       "title": "OS 작업 스케줄러 또는 Codex automation 연동 방식 정리",
       "phase": "phase-6",
       "priority": 30,
-      "status": "pending",
+      "status": "done",
       "depends_on": ["dashboard-usage-budget-view"],
       "blocked_by": [],
       "reason": "대시보드 MVP가 완성되었으므로 다음 단계는 안전한 주기 실행/자동화 연동 방식을 정리하는 것이다."
+    },
+    {
+      "id": "scheduled-agent-next",
+      "title": "주기적 `agent-next` 실행 방식 구현",
+      "phase": "phase-6",
+      "priority": 28,
+      "status": "pending",
+      "depends_on": ["automation-integration-plan"],
+      "blocked_by": [],
+      "reason": "자동화 연동 원칙이 정리되었으므로 안전한 scheduled check/next 실행 명령을 구현한다."
     }
   ]
 }

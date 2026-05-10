@@ -56,7 +56,7 @@
 
 ## Phase 6 — 자동화 연동
 
-- [ ] OS 작업 스케줄러 또는 Codex automation 연동 방식 정리
+- [x] OS 작업 스케줄러 또는 Codex automation 연동 방식 정리
 - [ ] 주기적 `agent-next` 실행
 - [ ] 보류 결정 알림 방식 정리
 - [ ] git sync 상태 점검 자동화

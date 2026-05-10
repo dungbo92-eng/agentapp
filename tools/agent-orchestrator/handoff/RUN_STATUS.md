@@ -249,3 +249,12 @@ NEXT_TASK.md 템플릿 확정: agent-next 생성물을 Required Reads, Execution
 - Git: pending commit/push
 - Decisions: none
 - Next: OS 작업 스케줄러 또는 Codex automation 연동 방식 정리
+
+## 2026-05-10T02:21:30.533Z
+
+- Status: completed
+- Summary: OS 작업 스케줄러/Codex automation 연동 방식을 정리했다. 자동화는 read-only 점검과 handoff 갱신 중심으로 제한하고, 실제 예약 생성은 사용자 명시 요청 시에만 수행하도록 문서화했다.
+- Verification: pnpm validate 통과; pnpm agent:progress=81% Phase6=25%; pnpm dashboard:prepare 통과
+- Git: pending commit/push
+- Decisions: none
+- Next: 주기적 agent-next 실행 방식 구현

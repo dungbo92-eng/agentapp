@@ -69,3 +69,5 @@ pnpm validate        # 로컬 스크립트 문법 검증
 ## 프로젝트별 기본 동기화
 
 AgentApp이 관리하는 각 프로젝트는 공통 memory, plan, handoff, git sync 기준을 기본 운영 골격으로 가진다. 새 프로젝트를 등록할 때는 기능 개발보다 먼저 이 기준을 갖춘다. 세부 기준은 `docs/project-baseline-sync.md`를 따른다.
+
+자동화 연동 기준은 `docs/automation-integration.md`에 둔다. 기본 자동화는 상태 점검과 handoff 갱신 중심이며, 실제 예약 생성은 사용자가 명시 요청할 때만 수행한다.
