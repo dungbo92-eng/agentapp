@@ -16,6 +16,7 @@
 | `docs/usage-budget-model-routing.md` | 주간 사용량 예산과 모델 선택 방향 |
 | `docs/security-model.md` | 비밀값, 계정, 자동화, git/외부 쓰기 보안 경계 |
 | `docs/plugin-mcp-extension-strategy.md` | plugin/MCP 확장 권한 계층과 도입 순서 |
+| `docs/test-scenarios.md` | 새 PC, handoff, 예산 라우팅, dashboard 제품화 검증 시나리오 |
 | `tools/agent-orchestrator` | worker, 승인 정책, handoff 문서 |
 | `scripts/claude-sync.mjs` | repo `.claude-sync` ↔ 로컬 `~/.claude` 동기화 |
 | `scripts/agent-next.mjs` | 다음 작업 선정 및 프롬프트 생성 |
@@ -80,5 +81,7 @@ AgentApp이 관리하는 각 프로젝트는 공통 memory, plan, handoff, git s
 보안 모델은 `docs/security-model.md`를 따른다. 비밀값, 계정, MCP/connector, git remote, 외부 쓰기 경계는 이 문서와 `tools/agent-orchestrator/approval-policy.yaml`을 함께 기준으로 판단한다.
 
 plugin/MCP 확장 전략은 `docs/plugin-mcp-extension-strategy.md`를 따른다. 확장은 read-only와 local-write부터 도입하고, 외부 쓰기나 connector 권한 변경은 decision queue로 보류한다.
+
+제품화 테스트 기준은 `docs/test-scenarios.md`를 따른다. 새 PC 시작, handoff 이어받기, 예산 라우팅, 승인 정책, scheduled check, dashboard, git sync, plugin/MCP fallback을 최소 시나리오로 확인한다.
 
 보류 결정 알림 기준은 `docs/decision-notifications.md`에 둔다. 기본 알림은 로컬 dashboard, scheduled check, handoff report에만 표시한다.

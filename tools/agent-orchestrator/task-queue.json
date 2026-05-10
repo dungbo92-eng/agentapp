@@ -281,10 +281,20 @@
       "title": "테스트 시나리오",
       "phase": "phase-7",
       "priority": 16,
-      "status": "pending",
+      "status": "done",
       "depends_on": ["plugin-mcp-extension-plan"],
       "blocked_by": [],
-      "reason": "제품화 문서와 확장 전략이 정리되었으므로 새 PC 시작, handoff 이어받기, 예산 라우팅, 보류 결정, dashboard smoke test를 시나리오로 정리한다."
+      "reason": "제품화 문서와 확장 전략이 정리되었으므로 새 PC 시작, handoff 이어받기, 예산 라우팅, 보류 결정, dashboard smoke test를 시나리오로 정리했다."
+    },
+    {
+      "id": "first-release-tag",
+      "title": "첫 릴리즈 태그",
+      "phase": "phase-7",
+      "priority": 14,
+      "status": "pending",
+      "depends_on": ["test-scenarios"],
+      "blocked_by": [],
+      "reason": "제품화 테스트 시나리오까지 정리되었으므로 release note와 tag 기준을 확인하고 첫 릴리즈 태그를 준비한다."
     }
   ]
 }

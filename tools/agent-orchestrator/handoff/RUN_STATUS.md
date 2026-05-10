@@ -312,3 +312,12 @@ NEXT_TASK.md 템플릿 확정: agent-next 생성물을 Required Reads, Execution
 - Git: pending commit/push
 - Decisions: none
 - Next: 테스트 시나리오
+
+## 2026-05-10T02:52:33.861Z
+
+- Status: completed
+- Summary: 제품화 테스트 시나리오 문서를 추가해 새 PC 시작, handoff 이어받기, 예산 라우팅, 승인 정책, scheduled check, dashboard smoke, git sync, 보안 경계, plugin/MCP fallback 검증 절차를 정리했다.
+- Verification: pnpm validate 통과; pnpm agent:progress=98%
+- Git: pending commit/push
+- Decisions: none
+- Next: 첫 릴리즈 태그
