@@ -26,16 +26,16 @@ Auth: user-managed only
 
 ## Current Task
 
-- Selected task: 첫 릴리즈 태그
-- Task id: first-release-tag
-- Priority: 14
-- Generated: 2026-05-10T02:52:37.514Z
+- Selected task: 로드맵의 다음 미완료 작업을 정리한다.
+- Task id: n/a
+- Priority: n/a
+- Generated: 2026-05-10T02:55:09.980Z
 
 위 Required Reads를 먼저 읽고 시작한다.
 
 다음 작업을 진행한다:
 
-> 첫 릴리즈 태그
+> 로드맵의 다음 미완료 작업을 정리한다.
 
 ## Claude Code Adapter
 
@@ -49,7 +49,7 @@ Use this prompt when opening Claude Code from a terminal at the repository root.
 - Keep all implementation, docs, tests, validation, handoff updates, commit, and approved push moving without asking.
 - Do not rely on terminal history or unstated local context; read the required files first.
 - Before any unclear operation, run `pnpm agent:dry-run -- --operation "<operation>"`.
-- Use `pnpm agent:route -- --task "첫 릴리즈 태그" --provider claude` before expensive reasoning work.
+- Use `pnpm agent:route -- --task "로드맵의 다음 미완료 작업을 정리한다." --provider claude` before expensive reasoning work.
 
 ### Claude Code Completion Output
 
@@ -74,7 +74,7 @@ Quality is first. Use efficient models for routine reading, setup, and simple do
 Before heavy work, run:
 
 ```bash
-pnpm agent:route -- --task "첫 릴리즈 태그"
+pnpm agent:route -- --task "로드맵의 다음 미완료 작업을 정리한다."
 ```
 
 ## Safety Rules

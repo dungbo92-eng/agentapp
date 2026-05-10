@@ -321,3 +321,12 @@ NEXT_TASK.md 템플릿 확정: agent-next 생성물을 Required Reads, Execution
 - Git: pending commit/push
 - Decisions: none
 - Next: 첫 릴리즈 태그
+
+## 2026-05-10T02:55:06.320Z
+
+- Status: completed
+- Summary: v0.0.1 CHANGELOG를 추가하고 Phase 7 첫 릴리즈 태그 작업을 완료 상태로 정리했다. 전체 roadmap 진행률은 100%다.
+- Verification: pnpm validate 통과; pnpm agent:progress=100%
+- Git: pending commit/tag/push
+- Decisions: none
+- Next: none
