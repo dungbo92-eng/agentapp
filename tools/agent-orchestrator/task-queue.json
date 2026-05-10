@@ -221,10 +221,20 @@
       "title": "주기적 `agent-next` 실행 방식 구현",
       "phase": "phase-6",
       "priority": 28,
-      "status": "pending",
+      "status": "done",
       "depends_on": ["automation-integration-plan"],
       "blocked_by": [],
       "reason": "자동화 연동 원칙이 정리되었으므로 안전한 scheduled check/next 실행 명령을 구현한다."
+    },
+    {
+      "id": "decision-notification-plan",
+      "title": "보류 결정 알림 방식 정리",
+      "phase": "phase-6",
+      "priority": 26,
+      "status": "pending",
+      "depends_on": ["scheduled-agent-next"],
+      "blocked_by": [],
+      "reason": "주기 실행이 생겼으므로 pending decision을 사용자에게 안전하게 알리는 방식을 정리한다."
     }
   ]
 }

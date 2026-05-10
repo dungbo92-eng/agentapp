@@ -25,16 +25,16 @@ Auth: user-managed only
 
 ## Current Task
 
-- Selected task: 주기적 `agent-next` 실행 방식 구현
-- Task id: scheduled-agent-next
-- Priority: 28
-- Generated: 2026-05-10T02:21:31.204Z
+- Selected task: 보류 결정 알림 방식 정리
+- Task id: decision-notification-plan
+- Priority: 26
+- Generated: 2026-05-10T02:24:20.462Z
 
 위 Required Reads를 먼저 읽고 시작한다.
 
 다음 작업을 진행한다:
 
-> 주기적 `agent-next` 실행 방식 구현
+> 보류 결정 알림 방식 정리
 
 ## Codex Adapter
 
@@ -48,7 +48,7 @@ Use this prompt when opening a fresh Codex Desktop thread for the current task.
 - Continue implementation autonomously for local code, docs, tests, validation, handoff updates, commit, and approved push.
 - Send short progress updates while exploring, editing, validating, and pushing.
 - Before any unclear operation, run `pnpm agent:dry-run -- --operation "<operation>"`.
-- Use `pnpm agent:route -- --task "주기적 `agent-next` 실행 방식 구현" --provider codex` before expensive reasoning work.
+- Use `pnpm agent:route -- --task "보류 결정 알림 방식 정리" --provider codex` before expensive reasoning work.
 
 ### Codex Completion Output
 
@@ -74,7 +74,7 @@ Quality is first. Use efficient models for routine reading, setup, and simple do
 Before heavy work, run:
 
 ```bash
-pnpm agent:route -- --task "주기적 `agent-next` 실행 방식 구현"
+pnpm agent:route -- --task "보류 결정 알림 방식 정리"
 ```
 
 ## Safety Rules

@@ -258,3 +258,12 @@ NEXT_TASK.md 템플릿 확정: agent-next 생성물을 Required Reads, Execution
 - Git: pending commit/push
 - Decisions: none
 - Next: 주기적 agent-next 실행 방식 구현
+
+## 2026-05-10T02:24:19.564Z
+
+- Status: completed
+- Summary: 주기적 agent-next 실행을 위한 agent:scheduled-check CLI를 추가했다. 기본은 read-only 상태 점검이며, --write-next/--write-report/--prepare-dashboard 옵션으로 handoff 갱신 범위를 명시하게 했다.
+- Verification: pnpm agent:scheduled-check -- --json 통과; pnpm agent:scheduled-check -- --write-next --prepare-dashboard --json 통과; pnpm validate 통과; pnpm agent:progress=84%
+- Git: pending commit/push
+- Decisions: none
+- Next: 보류 결정 알림 방식 정리
