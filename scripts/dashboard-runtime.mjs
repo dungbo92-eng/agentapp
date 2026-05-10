@@ -5,9 +5,11 @@ import path from "node:path";
 import { fileURLToPath } from "node:url";
 
 const REPO_ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
-const DATA_DIR = path.join(REPO_ROOT, "data");
+const DATA_DIR = path.resolve(process.env.AGENTAPP_DATA_DIR || path.join(REPO_ROOT, "data"));
 const RUNTIME_FILE = path.join(DATA_DIR, "dashboard-runtime.json");
-const HANDOFF_DIR = path.join(REPO_ROOT, "tools", "agent-orchestrator", "handoff");
+const HANDOFF_DIR = path.resolve(
+  process.env.AGENTAPP_HANDOFF_DIR || path.join(REPO_ROOT, "tools", "agent-orchestrator", "handoff"),
+);
 const RUN_STATES_DIR = path.join(HANDOFF_DIR, "run-states");
 const DASHBOARD_RUN_STATE = path.join(RUN_STATES_DIR, "dashboard-current.json");
 const DASHBOARD_RUN_HANDOFF = path.join(HANDOFF_DIR, "DASHBOARD_RUN.md");

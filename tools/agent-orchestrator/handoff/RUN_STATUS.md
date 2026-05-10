@@ -366,3 +366,12 @@ NEXT_TASK.md 템플릿 확정: agent-next 생성물을 Required Reads, Execution
 - Git: not recorded
 - Decisions: none
 - Next: Windows exe packaging
+
+## 2026-05-10T07:55:33.314Z
+
+- Status: completed
+- Summary: Windows portable EXE packaging 기반을 추가했다. Electron desktop shell, 정적 dashboard/local API 서버, userData local-only 저장 경로, desktop:dev/desktop:pack 스크립트를 추가하고 dist-desktop/AgentApp-0.0.1-x64.exe 생성을 확인했다.
+- Verification: pnpm validate 통과; pnpm dashboard:build 통과; dashboard-server 스모크 테스트 통과; pnpm desktop:pack 통과; EXE 산출물 E:\\agentApp\\dist-desktop\\AgentApp-0.0.1-x64.exe 확인
+- Git: not recorded
+- Decisions: none
+- Next: none

@@ -371,10 +371,10 @@
       "title": "Windows exe packaging",
       "phase": "phase-8",
       "priority": 30,
-      "status": "pending",
+      "status": "done",
       "depends_on": ["worker-process-handoff-api"],
       "blocked_by": [],
-      "reason": "사용자가 실행파일 형태를 요구했으므로 dashboard UI와 local API를 묶는 Windows exe packaging 방식을 구현한다."
+      "reason": "Electron shell, dashboard local server, portable EXE build script를 추가했고 `pnpm desktop:pack`으로 dist-desktop/AgentApp-0.0.1-x64.exe 생성을 확인했다."
     }
   ]
 }

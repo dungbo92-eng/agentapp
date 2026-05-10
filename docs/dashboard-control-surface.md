@@ -73,8 +73,10 @@ Stop은 active run을 중단 상태로 바꾸고 같은 handoff 파일을 갱신
 
 최종 실행파일은 로컬 API와 dashboard UI를 한 프로세스에서 띄우는 desktop shell 형태로 만든다.
 
-- 후보: Electron 또는 Tauri
+- 현재 후보: Electron
 - 기본 포트 충돌 없이 내부 localhost API 실행
 - `data/` local-only 설정 유지
 - 빌드 산출물에 secret 미포함
 - Windows `.exe`와 portable zip을 우선 목표로 한다.
+
+세부 명령과 구조는 `docs/windows-exe-packaging.md`를 따른다.

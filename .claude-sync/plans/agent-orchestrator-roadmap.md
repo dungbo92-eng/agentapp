@@ -78,4 +78,4 @@
 - [x] 계정 enable/disable 토글과 라우팅 제외
 - [x] 계정 session ready/login 상태와 동적 계정 수 관리
 - [x] Start/Stop과 worker process/handoff 연동
-- [ ] Windows exe packaging
+- [x] Windows exe packaging
