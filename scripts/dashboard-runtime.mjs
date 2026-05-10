@@ -87,6 +87,7 @@ function normalizeAccount(input) {
     provider,
     plan: String(input.plan || (provider === "claude" ? "pro" : "plus")).trim().toLowerCase(),
     loginLabel,
+    enabled: input.enabled !== false,
     auth: "user-managed",
     remainingUnits: Math.max(0, remainingUnits),
     weeklyUnits: Math.max(1, weeklyUnits),
@@ -153,6 +154,17 @@ export async function addAccount(input) {
   return writeRuntime(runtime);
 }
 
+export async function setAccountEnabled(input) {
+  const runtime = await readRuntime();
+  const id = normalizeId(input.id);
+  const exists = runtime.accounts.some((account) => account.id === id);
+  const nextAccount = normalizeAccount({ ...input, id, enabled: input.enabled !== false });
+  runtime.accounts = exists
+    ? runtime.accounts.map((account) => (account.id === id ? { ...account, enabled: input.enabled !== false } : account))
+    : uniqueById([...runtime.accounts, nextAccount]);
+  return writeRuntime(runtime);
+}
+
 export async function applyFourAccountPreset() {
   const runtime = await readRuntime();
   runtime.accounts = uniqueById([...runtime.accounts, ...defaultFourAccountPreset()]);
@@ -180,7 +192,9 @@ function routeScore(candidate, complexity) {
 export function selectRoute(accounts, request) {
   const complexity = request.complexity || "standard";
   const preferredProvider = providerForWorker(request.workerId);
-  const providerAccounts = accounts.filter((account) => !preferredProvider || account.provider === preferredProvider);
+  const providerAccounts = accounts
+    .filter((account) => account.enabled !== false)
+    .filter((account) => !preferredProvider || account.provider === preferredProvider);
   const candidates = providerAccounts
     .map((account) => ({ account, profile: account.modelProfiles?.[complexity] }))
     .filter((candidate) => candidate.profile)

@@ -5,6 +5,7 @@ import {
   addProject,
   applyFourAccountPreset,
   readRuntime,
+  setAccountEnabled,
   startRun,
   stopRun,
 } from "../../scripts/dashboard-runtime.mjs";
@@ -46,6 +47,10 @@ export default defineConfig({
             }
             if (req.method === "POST" && url === "/api/agentapp/accounts/preset-four") {
               sendJson(res, 200, await applyFourAccountPreset());
+              return;
+            }
+            if (req.method === "POST" && url === "/api/agentapp/accounts/enabled") {
+              sendJson(res, 200, await setAccountEnabled(await readBody(req)));
               return;
             }
             if (req.method === "POST" && url === "/api/agentapp/projects") {

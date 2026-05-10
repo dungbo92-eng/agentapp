@@ -337,12 +337,22 @@
       "reason": "Claude/Codex/Cursor 계정 별칭과 남은 예산 단위를 비밀값 없이 로컬 전용 파일로 편집할 수 있게 했다."
     },
     {
+      "id": "account-enable-toggle",
+      "title": "계정 enable/disable 토글과 라우팅 제외",
+      "phase": "phase-8",
+      "priority": 33,
+      "status": "done",
+      "depends_on": ["account-budget-local-store"],
+      "blocked_by": [],
+      "reason": "등록된 AI 계정은 유지하되 사용자가 enabled 토글로 사용 여부를 바꾸고, 꺼진 계정은 Start 라우팅 후보에서 제외되도록 했다."
+    },
+    {
       "id": "worker-process-handoff-api",
       "title": "Start/Stop과 worker process/handoff 연동",
       "phase": "phase-8",
       "priority": 32,
       "status": "pending",
-      "depends_on": ["dashboard-local-execution-api"],
+      "depends_on": ["dashboard-local-execution-api", "account-enable-toggle"],
       "blocked_by": [],
       "reason": "Start/Stop이 local runtime 상태를 관리하므로 다음 단계에서 실제 child process 실행과 RUN_STATUS/handoff 기록을 연결한다."
     },

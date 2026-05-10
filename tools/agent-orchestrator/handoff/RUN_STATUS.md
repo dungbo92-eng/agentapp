@@ -348,3 +348,12 @@ NEXT_TASK.md 템플릿 확정: agent-next 생성물을 Required Reads, Execution
 - Git: pending commit/push
 - Decisions: none
 - Next: Start/Stop과 worker process/handoff 연동
+
+## 2026-05-10T07:28:32.467Z
+
+- Status: completed
+- Summary: 등록된 AI 계정에 enabled 토글을 추가했다. 사용자가 계정을 삭제하지 않고 on/off를 바꿀 수 있고, disabled 계정은 모델/계정 자동 라우팅 후보에서 제외된다.
+- Verification: pnpm validate 통과; pnpm dashboard:build 통과; 브라우저에서 계정 checkbox 6개 확인; off/on 토글 확인; disabled codex-google-b 상태에서 codex-google-a로 라우팅 확인
+- Git: pending commit/push
+- Decisions: none
+- Next: Start/Stop과 worker process/handoff 연동

@@ -51,6 +51,7 @@ API key, password, session cookie, OAuth token은 저장하지 않는다.
 
 - dashboard dev server에 local API 추가: 완료
 - 계정 예산 편집을 secret 없는 `data/dashboard-runtime.json` local-only 설정으로 저장: 완료
+- 등록된 계정의 enabled 토글로 사용 여부 전환: 완료
 - 프로젝트 registry를 `data/dashboard-runtime.json` local-only 설정으로 저장: 완료
 - Start가 worker/provider에 맞는 계정 alias와 모델 profile을 자동 선택하고 예상 예산을 차감: 완료
 - Stop이 active run을 중단 상태로 local run history에 남김: 완료

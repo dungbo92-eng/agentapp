@@ -28,7 +28,7 @@ Auth: user-managed only
 - Selected task: Start/Stop과 worker process/handoff 연동
 - Task id: worker-process-handoff-api
 - Priority: 32
-- Generated: 2026-05-10T07:23:14.679Z
+- Generated: 2026-05-10T07:28:39.016Z
 
 위 Required Reads를 먼저 읽고 시작한다.
 

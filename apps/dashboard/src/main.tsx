@@ -150,6 +150,7 @@ type ManagedAccount = {
   provider: string;
   plan: string;
   loginLabel: string;
+  enabled: boolean;
   remainingUnits: number;
   weeklyUnits: number;
   resetDay: string;
@@ -272,6 +273,7 @@ function recommendLocalRoute(accounts: ManagedAccount[], complexity: string, wor
   const provider = providerForWorker(workerId);
   const candidates = accounts
     .filter((account) => !provider || account.provider === provider)
+    .filter((account) => account.enabled !== false)
     .map((account) => ({ account, profile: profileFor(account, complexity) }))
     .filter((candidate): candidate is { account: ManagedAccount; profile: { model: string; reasoningEffort: string; estimatedUnits: number } } =>
       Boolean(candidate.profile),
@@ -372,6 +374,7 @@ function App() {
     provider: account.provider,
     plan: account.plan,
     loginLabel: "configured",
+    enabled: true,
     remainingUnits: account.remaining_units,
     weeklyUnits: account.weekly_budget_units,
     resetDay: account.reset_day,
@@ -409,6 +412,7 @@ function App() {
         loginLabel: accountForm.loginLabel,
         remainingUnits: Number(accountForm.remainingUnits) || 0,
         weeklyUnits: Number(accountForm.weeklyUnits) || 100,
+        enabled: true,
       }),
     );
     setAccountForm({ ...accountForm, alias: "", loginLabel: "google-a" });
@@ -443,6 +447,10 @@ function App() {
 
   function applyPreset() {
     void updateRuntime(runtimeRequest("accounts/preset-four", {}));
+  }
+
+  function toggleAccount(account: ManagedAccount) {
+    void updateRuntime(runtimeRequest("accounts/enabled", { ...account, enabled: !account.enabled }));
   }
 
   return (
@@ -523,13 +531,16 @@ function App() {
             {accounts.map((account) => {
               const percent = account.weeklyUnits > 0 ? Math.round((account.remainingUnits / account.weeklyUnits) * 100) : 0;
               return (
-                <article className="accountItem" key={account.id}>
+                <article className={`accountItem ${account.enabled === false ? "disabled" : ""}`} key={account.id}>
                   <header>
                     <strong>{account.id}</strong>
-                    <span>{account.source}</span>
+                    <label className="enableToggle">
+                      <input checked={account.enabled !== false} type="checkbox" onChange={() => toggleAccount(account)} />
+                      <span>{account.enabled === false ? "off" : "on"}</span>
+                    </label>
                   </header>
                   <small>
-                    {account.provider} / {account.plan} / {account.loginLabel}
+                    {account.provider} / {account.plan} / {account.loginLabel} / {account.source}
                   </small>
                   <ProgressBar value={percent} />
                 </article>

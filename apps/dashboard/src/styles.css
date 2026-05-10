@@ -310,6 +310,28 @@ textarea:focus {
   overflow-wrap: anywhere;
 }
 
+.accountItem.disabled {
+  opacity: 0.58;
+}
+
+.enableToggle {
+  display: inline-flex;
+  grid-template-columns: auto auto;
+  align-items: center;
+  gap: 6px;
+  color: #475569;
+  font-size: 0.76rem;
+  font-weight: 800;
+}
+
+.enableToggle input {
+  width: 16px;
+  height: 16px;
+  min-width: 16px;
+  margin: 0;
+  accent-color: #2563eb;
+}
+
 .topbar {
   display: flex;
   align-items: flex-end;
