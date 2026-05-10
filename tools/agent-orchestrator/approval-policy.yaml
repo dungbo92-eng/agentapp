@@ -63,7 +63,7 @@ auto_allowed:
       - "review status before staging"
       - "run validation first when feasible"
   - id: usage_budget_planning
-    description: "Track user-provided remaining weekly usage units and recommend model/account allocation without storing credentials."
+    description: "Track user-provided remaining weekly usage units and recommend model/account allocation."
     limits:
       - "manual or user-provided usage values only"
       - "no hidden quota scraping"
@@ -73,6 +73,17 @@ auto_allowed:
       - "reserve weekend usage"
       - "recommend efficient model for routine context review"
       - "recommend highest quality model for complex architecture design"
+  - id: local_encrypted_credential_vault
+    description: "Store user-entered passwords or API keys only in the approved local encrypted vault."
+    limits:
+      - "Windows DPAPI encrypted local-only storage"
+      - "never store plaintext credentials in repo, logs, memory, handoff, MCP configs, or dashboard snapshots"
+      - "store only credentialRef and credentialStatus in dashboard runtime"
+      - "no session cookies or OAuth tokens"
+      - "no captcha, MFA, consent screen, billing, or approval bypass"
+    examples:
+      - "save an account password into data/credential-vault.json via DPAPI"
+      - "show whether an account has an encrypted secret stored"
 
 hold_for_user:
   - id: external_writes
@@ -82,7 +93,7 @@ hold_for_user:
   - id: billing_payments
     description: "Payments, billing, paid plan changes, or usage quota changes."
   - id: secrets
-    description: "Create, reveal, rotate, or store API keys, passwords, tokens, or credentials."
+    description: "Create, reveal, rotate, or store API keys, passwords, tokens, or credentials outside the approved local encrypted vault."
   - id: destructive_git
     description: "git reset --hard, force push, branch deletion, history rewrite."
   - id: destructive_filesystem

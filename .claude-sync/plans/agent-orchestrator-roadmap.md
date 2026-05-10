@@ -82,5 +82,14 @@
 
 ## Phase 9 — 사용성 강화
 
-- [x] 계정 수 기반 Login setup 마법사
+- [x] 동적 계정 추가 UX와 provider/login method/session profile 입력
+- [x] Windows DPAPI local credential vault
+- [x] 모델 override와 Start/Stop 실행 로그
 - [x] release artifact checksum과 실행 가이드 정리
+
+## Phase 10 — Worker 실행 어댑터
+
+- [ ] worker별 session profile launch adapter
+- [ ] Codex/Claude/Cursor/Gemini 실행 로그 수집
+- [ ] 세션 만료 감지 시 needs-login handoff
+- [ ] validation 결과를 dashboard active run에 연결

@@ -379,8 +379,17 @@ NEXT_TASK.md 템플릿 확정: agent-next 생성물을 Required Reads, Execution
 ## 2026-05-10T08:30:11.166Z
 
 - Status: completed
-- Summary: 사용자별 계정 수가 다른 상황을 위해 dashboard Login setup 마법사를 추가했다. Claude/Codex 계정 수와 예산 단위를 입력하거나 1+1, 2+1, 2+2 빠른 설정으로 needs-login 체크리스트를 만들 수 있다. EXE 공유를 위해 desktop:artifact checksum 산출도 추가했다.
-- Verification: pnpm validate 통과; pnpm dashboard:build 통과; accounts/preset API 2 Claude + 1 Codex 생성 확인; 브라우저에서 Login setup/Build checklist/2+1 표시 확인; pnpm desktop:artifact -- --json 통과
+- Summary: 사용자별 계정 수가 다른 상황을 위해 dashboard 계정 준비 흐름을 개선했다. 이후 고정 조합 방식은 동적 Add account 방식으로 대체했다. EXE 공유를 위해 desktop:artifact checksum 산출도 추가했다.
+- Verification: pnpm validate 통과; pnpm dashboard:build 통과; 계정 준비 API 확인; pnpm desktop:artifact -- --json 통과
 - Git: not recorded
 - Decisions: none
 - Next: none
+
+## 2026-05-10T13:59:56.452Z
+
+- Status: completed
+- Summary: dashboard 계정 설정을 고정 조합에서 동적 Add account 흐름으로 전면 교체했다. provider/login method/email/session profile/password/API key 입력을 지원하고, secret은 Windows DPAPI local vault에 암호화 저장하며 runtime에는 credential reference만 남긴다. Start 화면에는 모델 override와 active run line log를 추가했다.
+- Verification: pnpm validate 통과; pnpm dashboard:build 통과; vault-runtime-test 통과; in-app browser에서 Add account/AI tool/Google/Model/GPT-5.5/Prompt/Start 표시 확인
+- Git: not recorded
+- Decisions: none
+- Next: worker별 session profile launch adapter

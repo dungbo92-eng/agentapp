@@ -3,6 +3,7 @@
 import { mkdir, readFile, writeFile } from "node:fs/promises";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
+import { storeCredential } from "./credential-vault.mjs";
 
 const REPO_ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 const DATA_DIR = path.resolve(process.env.AGENTAPP_DATA_DIR || path.join(REPO_ROOT, "data"));
@@ -37,6 +38,7 @@ const MODEL_RANK = {
 };
 
 const SESSION_STATUSES = new Set(["needs-login", "ready", "paused"]);
+const AUTH_METHODS = new Set(["google", "email_password", "api_key", "cli_session", "browser_profile", "manual"]);
 
 function clone(value) {
   return JSON.parse(JSON.stringify(value));
@@ -55,6 +57,16 @@ function normalizeSessionStatus(value) {
     .trim()
     .toLowerCase();
   return SESSION_STATUSES.has(status) ? status : "needs-login";
+}
+
+function normalizeAuthMethod(value) {
+  const method = normalizeId(value || "google").replaceAll("-", "_");
+  return AUTH_METHODS.has(method) ? method : "manual";
+}
+
+function sessionProfileFor(provider, email, loginLabel) {
+  const identity = normalizeId(email || loginLabel || "default");
+  return `${normalizeId(provider || "agent")}/${identity}`;
 }
 
 function relativePath(file) {
@@ -96,19 +108,27 @@ function defaultProfiles(provider) {
 
 function normalizeAccount(input) {
   const provider = normalizeId(input.provider || "claude");
-  const loginLabel = normalizeId(input.loginLabel || input.login_label || "google-a");
+  const email = String(input.email || input.loginEmail || input.login_email || "").trim().toLowerCase();
+  const loginLabel = normalizeId(input.loginLabel || input.login_label || email || "google-a");
   const id = normalizeId(input.id || `${provider}-${loginLabel}`);
   const weeklyUnits = Number(input.weeklyUnits ?? input.weekly_units ?? input.weekly_budget_units ?? 100);
   const remainingUnits = Number(input.remainingUnits ?? input.remaining_units ?? weeklyUnits);
+  const credentialStatus = input.credentialStatus || input.credential_status || (input.credentialRef || input.credential_ref ? "stored" : "empty");
 
   return {
     id,
+    displayName: String(input.displayName || input.display_name || id).trim(),
     provider,
     plan: String(input.plan || (provider === "claude" ? "pro" : "plus")).trim().toLowerCase(),
     loginLabel,
+    email,
+    authMethod: normalizeAuthMethod(input.authMethod || input.auth_method),
+    sessionProfile: String(input.sessionProfile || input.session_profile || sessionProfileFor(provider, email, loginLabel)).trim(),
     enabled: input.enabled !== false,
     sessionStatus: normalizeSessionStatus(input.sessionStatus || input.session_status),
     lastVerifiedAt: input.lastVerifiedAt || input.last_verified_at || "",
+    credentialRef: input.credentialRef || input.credential_ref || "",
+    credentialStatus,
     auth: "user-managed",
     remainingUnits: Math.max(0, remainingUnits),
     weeklyUnits: Math.max(1, weeklyUnits),
@@ -202,7 +222,32 @@ export function buildAccountPreset(input = {}) {
 
 export async function addAccount(input) {
   const runtime = await readRuntime();
-  runtime.accounts = uniqueById([...runtime.accounts, normalizeAccount(input)]);
+  const account = normalizeAccount(input);
+  if (input.secret) {
+    const credential = await storeCredential({ accountId: account.id, kind: input.secretKind || "password", secret: input.secret });
+    account.credentialRef = credential.credentialRef;
+    account.credentialStatus = credential.credentialStatus;
+  }
+  runtime.accounts = uniqueById([...runtime.accounts, account]);
+  return writeRuntime(runtime);
+}
+
+export async function saveAccountCredential(input) {
+  const runtime = await readRuntime();
+  const id = normalizeId(input.id || input.accountId || input.account_id);
+  const account = runtime.accounts.find((item) => item.id === id);
+  if (!account) throw new Error(`unknown account: ${id}`);
+
+  const credential = await storeCredential({ accountId: id, kind: input.secretKind || "password", secret: input.secret });
+  runtime.accounts = runtime.accounts.map((item) =>
+    item.id === id
+      ? {
+          ...item,
+          credentialRef: credential.credentialRef,
+          credentialStatus: credential.credentialStatus,
+        }
+      : item,
+  );
   return writeRuntime(runtime);
 }
 
@@ -263,6 +308,7 @@ function routeScore(candidate, complexity) {
 export function selectRoute(accounts, request) {
   const complexity = request.complexity || "standard";
   const preferredProvider = providerForWorker(request.workerId);
+  const modelOverride = String(request.modelOverride || request.model_override || "auto");
   const enabledAccounts = accounts
     .filter((account) => account.enabled !== false)
     .filter((account) => !preferredProvider || account.provider === preferredProvider);
@@ -304,7 +350,9 @@ export function selectRoute(accounts, request) {
     accountId: selected.account.id,
     provider: selected.account.provider,
     loginLabel: selected.account.loginLabel,
-    model: selected.profile.model,
+    sessionProfile: selected.account.sessionProfile,
+    authMethod: selected.account.authMethod,
+    model: modelOverride !== "auto" ? modelOverride : selected.profile.model,
     reasoningEffort: selected.profile.reasoningEffort,
     estimatedUnits: Number(selected.profile.estimatedUnits || ESTIMATED_UNITS[complexity] || 8),
     complexity,
@@ -338,6 +386,8 @@ function dashboardRunState(run, status, reason) {
       provider: run.routing?.provider || providerForWorker(run.workerId) || "unknown",
       account_id: run.routing?.accountId || "",
       login_label: run.routing?.loginLabel || "",
+      session_profile: run.routing?.sessionProfile || "",
+      auth_method: run.routing?.authMethod || "",
       model_tier: run.routing?.model || "",
       reasoning_effort: run.routing?.reasoningEffort || "",
       estimated_units: run.routing?.estimatedUnits || 0,
@@ -423,8 +473,21 @@ export async function startRun(input) {
     projectId: String(input.projectId || "current"),
     prompt: String(input.prompt || "").trim(),
     complexity: String(input.complexity || "standard"),
+    modelOverride: String(input.modelOverride || "auto"),
     startedAt: new Date().toISOString(),
     routing,
+    events: [
+      { at: new Date().toISOString(), level: "info", message: "Prompt queued from dashboard." },
+      {
+        at: new Date().toISOString(),
+        level: routing.status === "blocked" ? "warn" : "info",
+        message:
+          routing.status === "blocked"
+            ? routing.reason
+            : `Selected ${routing.accountId} / ${routing.model} / ${routing.reasoningEffort}.`,
+      },
+      { at: new Date().toISOString(), level: "info", message: "Waiting for worker adapter execution." },
+    ],
   };
   run.handoffPath = await writeDashboardRunHandoff(
     run,
@@ -452,6 +515,10 @@ export async function stopRun() {
     ...runtime.activeRun,
     status: "stopped",
     stoppedAt: new Date().toISOString(),
+    events: [
+      ...(runtime.activeRun.events || []),
+      { at: new Date().toISOString(), level: "warn", message: "Run stopped from dashboard." },
+    ],
   };
   stopped.handoffPath = await writeDashboardRunHandoff(stopped, "interrupted", "user_stopped");
   runtime.activeRun = null;

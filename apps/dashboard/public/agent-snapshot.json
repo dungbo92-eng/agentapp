@@ -1,10 +1,10 @@
 {
-  "generated_at": "2026-05-10T08:30:30.107Z",
+  "generated_at": "2026-05-10T14:01:19.024Z",
   "repo_root": "E:\\agentApp",
   "progress": {
-    "percent": 100,
-    "done": 53,
-    "total": 53,
+    "percent": 93,
+    "done": 55,
+    "total": 59,
     "phases": [
       {
         "title": "Phase 0 — 프로젝트 운영 골격",
@@ -275,11 +275,19 @@
       },
       {
         "title": "Phase 9 — 사용성 강화",
-        "done": 2,
-        "total": 2,
+        "done": 4,
+        "total": 4,
         "items": [
           {
-            "title": "계정 수 기반 Login setup 마법사",
+            "title": "동적 계정 추가 UX와 provider/login method/session profile 입력",
+            "done": true
+          },
+          {
+            "title": "Windows DPAPI local credential vault",
+            "done": true
+          },
+          {
+            "title": "모델 override와 Start/Stop 실행 로그",
             "done": true
           },
           {
@@ -287,15 +295,38 @@
             "done": true
           }
         ]
+      },
+      {
+        "title": "Phase 10 — Worker 실행 어댑터",
+        "done": 0,
+        "total": 4,
+        "items": [
+          {
+            "title": "worker별 session profile launch adapter",
+            "done": false
+          },
+          {
+            "title": "Codex/Claude/Cursor/Gemini 실행 로그 수집",
+            "done": false
+          },
+          {
+            "title": "세션 만료 감지 시 needs-login handoff",
+            "done": false
+          },
+          {
+            "title": "validation 결과를 dashboard active run에 연결",
+            "done": false
+          }
+        ]
       }
     ]
   },
   "next_task": {
-    "generated": "2026-05-10T08:30:17.143Z",
-    "title": "로드맵의 다음 미완료 작업을 정리한다.",
-    "source": "roadmap",
-    "id": "n/a",
-    "priority": "n/a"
+    "generated": "2026-05-10T14:00:29.124Z",
+    "title": "worker별 session profile launch adapter",
+    "source": "task-queue",
+    "id": "worker-session-profile-launch-adapters",
+    "priority": "35"
   },
   "pending_decisions": [
     {
@@ -306,11 +337,11 @@
     }
   ],
   "latest_run": {
-    "at": "2026-05-10T08:30:11.166Z",
+    "at": "2026-05-10T13:59:56.452Z",
     "status": "completed",
-    "summary": "사용자별 계정 수가 다른 상황을 위해 dashboard Login setup 마법사를 추가했다. Claude/Codex 계정 수와 예산 단위를 입력하거나 1+1, 2+1, 2+2 빠른 설정으로 needs-login 체크리스트를 만들 수 있다. EXE 공유를 위해 desktop:artifact checksum 산출도 추가했다.",
-    "verification": "pnpm validate 통과; pnpm dashboard:build 통과; accounts/preset API 2 Claude + 1 Codex 생성 확인; 브라우저에서 Login setup/Build checklist/2+1 표시 확인; pnpm desktop:artifact -- --json 통과",
-    "next": "none"
+    "summary": "dashboard 계정 설정을 고정 조합에서 동적 Add account 흐름으로 전면 교체했다. provider/login method/email/session profile/password/API key 입력을 지원하고, secret은 Windows DPAPI local vault에 암호화 저장하며 runtime에는 credential reference만 남긴다. Start 화면에는 모델 override와 active run line log를 추가했다.",
+    "verification": "pnpm validate 통과; pnpm dashboard:build 통과; vault-runtime-test 통과; in-app browser에서 Add account/AI tool/Google/Model/GPT-5.5/Prompt/Start 표시 확인",
+    "next": "worker별 session profile launch adapter"
   },
   "approval_queue": {
     "pending_decisions": [
@@ -338,7 +369,7 @@
         },
         {
           "id": "secrets",
-          "description": "Create, reveal, rotate, or store API keys, passwords, tokens, or credentials."
+          "description": "Create, reveal, rotate, or store API keys, passwords, tokens, or credentials outside the approved local encrypted vault."
         },
         {
           "id": "destructive_git",
@@ -429,12 +460,12 @@
       "title": "NEXT_TASK.md",
       "path": "tools/agent-orchestrator/handoff/NEXT_TASK.md",
       "heading": "NEXT_TASK",
-      "status": "roadmap",
-      "next": "로드맵의 다음 미완료 작업을 정리한다.",
-      "generated": "2026-05-10T08:30:17.143Z",
+      "status": "task-queue",
+      "next": "worker별 session profile launch adapter",
+      "generated": "2026-05-10T14:00:29.124Z",
       "decision_count": 0,
-      "line_count": 498,
-      "excerpt": "# NEXT_TASK\n\n- Generated: 2026-05-10T08:30:17.143Z\n- Selected task: 로드맵의 다음 미완료 작업을 정리한다.\n- Selection source: roadmap\n- Task id: n/a\n- Task priority: n/a\n- Workspace: E:\\agentApp\n- Policy: tools/agent-orchestrator/approval-policy.yaml\n\n## Required Reads\n\n1. AGENTS.md\n2. .claude-sync/memory/project_state.md\n3. .claude-sync/plans/agent-orchestrator-roadmap.md\n4. tools/agent-orchestrator/approval-policy.yaml\n5. docs/usage-budget-model-routing.md\n6. docs/handoff-completion-protocol.md\n7. tools/agent-orchestrator/task-queue.json\n8. tools/agent-orchestrator/workers.example.yaml\n\n## Agent Prompt\n\n위 Required Reads를 먼저 읽고 시작한다.\n\n다음 작업을 진행한다:\n\n> 로드맵의 다음 미완료 작업을 정리한다.\n\n## Execution Rules\n\n- `auto_allowed`에 해당하는 로컬 작업은 바로 진행한다.\n- `hold_for_user` 또는 `user_required`에 해당하는 작업은 실행하지 말고 DECISIONS_REQUIRED.md에 남긴다.\n- `deny`에 해당하는 작업은 구현하지 않는다.\n- 비밀값, 계정 정보, 토큰, 쿠키, 운영 인증 정보는 파일/로그/문서에 남기지 않는다.\n- 작업 범위가 섞여 있으면 안전한 로컬 부분만 완료하고 보류 항목을 기록한다.\n- 개발 구현, 문서화, 테스트, 로컬 검증, handoff 갱신, commit/push는 추가 확인 없이 계속 진행한다.\n\n## Completion Checklist\n\n- pnpm validate\n- pnpm agent:doctor\n- pnpm agent:progress\n- pnpm agent:next\n- pnpm agent:sync\n- git status 확인\n- 검증된 변경 commit\n- 승인된 remote가 있으면 push\n\n## Handoff Updates\n\n- tools/agent-orchestrator/handoff/RUN_STATUS.md: 수행 내용과 검증 결과 추가\n- tools/agent-orchestrator/handoff/DECISIONS_REQUIRED.md: 사용자 결정 필요 항목 추가/해결 처리\n- .claude-sync/memory/project_state.md: 의미 있는 진행 반영\n- .claude-sync/plans/agent-orchestrator-roadmap.md: 완료된 roadmap 체크박스 갱신\n\n## Context Snapshot\n\n### Project State\n\n```md\n# Project State\n\nLast updated: 2026-05-09\n\n## 프로젝트 한 줄\n\nAgentApp은 여러 AI 개발 에이전트가 같은 memory/plan/handoff를 공유하며 안전한 작업을 이어받게 하는 멀티 에이전트 개발 오케스트레이터다.\n\n## 현재 상태\n\n- `AGENTS.md`, `CLAUDE.md` 공통 규칙 초안 생성.\n- `.claude-sync` memory/plan 동기화 구조 생성.\n- `scripts/claude-sync.mjs`, `install-hooks.mjs` 생성.\n- `scripts/agent-doctor.mjs`, `agent-next.mjs`, `agent-progress.mjs`, `agent-report.mjs` 생성.\n- `tools/agent-orchestrator` 아래 승인 정책, worker 예시, handoff 초안 생성.\n- `git init`, `pnpm install`, hook 설치 완료.\n- `pnpm validate`, `pnpm agent:doctor`, `pnpm agent:progress`, `pnpm agent:next`, `pnpm agent:status` 검증 완료.\n- 새 PC/새 에이전트 세션에서 `pnpm agent:doctor`로 Node/pnpm/git, hooks, `.claude-sync`, 로컬 `~/..."
+      "line_count": 496,
+      "excerpt": "# NEXT_TASK\n\n- Generated: 2026-05-10T14:00:29.124Z\n- Selected task: worker별 session profile launch adapter\n- Selection source: task-queue\n- Task id: worker-session-profile-launch-adapters\n- Task priority: 35\n- Workspace: E:\\agentApp\n- Policy: tools/agent-orchestrator/approval-policy.yaml\n\n## Required Reads\n\n1. AGENTS.md\n2. .claude-sync/memory/project_state.md\n3. .claude-sync/plans/agent-orchestrator-roadmap.md\n4. tools/agent-orchestrator/approval-policy.yaml\n5. docs/usage-budget-model-routing.md\n6. docs/handoff-completion-protocol.md\n7. tools/agent-orchestrator/task-queue.json\n8. tools/agent-orchestrator/workers.example.yaml\n\n## Agent Prompt\n\n위 Required Reads를 먼저 읽고 시작한다.\n\n다음 작업을 진행한다:\n\n> worker별 session profile launch adapter\n\n## Execution Rules\n\n- `auto_allowed`에 해당하는 로컬 작업은 바로 진행한다.\n- `hold_for_user` 또는 `user_required`에 해당하는 작업은 실행하지 말고 DECISIONS_REQUIRED.md에 남긴다.\n- `deny`에 해당하는 작업은 구현하지 않는다.\n- 비밀값, 계정 정보, 토큰, 쿠키, 운영 인증 정보는 파일/로그/문서에 남기지 않는다.\n- 작업 범위가 섞여 있으면 안전한 로컬 부분만 완료하고 보류 항목을 기록한다.\n- 개발 구현, 문서화, 테스트, 로컬 검증, handoff 갱신, commit/push는 추가 확인 없이 계속 진행한다.\n\n## Completion Checklist\n\n- pnpm validate\n- pnpm agent:doctor\n- pnpm agent:progress\n- pnpm agent:next\n- pnpm agent:sync\n- git status 확인\n- 검증된 변경 commit\n- 승인된 remote가 있으면 push\n\n## Handoff Updates\n\n- tools/agent-orchestrator/handoff/RUN_STATUS.md: 수행 내용과 검증 결과 추가\n- tools/agent-orchestrator/handoff/DECISIONS_REQUIRED.md: 사용자 결정 필요 항목 추가/해결 처리\n- .claude-sync/memory/project_state.md: 의미 있는 진행 반영\n- .claude-sync/plans/agent-orchestrator-roadmap.md: 완료된 roadmap 체크박스 갱신\n\n## Context Snapshot\n\n### Project State\n\n```md\n# Project State\n\nLast updated: 2026-05-10\n\n## 프로젝트 한 줄\n\nAgentApp은 여러 AI 개발 에이전트가 같은 memory/plan/handoff를 공유하며 안전한 작업을 이어받게 하는 멀티 에이전트 개발 오케스트레이터다.\n\n## 현재 상태\n\n- `AGENTS.md`, `CLAUDE.md` 공통 규칙 초안 생성.\n- `.claude-sync` memory/plan 동기화 구조 생성.\n- `scripts/claude-sync.mjs`, `install-hooks.mjs` 생성.\n- `scripts/agent-doctor.mjs`, `agent-next.mjs`, `agent-progress.mjs`, `agent-report.mjs` 생성.\n- `tools/agent-orchestrator` 아래 승인 정책, worker 예시, handoff 초안 생성.\n- `git init`, `pnpm install`, hook 설치 완료.\n- `pnpm validate`, `pnpm agent:doctor`, `pnpm agent:progress`, `pnpm agent:next`, `pnpm agent:status` 검증 완료.\n- 새 PC/새 에이전트..."
     },
     {
       "id": "run-status",
@@ -442,11 +473,11 @@
       "path": "tools/agent-orchestrator/handoff/RUN_STATUS.md",
       "heading": "RUN_STATUS",
       "status": "completed",
-      "next": "none",
-      "generated": "2026-05-10T08:30:11.166Z",
+      "next": "worker별 session profile launch adapter",
+      "generated": "2026-05-10T13:59:56.452Z",
       "decision_count": 0,
-      "line_count": 294,
-      "excerpt": "...dex Google A/B 계정 프리셋, 비밀값 없는 로컬 계정 예산 저장, 프로젝트 registry 저장, Start 모델/계정 자동 라우팅과 예산 차감, Stop run history 기록을 구현했다.\n- Verification: pnpm validate 통과; pnpm dashboard:build 통과; 브라우저에서 claude-google-a/codex-google-b 표시, Start=codex-google/gpt-5.4 라우팅, Stop 상태 확인\n- Git: pending commit/push\n- Decisions: none\n- Next: Start/Stop과 worker process/handoff 연동\n\n## 2026-05-10T07:28:32.467Z\n\n- Status: completed\n- Summary: 등록된 AI 계정에 enabled 토글을 추가했다. 사용자가 계정을 삭제하지 않고 on/off를 바꿀 수 있고, disabled 계정은 모델/계정 자동 라우팅 후보에서 제외된다.\n- Verification: pnpm validate 통과; pnpm dashboard:build 통과; 브라우저에서 계정 checkbox 6개 확인; off/on 토글 확인; disabled codex-google-b 상태에서 codex-google-a로 라우팅 확인\n- Git: pending commit/push\n- Decisions: none\n- Next: Start/Stop과 worker process/handoff 연동\n\n## 2026-05-10T07:42:09.880Z\n\n- Status: completed\n- Summary: dashboard 계정에 needs-login/ready 세션 상태를 추가하고 Ready 계정만 자동 라우팅에 사용하도록 변경했다. Start/Stop은 DASHBOARD_RUN.md와 run-states/dashboard-current.json을 갱신해 prompt 본문은 local-only로 두면서 실행 상태를 handoff에 남긴다.\n- Verification: pnpm validate 통과; pnpm dashboard:build 통과; 브라우저에서 Ready 전환 전 Ready 세션 없음 차단, Ready 전환 후 codex-google-a/gpt-5.4 라우팅, Start/Stop handoff path 표시 확인\n- Git: not recorded\n- Decisions: none\n- Next: Windows exe packaging\n\n## 2026-05-10T07:55:33.314Z\n\n- Status: completed\n- Summary: Windows portable EXE packaging 기반을 추가했다. Electron desktop shell, 정적 dashboard/local API 서버, userData local-only 저장 경로, desktop:dev/desktop:pack 스크립트를 추가하고 dist-desktop/AgentApp-0.0.1-x64.exe 생성을 확인했다.\n- Verification: pnpm validate 통과; pnpm dashboard:build 통과; dashboard-server 스모크 테스트 통과; pnpm desktop:pack 통과; EXE 산출물 E:\\\\agentApp\\\\dist-desktop\\\\AgentApp-0.0.1-x64.exe 확인\n- Git: not recorded\n- Decisions: none\n- Next: none\n\n## 2026-05-10T08:30:11.166Z\n\n- Status: completed\n- Summary: 사용자별 계정 수가 다른 상황을 위해 dashboard Login setup 마법사를 추가했다. Claude/Codex 계정 수와 예산 단위를 입력하거나 1+1, 2+1, 2+2 빠른 설정으로 needs-login 체크리스트를 만들 수 있다. EXE 공유를 위해 desktop:artifact checksum 산출도 추가했다.\n- Verification: pnpm validate 통과; pnpm dashboard:build 통과; accounts/preset API 2 Claude + 1 Codex 생성 확인; 브라우저에서 Login setup/Build checklist/2+1 표시 확인; pnpm desktop:artifact -- --json 통과\n- Git: not recorded\n- Decisions: none\n- Next: none"
+      "line_count": 301,
+      "excerpt": "...추가했다. 사용자가 계정을 삭제하지 않고 on/off를 바꿀 수 있고, disabled 계정은 모델/계정 자동 라우팅 후보에서 제외된다.\n- Verification: pnpm validate 통과; pnpm dashboard:build 통과; 브라우저에서 계정 checkbox 6개 확인; off/on 토글 확인; disabled codex-google-b 상태에서 codex-google-a로 라우팅 확인\n- Git: pending commit/push\n- Decisions: none\n- Next: Start/Stop과 worker process/handoff 연동\n\n## 2026-05-10T07:42:09.880Z\n\n- Status: completed\n- Summary: dashboard 계정에 needs-login/ready 세션 상태를 추가하고 Ready 계정만 자동 라우팅에 사용하도록 변경했다. Start/Stop은 DASHBOARD_RUN.md와 run-states/dashboard-current.json을 갱신해 prompt 본문은 local-only로 두면서 실행 상태를 handoff에 남긴다.\n- Verification: pnpm validate 통과; pnpm dashboard:build 통과; 브라우저에서 Ready 전환 전 Ready 세션 없음 차단, Ready 전환 후 codex-google-a/gpt-5.4 라우팅, Start/Stop handoff path 표시 확인\n- Git: not recorded\n- Decisions: none\n- Next: Windows exe packaging\n\n## 2026-05-10T07:55:33.314Z\n\n- Status: completed\n- Summary: Windows portable EXE packaging 기반을 추가했다. Electron desktop shell, 정적 dashboard/local API 서버, userData local-only 저장 경로, desktop:dev/desktop:pack 스크립트를 추가하고 dist-desktop/AgentApp-0.0.1-x64.exe 생성을 확인했다.\n- Verification: pnpm validate 통과; pnpm dashboard:build 통과; dashboard-server 스모크 테스트 통과; pnpm desktop:pack 통과; EXE 산출물 E:\\\\agentApp\\\\dist-desktop\\\\AgentApp-0.0.1-x64.exe 확인\n- Git: not recorded\n- Decisions: none\n- Next: none\n\n## 2026-05-10T08:30:11.166Z\n\n- Status: completed\n- Summary: 사용자별 계정 수가 다른 상황을 위해 dashboard 계정 준비 흐름을 개선했다. 이후 고정 조합 방식은 동적 Add account 방식으로 대체했다. EXE 공유를 위해 desktop:artifact checksum 산출도 추가했다.\n- Verification: pnpm validate 통과; pnpm dashboard:build 통과; 계정 준비 API 확인; pnpm desktop:artifact -- --json 통과\n- Git: not recorded\n- Decisions: none\n- Next: none\n\n## 2026-05-10T13:59:56.452Z\n\n- Status: completed\n- Summary: dashboard 계정 설정을 고정 조합에서 동적 Add account 흐름으로 전면 교체했다. provider/login method/email/session profile/password/API key 입력을 지원하고, secret은 Windows DPAPI local vault에 암호화 저장하며 runtime에는 credential reference만 남긴다. Start 화면에는 모델 override와 active run line log를 추가했다.\n- Verification: pnpm validate 통과; pnpm dashboard:build 통과; vault-runtime-test 통과; in-app browser에서 Add account/AI tool/Google/Model/GPT-5.5/Prompt/Start 표시 확인\n- Git: not recorded\n- Decisions: none\n- Next: worker별 session profile launch adapter"
     },
     {
       "id": "dashboard-run",
@@ -474,9 +505,10 @@
     }
   ],
   "task_queue": {
-    "total": 39,
+    "total": 42,
     "statuses": {
-      "done": 39
+      "done": 41,
+      "todo": 1
     },
     "next": []
   },
@@ -629,5 +661,5 @@
       "handoff_summary": ""
     }
   ],
-  "project_state_excerpt": "# Project State\n\nLast updated: 2026-05-09\n\n## 프로젝트 한 줄\n\nAgentApp은 여러 AI 개발 에이전트가 같은 memory/plan/handoff를 공유하며 안전한 작업을 이어받게 하는 멀티 에이전트 개발 오케스트레이터다.\n\n## 현재 상태\n\n- `AGENTS.md`, `CLAUDE.md` 공통 규칙 초안 생성.\n- `.claude-sync` memory/plan 동기화 구조 생성.\n- `scripts/claude-sync.mjs`, `install-hooks.mjs` 생성.\n- `scripts/agent-doctor.mjs`, `agent-next.mjs`, `agent-progress.mjs`, `agent-report.mjs` 생성.\n- `tools/agent-orchestrator` 아래 승인 정책, worker 예시, handoff 초안 생성.\n- `git init`, `pnpm install`, hook 설치 완료.\n- `pnpm validate`, `pnpm agent:doctor`, `pnpm agent:progress`, `pnpm agent:next`, `pnpm agent:status` 검증 완료.\n- 새 PC/새 에이전트 세션에서 `pnpm agent:doctor`로 Node/pnpm/git, hooks, `.claude-sync`, 로컬 `~/.claude`, git UTF-8 설정, sync 상태를 점검한다.\n- `approval-policy.yaml`을 allow/hold/deny 구조로 확정하고 로컬 commit/remote push 기준을 명시했다.\n- git remote `origin`은 `git@github.com:dungbo92-eng/agentapp.git`, 기본 브랜치는 `main`으로 설정했다.\n- `workers.example.yaml`을 Codex, Claude Code, Cursor, Gemini CLI용 registry 예시로 확정했다.\n- `pnpm agent:next`가 생성하는 `NEXT_TASK.md` 템플릿을 Required Reads, 실행 규칙, 완료 체크리스트, handoff 갱신 목록, context snapshot 구조로 확정했다.\n- `pnpm agent:report`가 `RUN_STATUS.md`에 Status, Summary, Verification, Git, Decisions, Next 필드를 가진"
+  "project_state_excerpt": "# Project State\n\nLast updated: 2026-05-10\n\n## 프로젝트 한 줄\n\nAgentApp은 여러 AI 개발 에이전트가 같은 memory/plan/handoff를 공유하며 안전한 작업을 이어받게 하는 멀티 에이전트 개발 오케스트레이터다.\n\n## 현재 상태\n\n- `AGENTS.md`, `CLAUDE.md` 공통 규칙 초안 생성.\n- `.claude-sync` memory/plan 동기화 구조 생성.\n- `scripts/claude-sync.mjs`, `install-hooks.mjs` 생성.\n- `scripts/agent-doctor.mjs`, `agent-next.mjs`, `agent-progress.mjs`, `agent-report.mjs` 생성.\n- `tools/agent-orchestrator` 아래 승인 정책, worker 예시, handoff 초안 생성.\n- `git init`, `pnpm install`, hook 설치 완료.\n- `pnpm validate`, `pnpm agent:doctor`, `pnpm agent:progress`, `pnpm agent:next`, `pnpm agent:status` 검증 완료.\n- 새 PC/새 에이전트 세션에서 `pnpm agent:doctor`로 Node/pnpm/git, hooks, `.claude-sync`, 로컬 `~/.claude`, git UTF-8 설정, sync 상태를 점검한다.\n- `approval-policy.yaml`을 allow/hold/deny 구조로 확정하고 로컬 commit/remote push 기준을 명시했다.\n- git remote `origin`은 `git@github.com:dungbo92-eng/agentapp.git`, 기본 브랜치는 `main`으로 설정했다.\n- `workers.example.yaml`을 Codex, Claude Code, Cursor, Gemini CLI용 registry 예시로 확정했다.\n- `pnpm agent:next`가 생성하는 `NEXT_TASK.md` 템플릿을 Required Reads, 실행 규칙, 완료 체크리스트, handoff 갱신 목록, context snapshot 구조로 확정했다.\n- `pnpm agent:report`가 `RUN_STATUS.md`에 Status, Summary, Verification, Git, Decisions, Next 필드를 가진"
 }

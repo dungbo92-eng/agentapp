@@ -11,18 +11,22 @@ AgentApp dashboard는 단순 상태판이 아니라 Claude, Codex, Cursor, Gemin
 
 ## 계정 연결 기준
 
-실제 로그인은 Claude, Codex, Cursor 등의 공식 앱이나 CLI에서 사용자가 직접 수행한다. AgentApp은 비밀값 없이 아래 정보만 로컬 설정으로 저장한다.
+실제 로그인은 Claude, Codex, Cursor 등의 공식 앱이나 CLI에서 사용자가 정상 인증한 세션을 사용한다. AgentApp은 계정을 고정 조합으로 만들지 않고, 사용자가 필요한 만큼 동적으로 추가하는 로컬 설정을 관리한다.
 
+- 표시 이름
+- AI tool: Claude, Codex, Cursor, Gemini 등
+- login method: Google, email/password, API key, local CLI session, browser profile
+- email 또는 account id
 - account alias
-- provider
+- session profile
 - plan
-- login label
 - enable 여부
 - session status: `needs-login`, `ready`, `paused`
 - 남은 로컬 예산 단위
 - 주간 예산 단위
+- encrypted credential reference
 
-API key, password, session cookie, OAuth token은 저장하지 않는다.
+password/API key를 사용자가 입력하면 repo가 아니라 local-only vault에 Windows DPAPI로 암호화해 저장하고, dashboard runtime에는 credential reference와 저장 여부만 남긴다. session cookie, OAuth token, captcha/MFA 우회 정보는 저장하지 않는다.
 
 계정 수는 고정하지 않는다. 사용자는 Claude 1개, Codex 1개부터 Claude 2개와 Codex 2개, 또는 지인처럼 총 3개 계정 구성까지 필요한 만큼 등록할 수 있다. 라우팅은 `enabled=true`이고 `sessionStatus=ready`인 계정만 후보로 사용한다.
 
@@ -30,13 +34,15 @@ API key, password, session cookie, OAuth token은 저장하지 않는다.
 
 ## 세션 준비 흐름
 
-1. dashboard의 `Login setup`에서 Claude/Codex 계정 수를 입력하거나 `1+1`, `2+1`, `2+2` 빠른 설정을 누른다.
-2. 생성된 계정 체크리스트에 맞춰 사용자가 공식 앱/CLI에서 해당 Google 계정으로 로그인한다.
+1. dashboard 좌측 Accounts에서 `Add account`로 AI tool, login method, email/id, alias, session profile, 예산 단위를 입력한다.
+2. 사용자가 공식 앱/CLI/브라우저 프로필에서 해당 계정으로 정상 로그인한다.
 3. dashboard에서 해당 계정을 `Ready`로 표시한다.
-4. Start 실행 시 worker와 난이도에 맞는 ready 계정과 모델이 자동 추천된다.
+4. Start 실행 시 worker, 모델 override, 난이도, 프로젝트, 로컬 예산을 기준으로 ready 계정과 모델이 자동 추천된다.
 5. 사용하지 않을 계정은 삭제하지 않고 enable 토글을 off로 바꾼다.
 
 자동 로그인, 자동 계정 전환, captcha/MFA 우회, 계정 제한 우회는 구현하지 않는다.
+
+자세한 세션 프로필/credential vault 기준은 `docs/session-profile-routing.md`를 따른다.
 
 ## 프로젝트 등록 기준
 
@@ -64,10 +70,10 @@ Stop은 active run을 중단 상태로 바꾸고 같은 handoff 파일을 갱신
 
 ## 다음 구현 후보
 
-- 실제 worker child process 실행 어댑터
+- worker별 session profile launch adapter
 - worker별 수동/자동 실행 모드 설정
 - 실행 로그와 validation 결과 dashboard 표시
-- Windows `.exe` packaging
+- credential vault 복호화가 필요한 worker adapter별 안전 경계
 
 ## EXE packaging 방향
 

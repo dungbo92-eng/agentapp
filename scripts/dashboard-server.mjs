@@ -10,6 +10,7 @@ import {
   applyAccountPreset,
   applyFourAccountPreset,
   readRuntime,
+  saveAccountCredential,
   setAccountEnabled,
   setAccountSession,
   startRun,
@@ -73,6 +74,10 @@ async function handleApi(req, res, url) {
   }
   if (req.method === "POST" && url === "/api/agentapp/accounts/session") {
     sendJson(res, 200, await setAccountSession(await readBody(req)));
+    return true;
+  }
+  if (req.method === "POST" && url === "/api/agentapp/accounts/credential") {
+    sendJson(res, 200, await saveAccountCredential(await readBody(req)));
     return true;
   }
   if (req.method === "POST" && url === "/api/agentapp/projects") {

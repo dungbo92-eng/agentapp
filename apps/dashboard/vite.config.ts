@@ -6,6 +6,7 @@ import {
   applyAccountPreset,
   applyFourAccountPreset,
   readRuntime,
+  saveAccountCredential,
   setAccountEnabled,
   setAccountSession,
   startRun,
@@ -61,6 +62,10 @@ export default defineConfig({
             }
             if (req.method === "POST" && url === "/api/agentapp/accounts/session") {
               sendJson(res, 200, await setAccountSession(await readBody(req)));
+              return;
+            }
+            if (req.method === "POST" && url === "/api/agentapp/accounts/credential") {
+              sendJson(res, 200, await saveAccountCredential(await readBody(req)));
               return;
             }
             if (req.method === "POST" && url === "/api/agentapp/projects") {

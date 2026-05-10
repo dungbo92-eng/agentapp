@@ -147,9 +147,15 @@ type Snapshot = {
 
 type ManagedAccount = {
   id: string;
+  displayName?: string;
   provider: string;
   plan: string;
   loginLabel: string;
+  email?: string;
+  authMethod?: string;
+  sessionProfile?: string;
+  credentialRef?: string;
+  credentialStatus?: "empty" | "stored";
   enabled: boolean;
   sessionStatus: "needs-login" | "ready" | "paused";
   lastVerifiedAt?: string;
@@ -175,14 +181,18 @@ type RunRecord = {
   projectId: string;
   prompt: string;
   complexity: string;
+  modelOverride?: string;
   startedAt: string;
   stoppedAt?: string;
   handoffPath?: string;
+  events?: { at: string; level: "info" | "warn" | "error"; message: string }[];
   routing?: {
     status: string;
     accountId?: string;
     provider?: string;
     loginLabel?: string;
+    sessionProfile?: string;
+    authMethod?: string;
     model?: string;
     reasoningEffort?: string;
     estimatedUnits?: number;
@@ -316,19 +326,19 @@ function App() {
   const [runtimeStatus, setRuntimeStatus] = React.useState("loading local settings");
   const [prompt, setPrompt] = React.useState("");
   const [complexity, setComplexity] = React.useState("standard");
+  const [modelOverride, setModelOverride] = React.useState("auto");
   const [selectedWorker, setSelectedWorker] = React.useState("codex");
   const [selectedProject, setSelectedProject] = React.useState("current");
   const [accountForm, setAccountForm] = React.useState({
+    displayName: "",
     provider: "claude",
+    authMethod: "google",
     plan: "pro",
     alias: "",
-    loginLabel: "google-a",
-    remainingUnits: "70",
-    weeklyUnits: "100",
-  });
-  const [accountPack, setAccountPack] = React.useState({
-    claudeCount: "2",
-    codexCount: "2",
+    email: "",
+    loginLabel: "",
+    sessionProfile: "",
+    secret: "",
     remainingUnits: "70",
     weeklyUnits: "100",
   });
@@ -393,9 +403,13 @@ function App() {
   const projects = uniqById([currentProject, ...runtime.projects]);
   const configuredAccounts: ManagedAccount[] = snapshot.usage_budget.accounts.map((account) => ({
     id: account.id,
+    displayName: account.id,
     provider: account.provider,
     plan: account.plan,
     loginLabel: "configured",
+    authMethod: "manual",
+    sessionProfile: `${account.provider}/configured`,
+    credentialStatus: "empty",
     enabled: true,
     sessionStatus: "ready",
     remainingUnits: account.remaining_units,
@@ -411,7 +425,7 @@ function App() {
   const selectedProjectRecord = projects.find((project) => project.id === selectedProject) || currentProject;
   const activeRun = runtime.activeRun;
   const approvalCount = snapshot.approval_queue.pending_decisions.length + snapshot.approval_queue.held_tasks.length;
-  const nextTaskTitle = snapshot.next_task.title === "none" ? "새 계획 작성" : snapshot.next_task.title;
+  const nextTaskTitle = snapshot.next_task.title === "none" ? "다음 계획 작성" : snapshot.next_task.title;
 
   async function updateRuntime(operation: Promise<RuntimeState>) {
     try {
@@ -425,22 +439,30 @@ function App() {
 
   function addAccount(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault();
-    const alias = accountForm.alias.trim();
+    const email = accountForm.email.trim().toLowerCase();
+    const alias =
+      accountForm.alias.trim() ||
+      `${accountForm.provider}-${email ? email.replace(/[^a-z0-9]+/gi, "-").replace(/^-+|-+$/g, "") : Date.now()}`;
     if (!alias) return;
 
     void updateRuntime(
       runtimeRequest("accounts", {
         id: alias,
+        displayName: accountForm.displayName.trim() || alias,
         provider: accountForm.provider,
+        authMethod: accountForm.authMethod,
         plan: accountForm.plan,
-        loginLabel: accountForm.loginLabel,
+        email,
+        loginLabel: accountForm.loginLabel || email || alias,
+        sessionProfile: accountForm.sessionProfile,
+        secret: accountForm.secret,
         remainingUnits: Number(accountForm.remainingUnits) || 0,
         weeklyUnits: Number(accountForm.weeklyUnits) || 100,
         enabled: true,
         sessionStatus: "needs-login",
       }),
     );
-    setAccountForm({ ...accountForm, alias: "", loginLabel: "google-a" });
+    setAccountForm({ ...accountForm, displayName: "", alias: "", email: "", loginLabel: "", sessionProfile: "", secret: "" });
   }
 
   function addProject(event: React.FormEvent<HTMLFormElement>) {
@@ -461,6 +483,7 @@ function App() {
         projectId: selectedProjectRecord.id,
         prompt: text,
         complexity,
+        modelOverride,
       }),
     );
   }
@@ -468,30 +491,6 @@ function App() {
   function stopRun() {
     if (!activeRun) return;
     void updateRuntime(runtimeRequest("runs/stop", {}));
-  }
-
-  function applyPreset(claudeCount = 2, codexCount = 2) {
-    setAccountPack({ ...accountPack, claudeCount: String(claudeCount), codexCount: String(codexCount) });
-    void updateRuntime(
-      runtimeRequest("accounts/preset", {
-        claudeCount,
-        codexCount,
-        remainingUnits: Number(accountPack.remainingUnits) || 70,
-        weeklyUnits: Number(accountPack.weeklyUnits) || 100,
-      }),
-    );
-  }
-
-  function applyAccountPack(event: React.FormEvent<HTMLFormElement>) {
-    event.preventDefault();
-    void updateRuntime(
-      runtimeRequest("accounts/preset", {
-        claudeCount: Number(accountPack.claudeCount) || 0,
-        codexCount: Number(accountPack.codexCount) || 0,
-        remainingUnits: Number(accountPack.remainingUnits) || 70,
-        weeklyUnits: Number(accountPack.weeklyUnits) || 100,
-      }),
-    );
   }
 
   function toggleAccount(account: ManagedAccount) {
@@ -580,83 +579,25 @@ function App() {
             <strong>
               {readyLocalAccounts.length}/{localAccounts.length}
             </strong>
-            <span>ready sessions</span>
+            <span>ready session profiles</span>
           </div>
-          <form className="accountWizard" onSubmit={applyAccountPack}>
-            <header>
-              <strong>Login setup</strong>
-              <span>등록할 계정 수만 맞추고, 공식 앱 로그인 후 Ready로 표시하세요.</span>
-            </header>
-            <div className="packQuickActions">
-              <button type="button" onClick={() => applyPreset(1, 1)}>
-                1+1
-              </button>
-              <button type="button" onClick={() => applyPreset(2, 1)}>
-                2+1
-              </button>
-              <button type="button" onClick={() => applyPreset(2, 2)}>
-                2+2
-              </button>
-            </div>
-            <div className="splitInputs">
-              <label>
-                Claude
-                <input
-                  aria-label="claude account count"
-                  inputMode="numeric"
-                  value={accountPack.claudeCount}
-                  onChange={(event) => setAccountPack({ ...accountPack, claudeCount: event.target.value })}
-                />
-              </label>
-              <label>
-                Codex
-                <input
-                  aria-label="codex account count"
-                  inputMode="numeric"
-                  value={accountPack.codexCount}
-                  onChange={(event) => setAccountPack({ ...accountPack, codexCount: event.target.value })}
-                />
-              </label>
-            </div>
-            <div className="splitInputs">
-              <label>
-                Remain
-                <input
-                  aria-label="pack remaining units"
-                  inputMode="numeric"
-                  value={accountPack.remainingUnits}
-                  onChange={(event) => setAccountPack({ ...accountPack, remainingUnits: event.target.value })}
-                />
-              </label>
-              <label>
-                Weekly
-                <input
-                  aria-label="pack weekly units"
-                  inputMode="numeric"
-                  value={accountPack.weeklyUnits}
-                  onChange={(event) => setAccountPack({ ...accountPack, weeklyUnits: event.target.value })}
-                />
-              </label>
-            </div>
-            <IconButton icon={KeyRound} type="submit">
-              Build checklist
-            </IconButton>
-          </form>
           <div className="accountList">
             {accounts.map((account) => {
               const percent = account.weeklyUnits > 0 ? Math.round((account.remainingUnits / account.weeklyUnits) * 100) : 0;
               return (
                 <article className={`accountItem ${account.enabled === false ? "disabled" : ""}`} key={account.id}>
                   <header>
-                    <strong>{account.id}</strong>
+                    <strong>{account.displayName || account.id}</strong>
                     <label className="enableToggle">
                       <input checked={account.enabled !== false} type="checkbox" onChange={() => toggleAccount(account)} />
                       <span>{account.enabled === false ? "off" : "on"}</span>
                     </label>
                   </header>
                   <small>
-                    {account.provider} / {account.plan} / {account.loginLabel} / {account.source}
+                    {account.provider} / {account.authMethod || "manual"} / {account.email || account.loginLabel} /{" "}
+                    {account.credentialStatus === "stored" ? "encrypted secret" : "no secret"}
                   </small>
+                  <small>{account.sessionProfile || "profile pending"}</small>
                   <div className="sessionRow">
                     <StatusPill status={account.sessionStatus || "needs-login"} />
                     <div className="sessionActions">
@@ -682,8 +623,14 @@ function App() {
             })}
           </div>
           <form className="miniForm" onSubmit={addAccount}>
+            <input
+              aria-label="account display name"
+              placeholder="Claude Google A"
+              value={accountForm.displayName}
+              onChange={(event) => setAccountForm({ ...accountForm, displayName: event.target.value })}
+            />
             <select
-              aria-label="provider"
+              aria-label="ai tool"
               value={accountForm.provider}
               onChange={(event) => setAccountForm({ ...accountForm, provider: event.target.value })}
             >
@@ -691,6 +638,17 @@ function App() {
               <option value="codex">Codex</option>
               <option value="cursor">Cursor</option>
               <option value="gemini">Gemini</option>
+            </select>
+            <select
+              aria-label="auth method"
+              value={accountForm.authMethod}
+              onChange={(event) => setAccountForm({ ...accountForm, authMethod: event.target.value })}
+            >
+              <option value="google">Google</option>
+              <option value="email_password">Email + password</option>
+              <option value="api_key">API key</option>
+              <option value="cli_session">Local CLI session</option>
+              <option value="browser_profile">Browser profile</option>
             </select>
             <select
               aria-label="plan"
@@ -703,16 +661,29 @@ function App() {
               <option value="local">Local</option>
             </select>
             <input
+              aria-label="email or account id"
+              placeholder="name@example.com"
+              value={accountForm.email}
+              onChange={(event) => setAccountForm({ ...accountForm, email: event.target.value })}
+            />
+            <input
               aria-label="account alias"
-              placeholder="claude-google-a"
+              placeholder="optional account alias"
               value={accountForm.alias}
               onChange={(event) => setAccountForm({ ...accountForm, alias: event.target.value })}
             />
             <input
-              aria-label="google account label"
-              placeholder="google-a"
-              value={accountForm.loginLabel}
-              onChange={(event) => setAccountForm({ ...accountForm, loginLabel: event.target.value })}
+              aria-label="session profile"
+              placeholder="optional session profile"
+              value={accountForm.sessionProfile}
+              onChange={(event) => setAccountForm({ ...accountForm, sessionProfile: event.target.value })}
+            />
+            <input
+              aria-label="encrypted password or secret"
+              placeholder="password/API key (encrypted local)"
+              type="password"
+              value={accountForm.secret}
+              onChange={(event) => setAccountForm({ ...accountForm, secret: event.target.value })}
             />
             <div className="splitInputs">
               <input
@@ -729,7 +700,7 @@ function App() {
               />
             </div>
             <IconButton icon={Plus} type="submit">
-              Register
+              Add account
             </IconButton>
           </form>
         </section>
@@ -761,11 +732,8 @@ function App() {
               <h2>{nextTaskTitle}</h2>
             </div>
             <div className="runControls">
-              <IconButton icon={Play} variant="primary" disabled={Boolean(activeRun)} onClick={startRun}>
-                Start
-              </IconButton>
-              <IconButton icon={Square} variant="danger" disabled={!activeRun} onClick={stopRun}>
-                Stop
+              <IconButton icon={activeRun ? Square : Play} variant={activeRun ? "danger" : "primary"} onClick={activeRun ? stopRun : startRun}>
+                {activeRun ? "Stop" : "Start"}
               </IconButton>
             </div>
           </div>
@@ -779,6 +747,18 @@ function App() {
                     {worker.display_name || worker.id}
                   </option>
                 ))}
+              </select>
+            </label>
+            <label>
+              Model
+              <select value={modelOverride} onChange={(event) => setModelOverride(event.target.value)}>
+                <option value="auto">Auto</option>
+                <option value="gpt-5.5">GPT-5.5</option>
+                <option value="gpt-5.4">GPT-5.4</option>
+                <option value="gpt-5.4-mini">GPT-5.4 Mini</option>
+                <option value="opus">Claude Opus</option>
+                <option value="sonnet">Claude Sonnet</option>
+                <option value="best_available">Best available</option>
               </select>
             </label>
             <label>
@@ -832,7 +812,7 @@ function App() {
               <div className="activeRun">
                 <strong>{activeRun.prompt}</strong>
                 <span>
-                  {activeRun.workerId} / {activeRun.complexity}
+                  {activeRun.workerId} / {activeRun.complexity} / {activeRun.modelOverride || "auto"}
                 </span>
                 {activeRun.routing ? (
                   <span>
@@ -842,6 +822,14 @@ function App() {
                 ) : null}
                 {activeRun.handoffPath ? <small>{activeRun.handoffPath}</small> : null}
                 <small>{activeRun.startedAt}</small>
+                <div className="eventLog">
+                  {(activeRun.events || []).map((event) => (
+                    <div className={`eventLine ${event.level}`} key={`${event.at}-${event.message}`}>
+                      <time>{new Date(event.at).toLocaleTimeString("ko-KR")}</time>
+                      <span>{event.message}</span>
+                    </div>
+                  ))}
+                </div>
               </div>
             ) : (
               <p className="empty">No active run.</p>
