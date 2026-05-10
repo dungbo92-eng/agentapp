@@ -420,3 +420,12 @@ NEXT_TASK.md 템플릿 확정: agent-next 생성물을 Required Reads, Execution
 - Git: not recorded
 - Decisions: none
 - Next: See tools/agent-orchestrator/handoff/NEXT_TASK.md
+
+## 2026-05-10T23:18:42.248Z
+
+- Status: completed
+- Summary: dashboard 계정 UX 자동화: 폼 collapsible, 세션 자동 감지, plan별 사용량 자동
+- Verification: pnpm validate; pnpm dashboard:build; live API test (add+detect)
+- Git: not recorded
+- Decisions: none
+- Next: See tools/agent-orchestrator/handoff/NEXT_TASK.md

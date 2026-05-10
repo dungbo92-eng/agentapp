@@ -160,6 +160,7 @@ type ManagedAccount = {
   enabled: boolean;
   sessionStatus: "needs-login" | "ready" | "paused";
   lastVerifiedAt?: string;
+  sessionDetectionReason?: string;
   remainingUnits: number;
   weeklyUnits: number;
   resetDay: string;
@@ -478,9 +479,8 @@ function App() {
     loginLabel: "",
     sessionProfile: "",
     secret: "",
-    remainingUnits: "70",
-    weeklyUnits: "100",
   });
+  const [accountFormOpen, setAccountFormOpen] = React.useState(false);
   const [projectForm, setProjectForm] = React.useState({ name: "", path: "" });
 
   React.useEffect(() => {
@@ -610,10 +610,7 @@ function App() {
         loginLabel: accountForm.loginLabel || email || alias,
         sessionProfile: accountForm.sessionProfile,
         secret: accountForm.secret,
-        remainingUnits: Number(accountForm.remainingUnits) || 0,
-        weeklyUnits: Number(accountForm.weeklyUnits) || 100,
         enabled: true,
-        sessionStatus: "needs-login",
       }),
     );
     setAccountForm({
@@ -625,6 +622,7 @@ function App() {
       sessionProfile: "",
       secret: "",
     });
+    setAccountFormOpen(false);
   }
 
   function addProject(event: React.FormEvent<HTMLFormElement>) {
@@ -659,8 +657,8 @@ function App() {
     void updateRuntime(runtimeRequest("accounts/enabled", { ...account, enabled: !account.enabled }));
   }
 
-  function setSession(account: ManagedAccount, sessionStatus: ManagedAccount["sessionStatus"]) {
-    void updateRuntime(runtimeRequest("accounts/session", { ...account, sessionStatus }));
+  function detectSession(account: ManagedAccount) {
+    void updateRuntime(runtimeRequest("accounts/detect", { id: account.id }));
   }
 
   function deleteAccount(account: ManagedAccount) {
@@ -778,20 +776,14 @@ function App() {
                     <StatusPill status={account.sessionStatus || "needs-login"} />
                     <div className="sessionActions">
                       <button
-                        className={account.sessionStatus === "ready" ? "segButton selected" : "segButton"}
+                        className="segButton"
                         type="button"
-                        title="이미 로그인된 세션이 준비되었음을 표시합니다"
-                        onClick={() => setSession(account, "ready")}
+                        disabled={account.source !== "local"}
+                        title="현재 PC에서 이 계정의 세션 상태를 다시 감지합니다"
+                        onClick={() => detectSession(account)}
                       >
-                        준비
-                      </button>
-                      <button
-                        className={account.sessionStatus === "needs-login" ? "segButton selected" : "segButton"}
-                        type="button"
-                        title="이 계정이 다시 로그인 필요 상태임을 표시합니다"
-                        onClick={() => setSession(account, "needs-login")}
-                      >
-                        로그인 필요
+                        <RefreshCcw aria-hidden="true" size={12} />
+                        재감지
                       </button>
                       <button
                         className="segButton danger"
@@ -809,6 +801,9 @@ function App() {
                       </button>
                     </div>
                   </div>
+                  {account.sessionDetectionReason ? (
+                    <small className="detectionReason">{account.sessionDetectionReason}</small>
+                  ) : null}
                   <small>
                     남은 사용량 {numberFormatter.format(account.remainingUnits)} / 주간 예산 {numberFormatter.format(account.weeklyUnits)} /{" "}
                     {planLabel(account.plan)}
@@ -818,107 +813,97 @@ function App() {
               );
             })}
           </div>
-          <form className="miniForm" onSubmit={addAccount}>
-            <input
-              aria-label="계정 표시 이름"
-              placeholder="예: Claude Google A"
-              title="화면에 보일 계정 이름입니다"
-              value={accountForm.displayName}
-              onChange={(event) => setAccountForm({ ...accountForm, displayName: event.target.value })}
-            />
-            <select
-              aria-label="AI 도구"
-              title="이 계정이 연결된 AI 도구를 선택합니다"
-              value={accountForm.provider}
-              onChange={(event) => setAccountForm({ ...accountForm, provider: event.target.value })}
+          <div className="accountFormToggle">
+            <IconButton
+              icon={accountFormOpen ? Square : Plus}
+              variant={accountFormOpen ? "ghost" : "primary"}
+              title={accountFormOpen ? "계정 추가 폼을 닫습니다" : "새 계정을 추가하는 폼을 펼칩니다"}
+              onClick={() => setAccountFormOpen(!accountFormOpen)}
             >
-              <option value="claude">Claude</option>
-              <option value="codex">Codex</option>
-              <option value="cursor">Cursor</option>
-              <option value="gemini">Gemini</option>
-            </select>
-            <select
-              aria-label="로그인 방식"
-              title="계정이 어떤 방식으로 인증되는지 표시합니다"
-              value={accountForm.authMethod}
-              onChange={(event) => setAccountForm({ ...accountForm, authMethod: event.target.value })}
-            >
-              <option value="google">Google</option>
-              <option value="email_password">이메일 + 비밀번호</option>
-              <option value="api_key">API 키</option>
-              <option value="cli_session">로컬 CLI 세션</option>
-              <option value="browser_profile">브라우저 프로필</option>
-            </select>
-            <select
-              aria-label="요금제"
-              title="계정의 요금제 종류를 선택합니다"
-              value={accountForm.plan}
-              onChange={(event) => setAccountForm({ ...accountForm, plan: event.target.value })}
-            >
-              <option value="pro">Pro</option>
-              <option value="plus">Plus</option>
-              <option value="team">Team</option>
-              <option value="local">Local</option>
-            </select>
-            <input
-              aria-label="이메일 또는 계정 ID"
-              placeholder="name@example.com"
-              title="실제 로그인 이메일 또는 계정 식별자를 입력합니다"
-              value={accountForm.email}
-              onChange={(event) => setAccountForm({ ...accountForm, email: event.target.value })}
-            />
-            <input
-              aria-label="계정 별칭"
-              placeholder="내부 별칭 (선택)"
-              title="중복 없이 계정을 구분할 내부 ID입니다. 비워두면 자동 생성합니다"
-              value={accountForm.alias}
-              onChange={(event) => setAccountForm({ ...accountForm, alias: event.target.value })}
-            />
-            <input
-              aria-label="세션 프로필"
-              placeholder="세션 프로필 이름 (선택)"
-              title="각 계정별로 분리해서 사용할 로컬 세션 프로필 이름입니다"
-              value={accountForm.sessionProfile}
-              onChange={(event) => setAccountForm({ ...accountForm, sessionProfile: event.target.value })}
-            />
-            <input
-              aria-label="암호 또는 비밀값"
-              placeholder="비밀번호 또는 API 키 (로컬 암호화 저장)"
-              type="password"
-              title="입력하면 Windows DPAPI로 로컬 암호화 저장합니다"
-              value={accountForm.secret}
-              onChange={(event) => setAccountForm({ ...accountForm, secret: event.target.value })}
-            />
-            <div className="formHint">
-              <strong>사용량 기준</strong>
-              <span>남은 사용량은 이번 주 현재 잔여치, 주간 예산은 한 주 전체 기준값입니다.</span>
-            </div>
-            <div className="splitInputs">
-              <label>
-                남은 사용량
-                <input
-                  aria-label="남은 사용량"
-                  inputMode="numeric"
-                  title="이번 주에 아직 남아 있는 로컬 사용량 단위입니다. 예: 70"
-                  value={accountForm.remainingUnits}
-                  onChange={(event) => setAccountForm({ ...accountForm, remainingUnits: event.target.value })}
-                />
-              </label>
-              <label>
-                주간 예산
-                <input
-                  aria-label="주간 예산"
-                  inputMode="numeric"
-                  title="한 주 전체 기준으로 이 계정에 배정한 총 사용량 단위입니다. 예: 100"
-                  value={accountForm.weeklyUnits}
-                  onChange={(event) => setAccountForm({ ...accountForm, weeklyUnits: event.target.value })}
-                />
-              </label>
-            </div>
-            <IconButton icon={Plus} type="submit" title="입력한 설정으로 새 계정을 추가합니다">
-              계정 추가
+              {accountFormOpen ? "닫기" : "계정 추가"}
             </IconButton>
-          </form>
+          </div>
+          {accountFormOpen ? (
+            <form className="miniForm" onSubmit={addAccount}>
+              <input
+                aria-label="계정 표시 이름"
+                placeholder="예: Claude Google A"
+                title="화면에 보일 계정 이름입니다"
+                value={accountForm.displayName}
+                onChange={(event) => setAccountForm({ ...accountForm, displayName: event.target.value })}
+              />
+              <select
+                aria-label="AI 도구"
+                title="이 계정이 연결된 AI 도구를 선택합니다"
+                value={accountForm.provider}
+                onChange={(event) => setAccountForm({ ...accountForm, provider: event.target.value })}
+              >
+                <option value="claude">Claude</option>
+                <option value="codex">Codex</option>
+                <option value="cursor">Cursor</option>
+                <option value="gemini">Gemini</option>
+              </select>
+              <select
+                aria-label="로그인 방식"
+                title="계정이 어떤 방식으로 인증되는지 표시합니다"
+                value={accountForm.authMethod}
+                onChange={(event) => setAccountForm({ ...accountForm, authMethod: event.target.value })}
+              >
+                <option value="google">Google</option>
+                <option value="email_password">이메일 + 비밀번호</option>
+                <option value="api_key">API 키</option>
+                <option value="cli_session">로컬 CLI 세션</option>
+                <option value="browser_profile">브라우저 프로필</option>
+              </select>
+              <select
+                aria-label="요금제"
+                title="요금제에 따라 주간 사용량 기본값이 자동 설정됩니다"
+                value={accountForm.plan}
+                onChange={(event) => setAccountForm({ ...accountForm, plan: event.target.value })}
+              >
+                <option value="pro">Pro (주간 100단위)</option>
+                <option value="plus">Plus (주간 80단위)</option>
+                <option value="team">Team (주간 200단위)</option>
+                <option value="local">Local (주간 50단위)</option>
+              </select>
+              <input
+                aria-label="이메일 또는 계정 ID"
+                placeholder="name@example.com"
+                title="실제 로그인 이메일 또는 계정 식별자를 입력합니다"
+                value={accountForm.email}
+                onChange={(event) => setAccountForm({ ...accountForm, email: event.target.value })}
+              />
+              <input
+                aria-label="계정 별칭"
+                placeholder="내부 별칭 (선택)"
+                title="중복 없이 계정을 구분할 내부 ID입니다. 비워두면 자동 생성합니다"
+                value={accountForm.alias}
+                onChange={(event) => setAccountForm({ ...accountForm, alias: event.target.value })}
+              />
+              <input
+                aria-label="세션 프로필"
+                placeholder="세션 프로필 이름 (선택)"
+                title="각 계정별로 분리해서 사용할 로컬 세션 프로필 이름입니다"
+                value={accountForm.sessionProfile}
+                onChange={(event) => setAccountForm({ ...accountForm, sessionProfile: event.target.value })}
+              />
+              <input
+                aria-label="암호 또는 비밀값"
+                placeholder="비밀번호 또는 API 키 (선택, 로컬 암호화 저장)"
+                type="password"
+                title="입력하면 Windows DPAPI로 로컬 암호화 저장합니다"
+                value={accountForm.secret}
+                onChange={(event) => setAccountForm({ ...accountForm, secret: event.target.value })}
+              />
+              <div className="formHint">
+                <strong>자동 처리</strong>
+                <span>주간 사용량은 요금제 기본값으로, 세션 상태는 CLI 설치 여부와 세션 프로필을 자동 감지해 설정합니다.</span>
+              </div>
+              <IconButton icon={Plus} type="submit" title="입력한 설정으로 새 계정을 추가합니다">
+                계정 추가
+              </IconButton>
+            </form>
+          ) : null}
         </section>
       </aside>
 

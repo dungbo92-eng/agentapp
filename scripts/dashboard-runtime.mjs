@@ -1,6 +1,7 @@
 #!/usr/bin/env node
 
-import { mkdir, readFile, writeFile } from "node:fs/promises";
+import { mkdir, readdir, readFile, writeFile } from "node:fs/promises";
+import { spawn } from "node:child_process";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { deleteCredential, storeCredential } from "./credential-vault.mjs";
@@ -39,6 +40,25 @@ const MODEL_RANK = {
 
 const SESSION_STATUSES = new Set(["needs-login", "ready", "paused"]);
 const AUTH_METHODS = new Set(["google", "email_password", "api_key", "cli_session", "browser_profile", "manual"]);
+
+const PLAN_WEEKLY_BUDGET = {
+  pro: 100,
+  plus: 80,
+  team: 200,
+  local: 50,
+};
+
+const PROVIDER_CLI = {
+  claude: { command: "claude", envOverride: "AGENTAPP_CLAUDE_COMMAND", configEnv: "CLAUDE_CONFIG_DIR", configSubdir: "session-profiles/claude-code" },
+  codex: { command: "codex", envOverride: "AGENTAPP_CODEX_COMMAND", configEnv: "CODEX_HOME", configSubdir: "session-profiles/codex" },
+  cursor: { command: "cursor", envOverride: "AGENTAPP_CURSOR_COMMAND", configEnv: "", configSubdir: "session-profiles/cursor" },
+  gemini: { command: "gemini", envOverride: "AGENTAPP_GEMINI_COMMAND", configEnv: "", configSubdir: "session-profiles/gemini-cli" },
+};
+
+function planWeeklyDefault(plan) {
+  const key = String(plan || "").trim().toLowerCase();
+  return PLAN_WEEKLY_BUDGET[key] || PLAN_WEEKLY_BUDGET.pro;
+}
 
 export { REPO_ROOT, DATA_DIR, HANDOFF_DIR, RUN_STATES_DIR, DASHBOARD_RUN_STATE, DASHBOARD_RUN_HANDOFF };
 
@@ -119,15 +139,19 @@ function normalizeAccount(input) {
   const email = String(input.email || input.loginEmail || input.login_email || "").trim().toLowerCase();
   const loginLabel = normalizeId(input.loginLabel || input.login_label || email || "google-a");
   const id = normalizeId(input.id || `${provider}-${loginLabel}`);
-  const weeklyUnits = Number(input.weeklyUnits ?? input.weekly_units ?? input.weekly_budget_units ?? 100);
-  const remainingUnits = Number(input.remainingUnits ?? input.remaining_units ?? weeklyUnits);
+  const plan = String(input.plan || (provider === "claude" ? "pro" : "plus")).trim().toLowerCase();
+  const planDefault = planWeeklyDefault(plan);
+  const weeklyRaw = input.weeklyUnits ?? input.weekly_units ?? input.weekly_budget_units;
+  const weeklyUnits = Number.isFinite(Number(weeklyRaw)) && Number(weeklyRaw) > 0 ? Number(weeklyRaw) : planDefault;
+  const remainingRaw = input.remainingUnits ?? input.remaining_units;
+  const remainingUnits = Number.isFinite(Number(remainingRaw)) ? Number(remainingRaw) : weeklyUnits;
   const credentialStatus = input.credentialStatus || input.credential_status || (input.credentialRef || input.credential_ref ? "stored" : "empty");
 
   return {
     id,
     displayName: String(input.displayName || input.display_name || id).trim(),
     provider,
-    plan: String(input.plan || (provider === "claude" ? "pro" : "plus")).trim().toLowerCase(),
+    plan,
     loginLabel,
     email,
     authMethod: normalizeAuthMethod(input.authMethod || input.auth_method),
@@ -143,6 +167,7 @@ function normalizeAccount(input) {
     resetDay: String(input.resetDay || input.reset_day || "monday").trim().toLowerCase(),
     source: "local",
     modelProfiles: input.modelProfiles || input.model_profiles || defaultProfiles(provider),
+    sessionDetectionReason: input.sessionDetectionReason || input.session_detection_reason || "",
   };
 }
 
@@ -236,6 +261,10 @@ export async function addAccount(input) {
     account.credentialRef = credential.credentialRef;
     account.credentialStatus = credential.credentialStatus;
   }
+  const detection = await detectAccountSession(account);
+  account.sessionStatus = detection.sessionStatus;
+  account.sessionDetectionReason = detection.reason;
+  if (detection.sessionStatus === "ready") account.lastVerifiedAt = nowIso();
   runtime.accounts = uniqueById([...runtime.accounts, account]);
   return writeRuntime(runtime);
 }
@@ -280,6 +309,88 @@ export async function setAccountEnabled(input) {
   runtime.accounts = exists
     ? runtime.accounts.map((account) => (account.id === id ? { ...account, enabled: input.enabled !== false } : account))
     : uniqueById([...runtime.accounts, nextAccount]);
+  return writeRuntime(runtime);
+}
+
+async function probeCommand(command) {
+  const probe = process.platform === "win32" ? "where.exe" : "which";
+  return new Promise((resolve) => {
+    const child = spawn(probe, [command], { windowsHide: true });
+    let stdout = "";
+    child.stdout.on("data", (chunk) => {
+      stdout += chunk.toString("utf8");
+    });
+    child.on("error", () => resolve(""));
+    child.on("close", (code) => {
+      if (code !== 0) {
+        resolve("");
+        return;
+      }
+      const first = stdout
+        .split(/\r?\n/)
+        .map((line) => line.trim())
+        .find(Boolean);
+      resolve(first || "");
+    });
+  });
+}
+
+async function hasSessionArtifacts(provider, sessionProfile) {
+  const config = PROVIDER_CLI[provider];
+  if (!config) return false;
+  const profileDir = path.join(DATA_DIR, config.configSubdir.replace("/", path.sep), sanitizeSegment(sessionProfile));
+  try {
+    const entries = await readdir(profileDir);
+    return entries.some((entry) => !entry.startsWith("."));
+  } catch {
+    return false;
+  }
+}
+
+function sanitizeSegment(value) {
+  return String(value || "default")
+    .trim()
+    .toLowerCase()
+    .replace(/[^a-z0-9._-]+/g, "-")
+    .replace(/^-+|-+$/g, "") || "default";
+}
+
+export async function detectAccountSession(account) {
+  const provider = normalizeId(account.provider || "");
+  const config = PROVIDER_CLI[provider];
+  if (!config) {
+    return { sessionStatus: "needs-login", reason: "지원하지 않는 도구입니다." };
+  }
+  const cliPath = process.env[config.envOverride] || (await probeCommand(config.command));
+  if (!cliPath) {
+    return { sessionStatus: "needs-login", reason: `${config.command} CLI 가 PATH 에서 발견되지 않습니다. 설치 후 다시 감지하세요.` };
+  }
+  if (account.credentialStatus === "stored") {
+    return { sessionStatus: "ready", reason: "저장된 자격증명을 사용합니다." };
+  }
+  const sessionProfile = account.sessionProfile || sessionProfileFor(provider, account.email, account.loginLabel);
+  if (await hasSessionArtifacts(provider, sessionProfile)) {
+    return { sessionStatus: "ready", reason: "세션 프로필 디렉터리에서 기존 인증 흔적을 찾았습니다." };
+  }
+  return { sessionStatus: "needs-login", reason: "세션 프로필이 비어 있습니다. 해당 도구에서 한 번 로그인하면 자동으로 준비 상태로 바뀝니다." };
+}
+
+export async function detectAndUpdateAccount(accountId) {
+  const runtime = await readRuntime();
+  const id = normalizeId(accountId);
+  const account = runtime.accounts.find((item) => item.id === id);
+  if (!account) return runtime;
+  const detection = await detectAccountSession(account);
+  runtime.accounts = runtime.accounts.map((item) =>
+    item.id === id
+      ? {
+          ...item,
+          sessionStatus: detection.sessionStatus,
+          lastVerifiedAt: detection.sessionStatus === "ready" ? nowIso() : item.lastVerifiedAt || "",
+          sessionDetectionReason: detection.reason,
+        }
+      : item,
+  );
   return writeRuntime(runtime);
 }
 
