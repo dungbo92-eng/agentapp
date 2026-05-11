@@ -60,6 +60,21 @@ async function encryptWithDpapi(secret) {
   return runPowerShell(script, secret);
 }
 
+async function decryptWithDpapi(ciphertext) {
+  if (process.platform !== "win32") {
+    throw new Error("encrypted credential storage currently requires Windows DPAPI");
+  }
+
+  const script = [
+    "$enc = [Console]::In.ReadToEnd().Trim()",
+    "$secure = ConvertTo-SecureString -String $enc",
+    "$bstr = [System.Runtime.InteropServices.Marshal]::SecureStringToBSTR($secure)",
+    "try { [System.Runtime.InteropServices.Marshal]::PtrToStringBSTR($bstr) } finally { [System.Runtime.InteropServices.Marshal]::ZeroFreeBSTR($bstr) }",
+  ].join("; ");
+
+  return runPowerShell(script, ciphertext);
+}
+
 async function readVault() {
   try {
     const parsed = JSON.parse(await readFile(VAULT_FILE, "utf8"));
@@ -103,6 +118,22 @@ export async function storeCredential(input) {
     storage: "windows-dpapi",
     updatedAt: vault.credentials[credentialRef].updatedAt,
   };
+}
+
+export async function revealCredential(accountId, kind = "password") {
+  const credentialRef = `${normalizeId(accountId)}/${normalizeId(kind)}`;
+  const vault = await readVault();
+  const item = vault.credentials[credentialRef];
+  if (!item) return { credentialRef, credentialStatus: "empty", secret: "" };
+  if (item.storage !== "windows-dpapi") {
+    return { credentialRef, credentialStatus: "unsupported", secret: "" };
+  }
+  try {
+    const secret = await decryptWithDpapi(item.ciphertext);
+    return { credentialRef, credentialStatus: "stored", secret };
+  } catch {
+    return { credentialRef, credentialStatus: "stored", secret: "" };
+  }
 }
 
 export async function credentialMetadata(accountId, kind = "password") {

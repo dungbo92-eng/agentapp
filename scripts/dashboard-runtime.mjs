@@ -434,7 +434,30 @@ export async function runAccountLogin(accountId) {
     return writeRuntime(runtime);
   }
 
-  const launched = await launchLoginProcess(adapter);
+  let autofillEmail = "";
+  let autofillPassword = "";
+  if (account.email) autofillEmail = account.email;
+  try {
+    const vault = await import("./credential-vault.mjs");
+    if (typeof vault.revealCredential === "function") {
+      const revealed = await vault.revealCredential(account.id, "password");
+      if (revealed && revealed.secret) autofillPassword = revealed.secret;
+    }
+  } catch {
+    // vault optional; autofill stays partial
+  }
+
+  const launched = await launchLoginProcess(adapter, {
+    partitionKey: account.sessionProfile || `${account.provider}-${account.id}`,
+    windowTitle: `AgentApp 로그인 · ${account.displayName || account.email || account.id}`,
+    autofill: { email: autofillEmail, password: autofillPassword },
+  });
+
+  const isolatedNotice = launched.isolated
+    ? "격리 브라우저 창에서 인증을 진행하세요. 처음에는 ID/PW 입력이 필요할 수 있고, 다음부터는 한 번 클릭으로 끝납니다. 인증 완료 후 '재감지'를 눌러 주세요."
+    : launched.browserOpened
+      ? "인증 페이지를 브라우저로 열었습니다. 인증 완료 후 '재감지'를 눌러 주세요."
+      : "로그인 프로세스를 백그라운드에서 시작했습니다. 브라우저가 자동으로 열리지 않으면 해당 CLI에서 수동 로그인 후 '재감지'를 눌러 주세요.";
 
   runtime.accounts = runtime.accounts.map((item) =>
     item.id === id
@@ -443,11 +466,10 @@ export async function runAccountLogin(accountId) {
           sessionStatus: "paused",
           sessionDetectionReason: launched.error
             ? `로그인 실행 실패: ${launched.error}`
-            : launched.browserOpened
-              ? "인증 페이지를 브라우저로 열었습니다. 인증 완료 후 '재감지'를 눌러 주세요."
-              : "로그인 프로세스를 백그라운드에서 시작했습니다. 브라우저가 자동으로 열리지 않으면 해당 CLI에서 수동 로그인 후 '재감지'를 눌러 주세요.",
+            : isolatedNotice,
           loginProcessPid: launched.pid || 0,
           loginUrlOpenedAt: launched.browserOpened ? nowIso() : item.loginUrlOpenedAt || "",
+          loginIsolated: Boolean(launched.isolated),
         }
       : item,
   );

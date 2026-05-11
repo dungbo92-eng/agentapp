@@ -557,34 +557,35 @@ export async function resolveLoginAdapter(provider, sessionProfile) {
     if (!command) return { status: "blocked", reason: "codex CLI 가 PATH 에서 발견되지 않습니다." };
     const sessionDir = buildSessionProfileDir("codex", sessionProfile);
     await mkdir(sessionDir, { recursive: true });
-    return { status: "ready", command, args: ["login", "--device-auth"], env: { CODEX_HOME: sessionDir }, sessionDir, interactive: true };
+    return { status: "ready", command, args: ["login", "--device-auth"], env: { CODEX_HOME: sessionDir }, sessionDir, sessionProfile, interactive: true };
   }
   if (id === "claude" || id === "claude-code") {
     const command = process.env.AGENTAPP_CLAUDE_COMMAND || (await commandPathFor("claude"));
     if (!command) return { status: "blocked", reason: "claude CLI 가 PATH 에서 발견되지 않습니다." };
     const sessionDir = buildSessionProfileDir("claude-code", sessionProfile);
     await mkdir(sessionDir, { recursive: true });
-    return { status: "ready", command, args: ["auth", "login"], env: { CLAUDE_CONFIG_DIR: sessionDir }, sessionDir, interactive: true };
+    return { status: "ready", command, args: ["auth", "login"], env: { CLAUDE_CONFIG_DIR: sessionDir }, sessionDir, sessionProfile, interactive: true };
   }
   if (id === "gemini" || id === "gemini-cli") {
     const command = process.env.AGENTAPP_GEMINI_COMMAND || (await commandPathFor("gemini"));
     if (!command) return { status: "blocked", reason: "gemini CLI 가 PATH 에서 발견되지 않습니다." };
     const sessionDir = buildSessionProfileDir("gemini-cli", sessionProfile);
     await mkdir(sessionDir, { recursive: true });
-    return { status: "ready", command, args: [], env: { GEMINI_CONFIG_DIR: sessionDir }, sessionDir, interactive: true };
+    return { status: "ready", command, args: [], env: { GEMINI_CONFIG_DIR: sessionDir }, sessionDir, sessionProfile, interactive: true };
   }
   if (id === "cursor") {
     const command = process.env.AGENTAPP_CURSOR_COMMAND || "cursor";
     const sessionDir = buildSessionProfileDir("cursor", sessionProfile);
     await mkdir(sessionDir, { recursive: true });
-    return { status: "ready", command, args: ["--user-data-dir", sessionDir], env: {}, sessionDir, interactive: false };
+    return { status: "ready", command, args: ["--user-data-dir", sessionDir], env: {}, sessionDir, sessionProfile, interactive: false };
   }
   return { status: "blocked", reason: `${id} 는 자동 로그인을 지원하지 않습니다.` };
 }
 
-export async function launchLoginProcess(adapter) {
+export async function launchLoginProcess(adapter, options = {}) {
   const env = { ...process.env, ...(adapter.env || {}) };
   const opened = new Set();
+  const isolatedPartitions = new Set();
   let child;
   try {
     const invocation = spawnInvocation(adapter.command, adapter.args);
@@ -601,16 +602,40 @@ export async function launchLoginProcess(adapter) {
       pid: 0,
       openedUrls: [],
       browserOpened: false,
+      isolated: false,
       error: error instanceof Error ? error.message : String(error),
     };
   }
 
   let errorMessage = "";
+  const partitionKey = options.partitionKey || adapter.sessionProfile || "";
+  const useIsolated = Boolean(partitionKey) && Boolean(process.versions.electron);
+  const openInIsolated = async (url) => {
+    try {
+      const { openIsolatedLoginWindow } = await import("./electron-login-window.mjs");
+      const result = await openIsolatedLoginWindow({
+        partitionKey,
+        url,
+        title: options.windowTitle || "AgentApp 로그인",
+        autofill: options.autofill,
+      });
+      if (result && result.partition) isolatedPartitions.add(result.partition);
+      if (!result || result.ok !== true) {
+        openUrl(url);
+      }
+    } catch {
+      openUrl(url);
+    }
+  };
   const inspect = (chunk) => {
     for (const url of uniqueUrls(chunk.toString("utf8"))) {
       if (opened.has(url)) continue;
       opened.add(url);
-      openUrl(url);
+      if (useIsolated) {
+        void openInIsolated(url);
+      } else {
+        openUrl(url);
+      }
     }
   };
   child.stdout.on("data", inspect);
@@ -638,7 +663,14 @@ export async function launchLoginProcess(adapter) {
   child.stderr.off("data", inspect);
   child.stdout.unref?.();
   child.stderr.unref?.();
-  return { pid: child.pid || 0, openedUrls: Array.from(opened), browserOpened: opened.size > 0, error: errorMessage };
+  return {
+    pid: child.pid || 0,
+    openedUrls: Array.from(opened),
+    browserOpened: opened.size > 0,
+    isolated: useIsolated && isolatedPartitions.size > 0,
+    partitions: Array.from(isolatedPartitions),
+    error: errorMessage,
+  };
 }
 
 function lineChunks(buffer, chunk) {
