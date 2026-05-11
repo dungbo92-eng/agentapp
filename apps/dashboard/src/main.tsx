@@ -432,7 +432,18 @@ function adapterModeLabel(mode?: string) {
 }
 
 function StatusPill({ status }: { status: string }) {
-  return <span className={`pill ${status}`}>{statusLabel(status || "unknown")}</span>;
+  const normalized = (status || "unknown").toLowerCase();
+  const liveClass = ["running", "in_progress", "in-progress", "active", "live"].includes(normalized)
+    ? "live"
+    : ["paused", "warn", "warning"].includes(normalized)
+      ? "paused"
+      : "";
+  return (
+    <span className={`pill ${status}`}>
+      {liveClass ? <span className={`statusDot ${liveClass}`} aria-hidden="true" /> : null}
+      <span>{statusLabel(status || "unknown")}</span>
+    </span>
+  );
 }
 
 function IconButton({
@@ -460,10 +471,16 @@ function IconButton({
   );
 }
 
-function ProgressBar({ value }: { value: number }) {
+function ProgressBar({ value, live }: { value: number; live?: boolean }) {
+  const clamped = Math.min(100, Math.max(0, value));
+  const indeterminate = Boolean(live) && clamped === 0;
   return (
-    <div className="progressTrack" aria-label={`진행률 ${value}%`}>
-      <div className="progressFill" style={{ width: `${Math.min(100, Math.max(0, value))}%` }} />
+    <div
+      className={`progressTrack${indeterminate ? " indeterminate" : ""}`}
+      aria-label={`진행률 ${clamped}%`}
+      aria-busy={live ? "true" : undefined}
+    >
+      <div className="progressFill" style={{ width: `${clamped}%` }} data-flash={live ? "changed" : undefined} />
     </div>
   );
 }
@@ -1645,7 +1662,7 @@ function App() {
                         {phase.done}/{phase.total}
                       </span>
                     </div>
-                    <ProgressBar value={percent} />
+                    <ProgressBar value={percent} live={activeRun?.status === "running"} />
                   </article>
                 );
               })}

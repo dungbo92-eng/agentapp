@@ -299,7 +299,7 @@ button:disabled {
 
 .budgetEditor {
   display: grid;
-  grid-template-columns: 1fr 1fr;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
   gap: 6px;
   align-items: end;
 }
@@ -358,7 +358,7 @@ button:disabled {
 
 .splitInputs {
   display: grid;
-  grid-template-columns: 1fr 1fr;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
   gap: 8px;
 }
 
@@ -877,6 +877,7 @@ label {
   display: inline-flex;
   align-items: center;
   justify-content: center;
+  gap: 6px;
   min-width: 76px;
   min-height: 26px;
   padding: 3px 9px;
@@ -886,6 +887,15 @@ label {
   font-size: 0.76rem;
   font-weight: 800;
   white-space: nowrap;
+}
+
+.statusDot {
+  display: inline-block;
+  width: 8px;
+  height: 8px;
+  border-radius: 999px;
+  background: #94a3b8;
+  flex-shrink: 0;
 }
 
 .pill.ready,
@@ -1210,3 +1220,230 @@ label {
 }
 
 .pendingItem:first-of-type { border-top: 0; }
+
+/* ------------------------------------------------------------------ */
+/* Responsive hardening                                                */
+/* ------------------------------------------------------------------ */
+
+/* Defensive long-text wrapping for dynamic content. Prevents Korean
+   reasons / paths / IDs from overflowing narrow cards. */
+.eventLine span,
+.accountItem,
+.accountItem *,
+.handoffDoc,
+.queueList li,
+.historyList article,
+.workerList article,
+.formError,
+.formHint,
+.runHeader,
+.runMeta,
+.runSummary,
+.metricCard,
+.policyList,
+.commandList,
+.pendingItem,
+.toast {
+  min-width: 0;
+}
+
+.accountItem strong,
+.accountItem span,
+.accountItem em,
+.accountItem small,
+.handoffDoc span,
+.handoffDoc em,
+.queueList span,
+.historyList span,
+.workerList span,
+.runMeta span,
+.runSummary span,
+.policyList li,
+.formError,
+.formHint,
+.pendingItem span,
+.toast span {
+  overflow-wrap: anywhere;
+  word-break: break-word;
+}
+
+/* Narrow window breakpoint: 720px and below collapses every two-column
+   form/inputs grid into a single column and tightens paddings. */
+@media (max-width: 720px) {
+  .workspace {
+    padding: 14px;
+  }
+
+  .sidebar,
+  .contextRail {
+    padding: 14px;
+  }
+
+  .splitInputs,
+  .budgetEditor {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .budgetActions {
+    justify-content: stretch;
+  }
+
+  .handoffGrid,
+  .runnerGrid,
+  .contentGrid,
+  .overview,
+  .contextRail {
+    grid-template-columns: 1fr !important;
+  }
+
+  .eventLine {
+    grid-template-columns: 56px minmax(0, 1fr);
+    font-size: 0.74rem;
+  }
+}
+
+@media (max-width: 520px) {
+  .workspace {
+    padding: 10px;
+  }
+
+  .topbar,
+  .runHeader {
+    align-items: stretch;
+    flex-direction: column;
+    gap: 8px;
+  }
+
+  .topActions,
+  .runMeta {
+    flex-wrap: wrap;
+    gap: 6px;
+  }
+
+  .button,
+  button {
+    width: 100%;
+  }
+
+  .accountItem {
+    grid-template-columns: 1fr !important;
+  }
+}
+
+/* ------------------------------------------------------------------ */
+/* Live-feel transitions and pulse animations                          */
+/* ------------------------------------------------------------------ */
+
+/* Smooth changes in dynamic numbers, badges, and progress bars so
+   polled updates feel continuous instead of stepwise. */
+.progressTrack > *,
+.progressBar,
+.metricCard strong,
+.metricCard span,
+.badge,
+.statusDot,
+.runMeta span {
+  transition:
+    color 200ms ease,
+    background-color 200ms ease,
+    width 320ms cubic-bezier(0.4, 0, 0.2, 1),
+    transform 200ms ease,
+    box-shadow 240ms ease;
+}
+
+/* Active run / live status pulse */
+.statusDot.live,
+.statusDot.running,
+.statusDot.in-progress,
+.statusDot.in_progress,
+.statusDot.active {
+  position: relative;
+  background: #16a34a;
+  box-shadow: 0 0 0 0 rgba(22, 163, 74, 0.6);
+  animation: livePulse 1.8s ease-in-out infinite;
+}
+
+.statusDot.paused,
+.statusDot.warn,
+.statusDot.warning {
+  background: #d49a00;
+  animation: livePulse 2.6s ease-in-out infinite;
+}
+
+@keyframes livePulse {
+  0%, 100% {
+    box-shadow: 0 0 0 0 rgba(22, 163, 74, 0.45);
+    transform: scale(1);
+  }
+  50% {
+    box-shadow: 0 0 0 6px rgba(22, 163, 74, 0);
+    transform: scale(1.08);
+  }
+}
+
+/* Optional flash highlight for elements whose value just changed.
+   Apply by toggling `data-flash="changed"` from the React layer when
+   a polled value differs from the previous tick. */
+[data-flash="changed"] {
+  animation: liveFlash 700ms ease-out;
+}
+
+@keyframes liveFlash {
+  0% {
+    background-color: rgba(34, 197, 94, 0.22);
+  }
+  100% {
+    background-color: transparent;
+  }
+}
+
+/* Indeterminate progress bar shimmer when status is "starting" / "in
+   progress" with no concrete percent yet. */
+.progressTrack.indeterminate {
+  position: relative;
+  overflow: hidden;
+}
+
+.progressTrack.indeterminate::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(
+    90deg,
+    transparent 0%,
+    rgba(37, 99, 235, 0.45) 50%,
+    transparent 100%
+  );
+  animation: shimmer 1.6s linear infinite;
+}
+
+@keyframes shimmer {
+  0% { transform: translateX(-100%); }
+  100% { transform: translateX(100%); }
+}
+
+/* Respect users who prefer reduced motion */
+@media (prefers-reduced-motion: reduce) {
+  .statusDot.live,
+  .statusDot.running,
+  .statusDot.in-progress,
+  .statusDot.in_progress,
+  .statusDot.active,
+  .statusDot.paused,
+  .statusDot.warn,
+  .statusDot.warning,
+  .progressTrack.indeterminate::after,
+  [data-flash="changed"] {
+    animation: none !important;
+  }
+
+  .progressTrack > *,
+  .progressBar,
+  .metricCard strong,
+  .metricCard span,
+  .badge,
+  .statusDot,
+  .runMeta span {
+    transition: none !important;
+  }
+}
