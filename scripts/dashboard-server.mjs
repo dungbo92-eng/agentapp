@@ -20,6 +20,7 @@ import {
   startRun,
   stopRun,
 } from "./dashboard-runtime.mjs";
+import { inspectEnvironment } from "./agent-environment-setup.mjs";
 
 const REPO_ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 const DEFAULT_STATIC_DIR = path.join(REPO_ROOT, "apps", "dashboard", "dist");
@@ -58,6 +59,10 @@ function sendText(res, status, text) {
 async function handleApi(req, res, url) {
   if (req.method === "GET" && url === "/api/agentapp/runtime") {
     sendJson(res, 200, await readRuntime());
+    return true;
+  }
+  if (req.method === "GET" && url === "/api/agentapp/environment") {
+    sendJson(res, 200, await inspectEnvironment());
     return true;
   }
   if (req.method === "POST" && url === "/api/agentapp/accounts") {

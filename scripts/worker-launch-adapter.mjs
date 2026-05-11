@@ -430,7 +430,9 @@ export async function resolveLoginAdapter(provider, sessionProfile) {
   if (id === "gemini" || id === "gemini-cli") {
     const command = process.env.AGENTAPP_GEMINI_COMMAND || (await commandPathFor("gemini"));
     if (!command) return { status: "blocked", reason: "gemini CLI 가 PATH 에서 발견되지 않습니다." };
-    return { status: "ready", command, args: ["auth", "login"], env: {}, sessionDir: "" };
+    const sessionDir = buildSessionProfileDir("gemini-cli", sessionProfile);
+    await mkdir(sessionDir, { recursive: true });
+    return { status: "ready", command, args: ["auth", "login"], env: { GEMINI_CONFIG_DIR: sessionDir }, sessionDir };
   }
   if (id === "cursor") {
     const command = process.env.AGENTAPP_CURSOR_COMMAND || "cursor";

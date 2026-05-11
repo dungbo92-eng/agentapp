@@ -1,6 +1,6 @@
 {
   "name": "agent-app",
-  "version": "0.0.1",
+  "version": "0.1.0",
   "private": true,
   "description": "Multi-agent development orchestrator foundation",
   "author": "AgentApp Contributors",
@@ -26,6 +26,8 @@
     "agent:progress": "node scripts/agent-progress.mjs",
     "agent:route": "node scripts/agent-route-model.mjs",
     "agent:scheduled-check": "node scripts/agent-scheduled-check.mjs",
+    "agent:setup": "node scripts/agent-environment-setup.mjs",
+    "agent:cycle-test": "node scripts/user-environment-cycle-test.mjs",
     "agent:report": "node scripts/agent-report.mjs",
     "dashboard:prepare": "node scripts/dashboard-prepare.mjs",
     "dashboard:dev": "pnpm dashboard:prepare && pnpm --dir apps/dashboard dev",
@@ -39,7 +41,7 @@
     "claude:sync": "node scripts/claude-sync.mjs --auto --verbose",
     "claude:status": "node scripts/claude-sync.mjs --status",
     "hooks:install": "node scripts/install-hooks.mjs",
-    "validate": "node --check scripts/claude-sync.mjs && node --check scripts/install-hooks.mjs && node --check scripts/agent-budget.mjs && node --check scripts/agent-doctor.mjs && node --check scripts/agent-dry-run.mjs && node --check scripts/agent-handoff-only.mjs && node --check scripts/agent-next.mjs && node --check scripts/agent-worker-prompt.mjs && node --check scripts/dashboard-prepare.mjs && node --check scripts/credential-vault.mjs && node --check scripts/dashboard-runtime.mjs && node --check scripts/worker-launch-adapter.mjs && node --check scripts/dashboard-server.mjs && node --check scripts/desktop-artifact-info.mjs && node --check apps/desktop/main.mjs && node --check scripts/agent-progress.mjs && node --check scripts/agent-route-model.mjs && node --check scripts/agent-scheduled-check.mjs && node --check scripts/agent-report.mjs && node --check scripts/validate-configs.mjs && node scripts/validate-configs.mjs",
+    "validate": "node --check scripts/claude-sync.mjs && node --check scripts/install-hooks.mjs && node --check scripts/agent-budget.mjs && node --check scripts/agent-doctor.mjs && node --check scripts/agent-dry-run.mjs && node --check scripts/agent-handoff-only.mjs && node --check scripts/agent-next.mjs && node --check scripts/agent-worker-prompt.mjs && node --check scripts/dashboard-prepare.mjs && node --check scripts/credential-vault.mjs && node --check scripts/dashboard-runtime.mjs && node --check scripts/worker-launch-adapter.mjs && node --check scripts/dashboard-server.mjs && node --check scripts/desktop-artifact-info.mjs && node --check scripts/agent-environment-setup.mjs && node --check scripts/user-environment-cycle-test.mjs && node --check apps/desktop/main.mjs && node --check scripts/agent-progress.mjs && node --check scripts/agent-route-model.mjs && node --check scripts/agent-scheduled-check.mjs && node --check scripts/agent-report.mjs && node --check scripts/validate-configs.mjs && node scripts/validate-configs.mjs",
     "postinstall": "node scripts/install-hooks.mjs && node scripts/claude-sync.mjs --auto --quiet-on-noop"
   },
   "build": {
@@ -55,6 +57,8 @@
       "apps/dashboard/dist/**/*",
       "scripts/credential-vault.mjs",
       "scripts/dashboard-runtime.mjs",
+      "scripts/agent-environment-setup.mjs",
+      "scripts/user-environment-cycle-test.mjs",
       "scripts/worker-launch-adapter.mjs",
       "scripts/dashboard-server.mjs",
       "tools/agent-orchestrator/**/*",

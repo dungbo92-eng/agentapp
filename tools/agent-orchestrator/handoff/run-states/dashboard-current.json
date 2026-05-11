@@ -1,6 +1,6 @@
 {
   "version": 1,
-  "run_id": "run-1778460674634",
+  "run_id": "run-1778468648720",
   "worker_id": "codex",
   "worker_kind": "codex",
   "workspace": "D:\\agentApp",
@@ -12,18 +12,18 @@
   "status": "interrupted",
   "reason": "user_stopped",
   "timestamps": {
-    "started_at": "2026-05-11T00:51:14.634Z",
-    "updated_at": "2026-05-11T00:53:29.316Z"
+    "started_at": "2026-05-11T03:04:08.720Z",
+    "updated_at": "2026-05-11T03:05:09.623Z"
   },
   "usage": {
     "provider": "codex",
-    "account_id": "dungbo92-gmail.com",
-    "login_label": "dungbo92-gmail.com",
-    "session_profile": "codex/dungbo92-gmail.com",
+    "account_id": "local-account",
+    "login_label": "local-account",
+    "session_profile": "local-account",
     "auth_method": "google",
-    "model_tier": "gpt-5.4",
-    "reasoning_effort": "high",
-    "estimated_units": 8,
+    "model_tier": "gpt-5.4-mini",
+    "reasoning_effort": "medium",
+    "estimated_units": 3,
     "budget_status": "reserved"
   },
   "verification": {
@@ -32,14 +32,14 @@
     ],
     "result": "passed",
     "summary": "사전 검증 통과",
-    "log_path": "data/worker-launches/run-1778460674634/validate.log"
+    "log_path": "data/worker-launches/run-1778468648720/validate.log"
   },
   "adapter": {
     "mode": "command",
     "status": "stopped",
-    "prompt_path": "data/worker-launches/run-1778460674634/launch-prompt.md",
-    "log_path": "data/worker-launches/run-1778460674634/worker.log",
-    "session_dir": "data/session-profiles/codex/codex-dungbo92-gmail.com"
+    "prompt_path": "data/worker-launches/run-1778468648720/launch-prompt.md",
+    "log_path": "data/worker-launches/run-1778468648720/worker.log",
+    "session_dir": "data/session-profiles/codex/local-account"
   },
   "handoff": {
     "summary": "대시보드가 codex 작업의 상태를 interrupted 로 기록했습니다. 프롬프트 본문은 data/dashboard-runtime.json 에만 저장됩니다.",

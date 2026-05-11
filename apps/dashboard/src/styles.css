@@ -130,6 +130,12 @@ button:disabled {
   background: #e8eef6;
 }
 
+.navStack a.active {
+  background: #dbeafe;
+  color: #1d4ed8;
+  font-weight: 800;
+}
+
 .sidebarBlock,
 .railPanel,
 .panel,
@@ -274,6 +280,23 @@ button:disabled {
   color: #1e40af;
 }
 
+.iconOnly {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 28px;
+  height: 28px;
+  border: 1px solid #cbd5e1;
+  border-radius: 7px;
+  background: #ffffff;
+  color: #475569;
+}
+
+.iconOnly:hover {
+  background: #f1f5f9;
+  color: #1d4ed8;
+}
+
 .budgetEditor {
   display: grid;
   grid-template-columns: 1fr 1fr;
@@ -315,6 +338,22 @@ button:disabled {
 .formHint span {
   color: #64748b;
   font-size: 0.77rem;
+}
+
+.formError {
+  display: grid;
+  gap: 3px;
+  padding: 8px 10px;
+  border: 1px solid #fecaca;
+  border-radius: 7px;
+  background: #fff1f2;
+  color: #991b1b;
+  font-size: 0.78rem;
+  font-weight: 800;
+}
+
+.formError.inline {
+  margin-top: -4px;
 }
 
 .splitInputs {
@@ -947,6 +986,33 @@ label {
   color: inherit;
   font-size: 1.2rem;
   line-height: 1;
+}
+
+.emptyState {
+  margin: 0;
+  padding: 10px;
+  border: 1px dashed #cbd5e1;
+  border-radius: 7px;
+  background: #f8fafc;
+  color: #64748b;
+  font-size: 0.82rem;
+  font-weight: 700;
+}
+
+.installList {
+  display: grid;
+  gap: 7px;
+  margin-top: 10px;
+}
+
+.installList code {
+  display: block;
+  padding: 8px;
+  border-radius: 6px;
+  background: #111827;
+  color: #e5e7eb;
+  font-size: 0.72rem;
+  overflow-wrap: anywhere;
 }
 
 .promptBoxHeader {

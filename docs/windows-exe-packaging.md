@@ -11,7 +11,7 @@ pnpm desktop:artifact
 ```
 
 - `desktop:dev`: dashboard를 빌드한 뒤 Electron 창으로 실행한다.
-- `desktop:pack`: dashboard를 빌드한 뒤 `dist-desktop/AgentApp-0.0.1-x64.exe` portable 실행 파일을 만든다.
+- `desktop:pack`: dashboard를 빌드한 뒤 현재 `package.json` 버전의 portable 실행 파일을 만든다. 예: `dist-desktop/AgentApp-0.1.0-x64.exe`.
 - `desktop:artifact`: 생성된 EXE의 크기와 SHA256을 `tools/agent-orchestrator/handoff/RELEASE_ARTIFACTS.md`에 기록한다.
 
 ## 런타임 구조

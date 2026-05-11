@@ -6,12 +6,20 @@ import path from "node:path";
 import { fileURLToPath } from "node:url";
 
 const REPO_ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
-const DEFAULT_ARTIFACT = path.join(REPO_ROOT, "dist-desktop", "AgentApp-0.0.1-x64.exe");
 const DEFAULT_OUTPUT = path.join(REPO_ROOT, "tools", "agent-orchestrator", "handoff", "RELEASE_ARTIFACTS.md");
+
+async function packageVersion() {
+  try {
+    const parsed = JSON.parse(await readFile(path.join(REPO_ROOT, "package.json"), "utf8"));
+    return parsed.version || "0.0.0";
+  } catch {
+    return "0.0.0";
+  }
+}
 
 function parseArgs(argv) {
   const options = {
-    artifact: DEFAULT_ARTIFACT,
+    artifact: "",
     output: DEFAULT_OUTPUT,
     json: false,
   };
@@ -59,7 +67,8 @@ Get-FileHash -Algorithm SHA256 ${info.artifact}
 }
 
 const options = parseArgs(process.argv.slice(2));
-const artifact = path.resolve(options.artifact);
+const defaultArtifact = path.join(REPO_ROOT, "dist-desktop", `AgentApp-${await packageVersion()}-x64.exe`);
+const artifact = path.resolve(options.artifact || defaultArtifact);
 const output = path.resolve(options.output);
 const body = await readFile(artifact);
 const info = {

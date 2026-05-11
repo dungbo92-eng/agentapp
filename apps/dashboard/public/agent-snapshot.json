@@ -1,10 +1,10 @@
 {
-  "generated_at": "2026-05-11T01:01:27.388Z",
+  "generated_at": "2026-05-11T03:18:17.165Z",
   "repo_root": "D:\\agentApp",
   "progress": {
-    "percent": 100,
-    "done": 63,
-    "total": 63,
+    "percent": 99,
+    "done": 68,
+    "total": 69,
     "phases": [
       {
         "title": "Phase 0 — 프로젝트 운영 골격",
@@ -341,15 +341,46 @@
             "done": true
           }
         ]
+      },
+      {
+        "title": "Phase 12 — v0.1.0 사용자 환경 검증",
+        "done": 5,
+        "total": 6,
+        "items": [
+          {
+            "title": "설치 환경 점검/설치 명령 포함 (`pnpm agent:setup`)",
+            "done": true
+          },
+          {
+            "title": "dashboard 잔여 UX 정리: 빈 상태, nav active, form validation, live 사용량 동기화",
+            "done": true
+          },
+          {
+            "title": "dashboard dev/prod runtime API parity",
+            "done": true
+          },
+          {
+            "title": "dashboard cycle test CLI (`pnpm agent:cycle-test`)",
+            "done": true
+          },
+          {
+            "title": "v0.1.0 CHANGELOG와 Windows EXE 재패키징",
+            "done": true
+          },
+          {
+            "title": "Claude/Gemini CLI 설치 후 실제 authenticated cycle 재검증",
+            "done": false
+          }
+        ]
       }
     ]
   },
   "next_task": {
-    "generated": "2026-05-11T00:21:28.259Z",
-    "title": "Gemini CLI command-mode adapter profile",
-    "source": "task-queue",
-    "id": "gemini-command-mode-adapter",
-    "priority": "31"
+    "generated": "2026-05-11T03:14:25.786Z",
+    "title": "Claude/Gemini CLI 설치 후 실제 authenticated cycle 재검증",
+    "source": "roadmap",
+    "id": "n/a",
+    "priority": "n/a"
   },
   "pending_decisions": [
     {
@@ -360,11 +391,11 @@
     }
   ],
   "latest_run": {
-    "at": "2026-05-11T01:01:02.737Z",
+    "at": "2026-05-11T03:14:25.871Z",
     "status": "completed",
-    "summary": "Phase 11 완료 (4/4): Gemini adapter, detector 보강, doctor session readiness 진단",
-    "verification": "pnpm validate; pnpm agent:doctor; pnpm agent:progress=100%",
-    "next": "See tools/agent-orchestrator/handoff/NEXT_TASK.md"
+    "summary": "v0.1.0 사용자 환경 설치/점검, dashboard UX polish, cycle test CLI, Windows EXE 재패키징 완료",
+    "verification": "pnpm validate; pnpm dashboard:build; pnpm agent:setup; pnpm agent:cycle-test; dashboard-server smoke; pnpm desktop:pack; pnpm desktop:artifact",
+    "next": "Claude/Gemini CLI 설치 또는 env override 후 authenticated cycle 재검증"
   },
   "approval_queue": {
     "pending_decisions": [
@@ -375,7 +406,19 @@
         "blocks": "사용량 예산/모델 라우팅 CLI 구현"
       }
     ],
-    "held_tasks": [],
+    "held_tasks": [
+      {
+        "id": "authenticated-worker-cycle-v010",
+        "title": "인증 완료 후 Codex/Claude/Cursor/Gemini dashboard 한 사이클 재검증",
+        "status": "hold",
+        "blocked_by": [
+          "claude-cli-missing",
+          "gemini-cli-missing",
+          "user-authentication-required"
+        ],
+        "reason": "현재 PC에서 Codex dashboard cycle 은 Start와 validate까지 통과했지만 60초 내 worker 응답이 없어 중지됐다. Claude/Gemini CLI 는 아직 PATH 에 없어 실제 cycle 은 설치와 사용자 인증 이후 pnpm agent:cycle-test -- --worker <worker> --execute 로 재검증한다."
+      }
+    ],
     "policy": {
       "hold_for_user": [
         {
@@ -483,12 +526,12 @@
       "title": "NEXT_TASK.md",
       "path": "tools/agent-orchestrator/handoff/NEXT_TASK.md",
       "heading": "NEXT_TASK",
-      "status": "task-queue",
-      "next": "Gemini CLI command-mode adapter profile",
-      "generated": "2026-05-11T00:21:28.259Z",
+      "status": "roadmap",
+      "next": "Claude/Gemini CLI 설치 후 실제 authenticated cycle 재검증",
+      "generated": "2026-05-11T03:14:25.786Z",
       "decision_count": 0,
-      "line_count": 491,
-      "excerpt": "# NEXT_TASK\n\n- Generated: 2026-05-11T00:21:28.259Z\n- Selected task: Gemini CLI command-mode adapter profile\n- Selection source: task-queue\n- Task id: gemini-command-mode-adapter\n- Task priority: 31\n- Workspace: D:\\agentApp\n- Policy: tools/agent-orchestrator/approval-policy.yaml\n\n## Required Reads\n\n1. AGENTS.md\n2. .claude-sync/memory/project_state.md\n3. .claude-sync/plans/agent-orchestrator-roadmap.md\n4. tools/agent-orchestrator/approval-policy.yaml\n5. docs/usage-budget-model-routing.md\n6. docs/handoff-completion-protocol.md\n7. tools/agent-orchestrator/task-queue.json\n8. tools/agent-orchestrator/workers.example.yaml\n\n## Agent Prompt\n\n위 Required Reads를 먼저 읽고 시작한다.\n\n다음 작업을 진행한다:\n\n> Gemini CLI command-mode adapter profile\n\n## Execution Rules\n\n- `auto_allowed`에 해당하는 로컬 작업은 바로 진행한다.\n- `hold_for_user` 또는 `user_required`에 해당하는 작업은 실행하지 말고 DECISIONS_REQUIRED.md에 남긴다.\n- `deny`에 해당하는 작업은 구현하지 않는다.\n- 비밀값, 계정 정보, 토큰, 쿠키, 운영 인증 정보는 파일/로그/문서에 남기지 않는다.\n- 작업 범위가 섞여 있으면 안전한 로컬 부분만 완료하고 보류 항목을 기록한다.\n- 개발 구현, 문서화, 테스트, 로컬 검증, handoff 갱신, commit/push는 추가 확인 없이 계속 진행한다.\n\n## Completion Checklist\n\n- pnpm validate\n- pnpm agent:doctor\n- pnpm agent:progress\n- pnpm agent:next\n- pnpm agent:sync\n- git status 확인\n- 검증된 변경 commit\n- 승인된 remote가 있으면 push\n\n## Handoff Updates\n\n- tools/agent-orchestrator/handoff/RUN_STATUS.md: 수행 내용과 검증 결과 추가\n- tools/agent-orchestrator/handoff/DECISIONS_REQUIRED.md: 사용자 결정 필요 항목 추가/해결 처리\n- .claude-sync/memory/project_state.md: 의미 있는 진행 반영\n- .claude-sync/plans/agent-orchestrator-roadmap.md: 완료된 roadmap 체크박스 갱신\n\n## Context Snapshot\n\n### Project State\n\n```md\n# Project State\n\nLast updated: 2026-05-10\n\n## 프로젝트 한 줄\n\nAgentApp은 여러 AI 개발 에이전트가 같은 memory/plan/handoff를 공유하며 안전한 작업을 이어받게 하는 멀티 에이전트 개발 오케스트레이터다.\n\n## 현재 상태\n\n- `AGENTS.md`, `CLAUDE.md` 공통 규칙 초안 생성.\n- `.claude-sync` memory/plan 동기화 구조 생성.\n- `scripts/claude-sync.mjs`, `install-hooks.mjs` 생성.\n- `scripts/agent-doctor.mjs`, `agent-next.mjs`, `agent-progress.mjs`, `agent-report.mjs` 생성.\n- `tools/agent-orchestrator` 아래 승인 정책, worker 예시, handoff 초안 생성.\n- `git init`, `pnpm install`, hook 설치 완료.\n- `pnpm validate`, `pnpm agent:doctor`, `pnpm agent:progress`, `pnpm agent:next`, `pnpm agent:status` 검증 완료.\n- 새 PC/새 에이전트 세션에서 `pn..."
+      "line_count": 478,
+      "excerpt": "# NEXT_TASK\n\n- Generated: 2026-05-11T03:14:25.786Z\n- Selected task: Claude/Gemini CLI 설치 후 실제 authenticated cycle 재검증\n- Selection source: roadmap\n- Task id: n/a\n- Task priority: n/a\n- Workspace: D:\\agentApp\n- Policy: tools/agent-orchestrator/approval-policy.yaml\n\n## Required Reads\n\n1. AGENTS.md\n2. .claude-sync/memory/project_state.md\n3. .claude-sync/plans/agent-orchestrator-roadmap.md\n4. tools/agent-orchestrator/approval-policy.yaml\n5. docs/usage-budget-model-routing.md\n6. docs/handoff-completion-protocol.md\n7. tools/agent-orchestrator/task-queue.json\n8. tools/agent-orchestrator/workers.example.yaml\n\n## Agent Prompt\n\n위 Required Reads를 먼저 읽고 시작한다.\n\n다음 작업을 진행한다:\n\n> Claude/Gemini CLI 설치 후 실제 authenticated cycle 재검증\n\n## Execution Rules\n\n- `auto_allowed`에 해당하는 로컬 작업은 바로 진행한다.\n- `hold_for_user` 또는 `user_required`에 해당하는 작업은 실행하지 말고 DECISIONS_REQUIRED.md에 남긴다.\n- `deny`에 해당하는 작업은 구현하지 않는다.\n- 비밀값, 계정 정보, 토큰, 쿠키, 운영 인증 정보는 파일/로그/문서에 남기지 않는다.\n- 작업 범위가 섞여 있으면 안전한 로컬 부분만 완료하고 보류 항목을 기록한다.\n- 개발 구현, 문서화, 테스트, 로컬 검증, handoff 갱신, commit/push는 추가 확인 없이 계속 진행한다.\n\n## Completion Checklist\n\n- pnpm validate\n- pnpm agent:doctor\n- pnpm agent:progress\n- pnpm agent:next\n- pnpm agent:sync\n- git status 확인\n- 검증된 변경 commit\n- 승인된 remote가 있으면 push\n\n## Handoff Updates\n\n- tools/agent-orchestrator/handoff/RUN_STATUS.md: 수행 내용과 검증 결과 추가\n- tools/agent-orchestrator/handoff/DECISIONS_REQUIRED.md: 사용자 결정 필요 항목 추가/해결 처리\n- .claude-sync/memory/project_state.md: 의미 있는 진행 반영\n- .claude-sync/plans/agent-orchestrator-roadmap.md: 완료된 roadmap 체크박스 갱신\n\n## Context Snapshot\n\n### Project State\n\n```md\n# Project State\n\nLast updated: 2026-05-11\n\n## 프로젝트 한 줄\n\nAgentApp은 여러 AI 개발 에이전트가 같은 memory/plan/handoff를 공유하며 안전한 작업을 이어받게 하는 멀티 에이전트 개발 오케스트레이터다.\n\n## 현재 상태\n\n- `AGENTS.md`, `CLAUDE.md` 공통 규칙 초안 생성.\n- `.claude-sync` memory/plan 동기화 구조 생성.\n- `scripts/claude-sync.mjs`, `install-hooks.mjs` 생성.\n- `scripts/agent-doctor.mjs`, `agent-next.mjs`, `agent-progress.mjs`, `agent-report.mjs` 생성.\n- `tools/agent-orchestrator` 아래 승인 정책, worker 예시, handoff 초안 생성.\n- `git init`, `pnpm install`, hook 설치 완료.\n- `pnpm validate`, `pnpm agent:doctor`, `pnpm agent:progress`, `pnpm agent:next`, `pnpm agent:status` 검증 완료.\n- 새 PC/새 에이전트 세션에서 `pnpm age..."
     },
     {
       "id": "run-status",
@@ -496,11 +539,11 @@
       "path": "tools/agent-orchestrator/handoff/RUN_STATUS.md",
       "heading": "RUN_STATUS",
       "status": "completed",
-      "next": "See tools/agent-orchestrator/handoff/NEXT_TASK.md",
-      "generated": "2026-05-11T01:01:02.737Z",
+      "next": "Claude/Gemini CLI 설치 또는 env override 후 authenticated cycle 재검증",
+      "generated": "2026-05-11T03:14:25.871Z",
       "decision_count": 0,
-      "line_count": 336,
-      "excerpt": "...며 runtime에는 credential reference만 남긴다. Start 화면에는 모델 override와 active run line log를 추가했다.\n- Verification: pnpm validate 통과; pnpm dashboard:build 통과; vault-runtime-test 통과; in-app browser에서 Add account/AI tool/Google/Model/GPT-5.5/Prompt/Start 표시 확인\n- Git: not recorded\n- Decisions: none\n- Next: worker별 session profile launch adapter\n\n## 2026-05-10T14:17:20.025Z\n\n- Status: completed\n- Summary: worker launch adapter를 추가해 Start가 실제 launch request를 처리하도록 연결했다. Codex는 session-profile별 CODEX_HOME으로 codex exec를 실행하고, Cursor는 session-profile별 user-data-dir로 창을 연다. launch 전 pnpm validate preflight를 실행해 결과를 active run에 반영하고, login/session expired 패턴이 보이면 계정을 needs-login으로 되돌리며 needs_user handoff를 남긴다.\n- Verification: pnpm validate 통과; pnpm dashboard:build 통과; worker-launch-adapter-test 통과; in-app browser에서 Projects/Accounts/Prompt/Workers/Connection policy 표시 확인\n- Git: not recorded\n- Decisions: none\n- Next: Claude Code command-mode adapter profile\n\n## 2026-05-10T14:35:02.421Z\n\n- Status: completed\n- Summary: 대시보드 UI를 한글로 통일하고 계정 삭제 버튼, 입력/버튼 툴팁, 남은 사용량/주간 예산 설명을 추가했다. 계정 삭제 API를 붙이고 삭제 시 로컬 credential vault 정리까지 반영했다.\n- Verification: pnpm validate; pnpm dashboard:build; Edge headless DOM/screenshot; temp account delete API verified\n- Git: not recorded\n- Decisions: none\n- Next: See tools/agent-orchestrator/handoff/NEXT_TASK.md\n\n## 2026-05-10T23:02:58.933Z\n\n- Status: completed\n- Summary: Phase 11 Claude Code command-mode adapter profile 추가\n- Verification: pnpm validate; pnpm agent:progress\n- Git: not recorded\n- Decisions: none\n- Next: See tools/agent-orchestrator/handoff/NEXT_TASK.md\n\n## 2026-05-10T23:18:42.248Z\n\n- Status: completed\n- Summary: dashboard 계정 UX 자동화: 폼 collapsible, 세션 자동 감지, plan별 사용량 자동\n- Verification: pnpm validate; pnpm dashboard:build; live API test (add+detect)\n- Git: not recorded\n- Decisions: none\n- Next: See tools/agent-orchestrator/handoff/NEXT_TASK.md\n\n## 2026-05-11T01:01:02.737Z\n\n- Status: completed\n- Summary: Phase 11 완료 (4/4): Gemini adapter, detector 보강, doctor session readiness 진단\n- Verification: pnpm validate; pnpm agent:doctor; pnpm agent:progress=100%\n- Git: not recorded\n- Decisions: none\n- Next: See tools/agent-orchestrator/handoff/NEXT_TASK.md"
+      "line_count": 343,
+      "excerpt": "...h adapter를 추가해 Start가 실제 launch request를 처리하도록 연결했다. Codex는 session-profile별 CODEX_HOME으로 codex exec를 실행하고, Cursor는 session-profile별 user-data-dir로 창을 연다. launch 전 pnpm validate preflight를 실행해 결과를 active run에 반영하고, login/session expired 패턴이 보이면 계정을 needs-login으로 되돌리며 needs_user handoff를 남긴다.\n- Verification: pnpm validate 통과; pnpm dashboard:build 통과; worker-launch-adapter-test 통과; in-app browser에서 Projects/Accounts/Prompt/Workers/Connection policy 표시 확인\n- Git: not recorded\n- Decisions: none\n- Next: Claude Code command-mode adapter profile\n\n## 2026-05-10T14:35:02.421Z\n\n- Status: completed\n- Summary: 대시보드 UI를 한글로 통일하고 계정 삭제 버튼, 입력/버튼 툴팁, 남은 사용량/주간 예산 설명을 추가했다. 계정 삭제 API를 붙이고 삭제 시 로컬 credential vault 정리까지 반영했다.\n- Verification: pnpm validate; pnpm dashboard:build; Edge headless DOM/screenshot; temp account delete API verified\n- Git: not recorded\n- Decisions: none\n- Next: See tools/agent-orchestrator/handoff/NEXT_TASK.md\n\n## 2026-05-10T23:02:58.933Z\n\n- Status: completed\n- Summary: Phase 11 Claude Code command-mode adapter profile 추가\n- Verification: pnpm validate; pnpm agent:progress\n- Git: not recorded\n- Decisions: none\n- Next: See tools/agent-orchestrator/handoff/NEXT_TASK.md\n\n## 2026-05-10T23:18:42.248Z\n\n- Status: completed\n- Summary: dashboard 계정 UX 자동화: 폼 collapsible, 세션 자동 감지, plan별 사용량 자동\n- Verification: pnpm validate; pnpm dashboard:build; live API test (add+detect)\n- Git: not recorded\n- Decisions: none\n- Next: See tools/agent-orchestrator/handoff/NEXT_TASK.md\n\n## 2026-05-11T01:01:02.737Z\n\n- Status: completed\n- Summary: Phase 11 완료 (4/4): Gemini adapter, detector 보강, doctor session readiness 진단\n- Verification: pnpm validate; pnpm agent:doctor; pnpm agent:progress=100%\n- Git: not recorded\n- Decisions: none\n- Next: See tools/agent-orchestrator/handoff/NEXT_TASK.md\n\n## 2026-05-11T03:14:25.871Z\n\n- Status: completed\n- Summary: v0.1.0 사용자 환경 설치/점검, dashboard UX polish, cycle test CLI, Windows EXE 재패키징 완료\n- Verification: pnpm validate; pnpm dashboard:build; pnpm agent:setup; pnpm agent:cycle-test; dashboard-server smoke; pnpm desktop:pack; pnpm desktop:artifact\n- Git: not recorded\n- Decisions: none\n- Next: Claude/Gemini CLI 설치 또는 env override 후 authenticated cycle 재검증"
     },
     {
       "id": "dashboard-run",
@@ -512,7 +555,7 @@
       "generated": "",
       "decision_count": 0,
       "line_count": 14,
-      "excerpt": "# DASHBOARD_RUN\n\n- 생성 시각: 2026-05-11T00:53:29.316Z\n- 실행 상태 파일: tools/agent-orchestrator/handoff/run-states/dashboard-current.json\n- 작업 도구: codex\n- 상태: interrupted\n- 사유: user_stopped\n- 계정: dungbo92-gmail.com\n- 모델: gpt-5.4\n- 프롬프트 본문: data/dashboard-runtime.json 에만 저장\n- 비밀 포함 여부: false\n\n## 요약\n\n대시보드가 codex 작업의 상태를 interrupted 로 기록했습니다. 프롬프트 본문은 data/dashboard-runtime.json 에만 저장됩니다.\n\n## 다음 단계\n\n로컬 실행 기록을 확인하고 NEXT_TASK.md 에서 이어가거나 새 작업을 시작하세요."
+      "excerpt": "# DASHBOARD_RUN\n\n- 생성 시각: 2026-05-11T03:05:09.623Z\n- 실행 상태 파일: tools/agent-orchestrator/handoff/run-states/dashboard-current.json\n- 작업 도구: codex\n- 상태: interrupted\n- 사유: user_stopped\n- 계정: local-account\n- 모델: gpt-5.4-mini\n- 프롬프트 본문: data/dashboard-runtime.json 에만 저장\n- 비밀 포함 여부: false\n\n## 요약\n\n대시보드가 codex 작업의 상태를 interrupted 로 기록했습니다. 프롬프트 본문은 data/dashboard-runtime.json 에만 저장됩니다.\n\n## 다음 단계\n\n로컬 실행 기록을 확인하고 NEXT_TASK.md 에서 이어가거나 새 작업을 시작하세요."
     },
     {
       "id": "decisions",
@@ -528,9 +571,10 @@
     }
   ],
   "task_queue": {
-    "total": 47,
+    "total": 51,
     "statuses": {
-      "done": 47
+      "done": 50,
+      "hold": 1
     },
     "next": []
   },
@@ -582,7 +626,7 @@
       "latest_status": "interrupted",
       "latest_reason": "user_stopped",
       "latest_task": "대시보드 시작 요청",
-      "latest_updated_at": "2026-05-11T00:53:29.316Z",
+      "latest_updated_at": "2026-05-11T03:05:09.623Z",
       "handoff_summary": "대시보드가 codex 작업의 상태를 interrupted 로 기록했습니다. 프롬프트 본문은 data/dashboard-runtime.json 에만 저장됩니다."
     },
     {

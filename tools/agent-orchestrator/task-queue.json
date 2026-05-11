@@ -475,6 +475,46 @@
       "depends_on": ["session-expiry-needs-login-handoff"],
       "blocked_by": [],
       "reason": "agent-doctor 에 worker CLI 위치 확인과 등록된 계정별 session profile 인증 흔적 자동 점검을 추가했다. provider별 CLI 가 PATH 에 있는지, 각 계정의 session 디렉터리가 ready/needs-login 인지 doctor 출력으로 확인할 수 있다."
+    },
+    {
+      "id": "environment-setup-installer",
+      "title": "사용자 설치 환경 점검과 CLI 설치 명령 포함",
+      "phase": "phase-12",
+      "priority": 34,
+      "status": "done",
+      "depends_on": ["session-profile-readiness-doctor"],
+      "blocked_by": [],
+      "reason": "pnpm agent:setup 을 추가해 Node/Git/pnpm/Codex/Claude/Cursor/Gemini 설치와 PATH/env override 상태를 점검하고 누락 도구의 설치 명령을 출력하게 했다."
+    },
+    {
+      "id": "dashboard-ux-polish-v010",
+      "title": "dashboard 잔여 UX 정리",
+      "phase": "phase-12",
+      "priority": 33,
+      "status": "done",
+      "depends_on": ["environment-setup-installer"],
+      "blocked_by": [],
+      "reason": "빈 상태, nav active 표시, 계정/프로젝트/예산 validation, live 사용량 동기화, 환경 패널, dev/prod runtime API parity 를 정리했다."
+    },
+    {
+      "id": "release-v010-windows",
+      "title": "v0.1.0 릴리즈 문서와 Windows EXE 재패키징",
+      "phase": "phase-12",
+      "priority": 32,
+      "status": "done",
+      "depends_on": ["dashboard-ux-polish-v010"],
+      "blocked_by": [],
+      "reason": "CHANGELOG 를 v0.1.0 으로 갱신하고 dist-desktop/AgentApp-0.1.0-x64.exe 와 SHA256 산출물을 재생성했다."
+    },
+    {
+      "id": "authenticated-worker-cycle-v010",
+      "title": "인증 완료 후 Codex/Claude/Cursor/Gemini dashboard 한 사이클 재검증",
+      "phase": "phase-12",
+      "priority": 31,
+      "status": "hold",
+      "depends_on": ["release-v010-windows"],
+      "blocked_by": ["claude-cli-missing", "gemini-cli-missing", "user-authentication-required"],
+      "reason": "현재 PC에서 Codex dashboard cycle 은 Start와 validate까지 통과했지만 60초 내 worker 응답이 없어 중지됐다. Claude/Gemini CLI 는 아직 PATH 에 없어 실제 cycle 은 설치와 사용자 인증 이후 pnpm agent:cycle-test -- --worker <worker> --execute 로 재검증한다."
     }
   ]
 }

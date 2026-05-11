@@ -74,13 +74,13 @@ Stop은 active run을 중단 상태로 바꾸고 같은 handoff 파일을 갱신
 
 - Codex: session profile별 `CODEX_HOME` 디렉터리로 `codex exec` 실행
 - Cursor: session profile별 `--user-data-dir`로 창 오픈
-- Claude Code, Gemini CLI: 아직 machine-specific command profile이 없으면 manual fallback
+- Claude Code: session profile별 `CLAUDE_CONFIG_DIR` 디렉터리로 `claude --print` 실행
+- Gemini CLI: session profile별 `GEMINI_CONFIG_DIR` 디렉터리로 `gemini -p` 실행
 
 ## 다음 구현 후보
 
-- Claude Code command-mode adapter profile
-- Gemini CLI command-mode adapter profile
 - tool별 login/session-expired detector 보강
+- 실제 사용자 환경에서 Codex/Claude/Cursor/Gemini dashboard 한 사이클 통합 테스트
 - credential vault 복호화가 필요한 worker adapter별 안전 경계
 
 ## EXE packaging 방향

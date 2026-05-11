@@ -438,3 +438,12 @@ NEXT_TASK.md 템플릿 확정: agent-next 생성물을 Required Reads, Execution
 - Git: not recorded
 - Decisions: none
 - Next: See tools/agent-orchestrator/handoff/NEXT_TASK.md
+
+## 2026-05-11T03:14:25.871Z
+
+- Status: completed
+- Summary: v0.1.0 사용자 환경 설치/점검, dashboard UX polish, cycle test CLI, Windows EXE 재패키징 완료
+- Verification: pnpm validate; pnpm dashboard:build; pnpm agent:setup; pnpm agent:cycle-test; dashboard-server smoke; pnpm desktop:pack; pnpm desktop:artifact
+- Git: not recorded
+- Decisions: none
+- Next: Claude/Gemini CLI 설치 또는 env override 후 authenticated cycle 재검증

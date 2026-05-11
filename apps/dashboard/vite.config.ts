@@ -3,16 +3,20 @@ import react from "@vitejs/plugin-react";
 import {
   addAccount,
   deleteAccount,
+  detectAndUpdateAccount,
   addProject,
   applyAccountPreset,
   applyFourAccountPreset,
   readRuntime,
   saveAccountCredential,
+  setAccountBudget,
   setAccountEnabled,
   setAccountSession,
+  runAccountLogin,
   startRun,
   stopRun,
 } from "../../scripts/dashboard-runtime.mjs";
+import { inspectEnvironment } from "../../scripts/agent-environment-setup.mjs";
 
 async function readBody(req: import("node:http").IncomingMessage) {
   const chunks: Buffer[] = [];
@@ -45,6 +49,10 @@ export default defineConfig({
               sendJson(res, 200, await readRuntime());
               return;
             }
+            if (req.method === "GET" && url === "/api/agentapp/environment") {
+              sendJson(res, 200, await inspectEnvironment());
+              return;
+            }
             if (req.method === "POST" && url === "/api/agentapp/accounts") {
               sendJson(res, 200, await addAccount(await readBody(req)));
               return;
@@ -67,6 +75,20 @@ export default defineConfig({
             }
             if (req.method === "POST" && url === "/api/agentapp/accounts/session") {
               sendJson(res, 200, await setAccountSession(await readBody(req)));
+              return;
+            }
+            if (req.method === "POST" && url === "/api/agentapp/accounts/budget") {
+              sendJson(res, 200, await setAccountBudget(await readBody(req)));
+              return;
+            }
+            if (req.method === "POST" && url === "/api/agentapp/accounts/detect") {
+              const body = await readBody(req);
+              sendJson(res, 200, await detectAndUpdateAccount(body.id || body.accountId));
+              return;
+            }
+            if (req.method === "POST" && url === "/api/agentapp/accounts/login") {
+              const body = await readBody(req);
+              sendJson(res, 200, await runAccountLogin(body.id || body.accountId));
               return;
             }
             if (req.method === "POST" && url === "/api/agentapp/accounts/credential") {

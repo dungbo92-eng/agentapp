@@ -52,7 +52,7 @@ const PROVIDER_CLI = {
   claude: { command: "claude", envOverride: "AGENTAPP_CLAUDE_COMMAND", configEnv: "CLAUDE_CONFIG_DIR", configSubdir: "session-profiles/claude-code" },
   codex: { command: "codex", envOverride: "AGENTAPP_CODEX_COMMAND", configEnv: "CODEX_HOME", configSubdir: "session-profiles/codex" },
   cursor: { command: "cursor", envOverride: "AGENTAPP_CURSOR_COMMAND", configEnv: "", configSubdir: "session-profiles/cursor" },
-  gemini: { command: "gemini", envOverride: "AGENTAPP_GEMINI_COMMAND", configEnv: "", configSubdir: "session-profiles/gemini-cli" },
+  gemini: { command: "gemini", envOverride: "AGENTAPP_GEMINI_COMMAND", configEnv: "GEMINI_CONFIG_DIR", configSubdir: "session-profiles/gemini-cli" },
 };
 
 function planWeeklyDefault(plan) {
@@ -560,9 +560,9 @@ function dashboardRunState(run, status, reason) {
     },
     usage: {
       provider: run.routing?.provider || providerForWorker(run.workerId) || "unknown",
-      account_id: run.routing?.accountId || "",
-      login_label: run.routing?.loginLabel || "",
-      session_profile: run.routing?.sessionProfile || "",
+      account_id: publicAccountId(run.routing?.accountId || ""),
+      login_label: publicAccountId(run.routing?.loginLabel || ""),
+      session_profile: publicAccountId(run.routing?.sessionProfile || ""),
       auth_method: run.routing?.authMethod || "",
       model_tier: run.routing?.model || "",
       reasoning_effort: run.routing?.reasoningEffort || "",
@@ -580,12 +580,12 @@ function dashboardRunState(run, status, reason) {
       status: run.adapter?.status || "pending",
       prompt_path: run.adapter?.promptPath || "",
       log_path: run.adapter?.logPath || "",
-      session_dir: run.adapter?.sessionDir || "",
+      session_dir: run.adapter?.sessionDir ? `data/session-profiles/${providerForWorker(run.workerId) || "agent"}/local-account` : "",
     },
     handoff: {
       summary:
         status === "running"
-          ? `대시보드가 ${run.workerId} 작업을 ${run.routing?.accountId || "계정 없음"} / ${run.routing?.model || "모델 대기"} 조합으로 시작했습니다. 어댑터 ${run.adapter?.mode || "pending"} 상태는 ${run.adapter?.status || "pending"} 입니다. 프롬프트 본문은 data/dashboard-runtime.json 에만 저장됩니다.`
+          ? `대시보드가 ${run.workerId} 작업을 ${publicAccountId(run.routing?.accountId || "") || "계정 없음"} / ${run.routing?.model || "모델 대기"} 조합으로 시작했습니다. 어댑터 ${run.adapter?.mode || "pending"} 상태는 ${run.adapter?.status || "pending"} 입니다. 프롬프트 본문은 data/dashboard-runtime.json 에만 저장됩니다.`
           : status === "queued"
             ? `준비된 계정이나 사용 가능한 예산 경로가 없어 ${run.workerId} 작업을 대기 상태로 기록했습니다. 프롬프트 본문은 data/dashboard-runtime.json 에만 저장됩니다.`
             : `대시보드가 ${run.workerId} 작업의 상태를 ${status} 로 기록했습니다. 프롬프트 본문은 data/dashboard-runtime.json 에만 저장됩니다.`,
@@ -649,6 +649,12 @@ async function writeDashboardRunHandoff(run, status, reason) {
 
 function nowIso() {
   return new Date().toISOString();
+}
+
+function publicAccountId(value) {
+  const text = String(value || "").trim();
+  if (!text) return "";
+  return "local-account";
 }
 
 function cappedEvents(events, nextEvent) {

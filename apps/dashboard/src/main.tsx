@@ -230,6 +230,35 @@ type RuntimeState = {
   runHistory: RunRecord[];
 };
 
+type EnvironmentTarget = {
+  id: string;
+  group: "core" | "ai";
+  label: string;
+  command: string;
+  envOverride?: string;
+  status: string;
+  ok: boolean;
+  required: boolean;
+  detail: string;
+  reason: string;
+  installCommand: string;
+  afterInstall?: string;
+  docs?: string;
+};
+
+type EnvironmentState = {
+  generatedAt: string;
+  packageVersion: string;
+  summary: {
+    total: number;
+    ok: number;
+    missing: number;
+    missingRequired: number;
+    ready: boolean;
+  };
+  targets: EnvironmentTarget[];
+};
+
 const numberFormatter = new Intl.NumberFormat("ko-KR");
 const emptyRuntime: RuntimeState = { accounts: [], projects: [], activeRun: null, runHistory: [] };
 
@@ -411,9 +440,17 @@ async function runtimeRequest(path: string, body?: unknown) {
   return (await response.json()) as RuntimeState;
 }
 
+async function environmentRequest() {
+  const response = await fetch("/api/agentapp/environment", { cache: "no-store" });
+  if (!response.ok) throw new Error(`environment API failed: ${response.status}`);
+  return (await response.json()) as EnvironmentState;
+}
+
 function providerForWorker(workerId: string) {
   if (workerId.includes("claude")) return "claude";
   if (workerId.includes("codex")) return "codex";
+  if (workerId.includes("cursor")) return "cursor";
+  if (workerId.includes("gemini")) return "gemini";
   return "";
 }
 
@@ -459,11 +496,23 @@ function routeBlockMessage(accounts: ManagedAccount[], workerId: string) {
   return "남은 사용량이 부족하거나 이 난이도에 맞는 모델 프로필이 없습니다.";
 }
 
+function isAbsoluteLocalPath(value: string) {
+  const text = value.trim();
+  return /^[a-zA-Z]:[\\/]/.test(text) || /^\\\\[^\\]+\\[^\\]+/.test(text) || text.startsWith("/");
+}
+
+function hasUnsafeSessionProfile(value: string) {
+  const text = value.trim();
+  return Boolean(text && (text.includes("..") || /^[a-zA-Z]:/.test(text) || text.startsWith("/") || text.startsWith("\\")));
+}
+
 function App() {
   const [snapshot, setSnapshot] = React.useState<Snapshot | null>(null);
   const [error, setError] = React.useState("");
   const [runtime, setRuntime] = React.useState<RuntimeState>(emptyRuntime);
+  const [environment, setEnvironment] = React.useState<EnvironmentState | null>(null);
   const [runtimeStatus, setRuntimeStatus] = React.useState("로컬 설정 불러오는 중");
+  const [lastRuntimeSyncAt, setLastRuntimeSyncAt] = React.useState("");
   const [prompt, setPrompt] = React.useState("");
   const [complexity, setComplexity] = React.useState("standard");
   const [modelOverride, setModelOverride] = React.useState("auto");
@@ -482,14 +531,36 @@ function App() {
   });
   const [accountFormOpen, setAccountFormOpen] = React.useState(false);
   const [projectForm, setProjectForm] = React.useState({ name: "", path: "" });
+  const [accountErrors, setAccountErrors] = React.useState<string[]>([]);
+  const [projectErrors, setProjectErrors] = React.useState<string[]>([]);
+  const [runError, setRunError] = React.useState("");
   const [editingBudgetId, setEditingBudgetId] = React.useState<string | null>(null);
   const [budgetDraft, setBudgetDraft] = React.useState<{ remaining: string; weekly: string }>({ remaining: "", weekly: "" });
   const [now, setNow] = React.useState<number>(Date.now());
+  const [activeSection, setActiveSection] = React.useState("run");
 
   React.useEffect(() => {
     const interval = window.setInterval(() => setNow(Date.now()), 1000);
     return () => window.clearInterval(interval);
   }, []);
+
+  React.useEffect(() => {
+    const sections = ["run", "projects", "accounts", "handoff"]
+      .map((id) => document.getElementById(id))
+      .filter((element): element is HTMLElement => Boolean(element));
+    if (sections.length === 0) return undefined;
+    const observer = new IntersectionObserver(
+      (entries) => {
+        const visible = entries
+          .filter((entry) => entry.isIntersecting)
+          .sort((left, right) => right.intersectionRatio - left.intersectionRatio)[0];
+        if (visible?.target.id) setActiveSection(visible.target.id);
+      },
+      { threshold: [0.35, 0.6], rootMargin: "-10% 0px -50% 0px" },
+    );
+    sections.forEach((section) => observer.observe(section));
+    return () => observer.disconnect();
+  }, [snapshot]);
 
   React.useEffect(() => {
     fetch("/agent-snapshot.json", { cache: "no-store" })
@@ -501,31 +572,44 @@ function App() {
       .catch((caught: unknown) => setError(caught instanceof Error ? caught.message : "snapshot load failed"));
   }, []);
 
-  React.useEffect(() => {
-    runtimeRequest("runtime")
-      .then((next) => {
-        setRuntime(next);
-        setRuntimeStatus("로컬 설정 동기화 완료");
-      })
-      .catch((caught: unknown) => {
-        setRuntimeStatus(caught instanceof Error ? caught.message : "로컬 설정을 불러올 수 없습니다");
-      });
+  const refreshRuntime = React.useCallback(async () => {
+    try {
+      const next = await runtimeRequest("runtime");
+      setRuntime(next);
+      setRuntimeStatus("로컬 설정 동기화 완료");
+      setLastRuntimeSyncAt(new Date().toLocaleTimeString("ko-KR"));
+    } catch (caught: unknown) {
+      setRuntimeStatus(caught instanceof Error ? caught.message : "로컬 설정을 불러올 수 없습니다");
+    }
+  }, []);
+
+  const refreshEnvironment = React.useCallback(async () => {
+    try {
+      setEnvironment(await environmentRequest());
+    } catch {
+      setEnvironment(null);
+    }
   }, []);
 
   React.useEffect(() => {
+    void refreshRuntime();
+    void refreshEnvironment();
+  }, [refreshEnvironment, refreshRuntime]);
+
+  React.useEffect(() => {
     const interval = window.setInterval(() => {
-      runtimeRequest("runtime")
-        .then((next) => {
-          setRuntime(next);
-          setRuntimeStatus("로컬 설정 동기화 완료");
-        })
-        .catch((caught: unknown) => {
-          setRuntimeStatus(caught instanceof Error ? caught.message : "로컬 설정을 불러올 수 없습니다");
-        });
+      void refreshRuntime();
     }, runtime.activeRun ? 2000 : 5000);
 
     return () => window.clearInterval(interval);
-  }, [runtime.activeRun?.id]);
+  }, [refreshRuntime, runtime.activeRun?.id]);
+
+  React.useEffect(() => {
+    const interval = window.setInterval(() => {
+      void refreshEnvironment();
+    }, 30000);
+    return () => window.clearInterval(interval);
+  }, [refreshEnvironment]);
 
   const [toast, setToast] = React.useState<{ kind: "success" | "warn" | "info"; message: string } | null>(null);
 
@@ -590,12 +674,23 @@ function App() {
   const activeRun = runtime.activeRun;
   const approvalCount = snapshot.approval_queue.pending_decisions.length + snapshot.approval_queue.held_tasks.length;
   const nextTaskTitle = snapshot.next_task.title === "none" ? "다음 계획 작성" : snapshot.next_task.title;
+  const liveUsage = accounts.reduce(
+    (acc, account) => ({
+      remaining: acc.remaining + Number(account.remainingUnits || 0),
+      weekly: acc.weekly + Number(account.weeklyUnits || 0),
+    }),
+    { remaining: 0, weekly: 0 },
+  );
+  const liveUsagePercent = liveUsage.weekly > 0 ? Math.round((liveUsage.remaining / liveUsage.weekly) * 100) : 0;
+  const missingEnvironment = environment?.targets.filter((target) => !target.ok) || [];
+  const missingAiTools = missingEnvironment.filter((target) => target.group === "ai");
 
   async function updateRuntime(operation: Promise<RuntimeState>) {
     try {
       const next = await operation;
       setRuntime(next);
       setRuntimeStatus("로컬 설정 동기화 완료");
+      setLastRuntimeSyncAt(new Date().toLocaleTimeString("ko-KR"));
     } catch (caught) {
       setRuntimeStatus(caught instanceof Error ? caught.message : "로컬 설정 업데이트에 실패했습니다");
     }
@@ -607,7 +702,17 @@ function App() {
     const alias =
       accountForm.alias.trim() ||
       `${accountForm.provider}-${email ? email.replace(/[^a-z0-9]+/gi, "-").replace(/^-+|-+$/g, "") : Date.now()}`;
-    if (!alias) return;
+    const errors = [];
+    if (!alias) errors.push("계정 별칭을 만들 수 없습니다.");
+    if (email && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) errors.push("이메일 형식을 확인하세요.");
+    if (accounts.some((account) => account.id === alias)) errors.push("이미 사용 중인 계정 별칭입니다.");
+    if (hasUnsafeSessionProfile(accountForm.sessionProfile)) errors.push("세션 프로필은 상대 이름만 사용할 수 있습니다.");
+    if (errors.length > 0) {
+      setAccountErrors(errors);
+      setToast({ kind: "warn", message: errors[0] });
+      return;
+    }
+    setAccountErrors([]);
 
     try {
       const next = await runtimeRequest("accounts", {
@@ -624,6 +729,7 @@ function App() {
       });
       setRuntime(next);
       setRuntimeStatus("로컬 설정 동기화 완료");
+      setLastRuntimeSyncAt(new Date().toLocaleTimeString("ko-KR"));
       const added = next.accounts.find((account) => account.id === alias);
       if (added) {
         const kind = added.sessionStatus === "ready" ? "success" : "warn";
@@ -655,7 +761,18 @@ function App() {
     event.preventDefault();
     const projectPath = projectForm.path.trim();
     const name = projectForm.name.trim() || projectPath.split(/[\\/]/).filter(Boolean).at(-1) || "로컬 프로젝트";
-    if (!projectPath) return;
+    const errors = [];
+    if (!projectPath) errors.push("프로젝트 경로를 입력하세요.");
+    if (projectPath && !isAbsoluteLocalPath(projectPath)) errors.push("프로젝트 경로는 절대 경로로 입력하세요.");
+    if (projects.some((project) => project.path.toLowerCase() === projectPath.toLowerCase())) {
+      errors.push("이미 등록된 프로젝트 경로입니다.");
+    }
+    if (errors.length > 0) {
+      setProjectErrors(errors);
+      setToast({ kind: "warn", message: errors[0] });
+      return;
+    }
+    setProjectErrors([]);
 
     void updateRuntime(runtimeRequest("projects", { id: `local-${Date.now()}`, name, path: projectPath }));
     setProjectForm({ name: "", path: "" });
@@ -663,6 +780,13 @@ function App() {
 
   function startRun() {
     const text = prompt.trim() || nextTaskTitle;
+    if (!localRecommendation) {
+      const message = routeBlockMessage(accounts, selectedWorker);
+      setRunError(message);
+      setToast({ kind: "warn", message });
+      return;
+    }
+    setRunError("");
     void updateRuntime(
       runtimeRequest("runs/start", {
         workerId: selectedWorker,
@@ -695,9 +819,14 @@ function App() {
       setToast({ kind: "warn", message: "주간 예산은 1 이상, 남은 사용량은 0 이상이어야 합니다." });
       return;
     }
+    if (remaining > weekly) {
+      setToast({ kind: "warn", message: "남은 사용량은 주간 예산보다 클 수 없습니다." });
+      return;
+    }
     try {
       const next = await runtimeRequest("accounts/budget", { id: account.id, remainingUnits: remaining, weeklyUnits: weekly });
       setRuntime(next);
+      setLastRuntimeSyncAt(new Date().toLocaleTimeString("ko-KR"));
       setEditingBudgetId(null);
       setToast({ kind: "success", message: `'${account.displayName || account.id}' 사용량을 ${remaining}/${weekly} 로 저장했습니다.` });
     } catch (caught) {
@@ -709,6 +838,7 @@ function App() {
     try {
       const next = await runtimeRequest("accounts/login", { id: account.id });
       setRuntime(next);
+      setLastRuntimeSyncAt(new Date().toLocaleTimeString("ko-KR"));
       setToast({ kind: "info", message: `'${account.displayName || account.id}' 로그인 창을 띄웠습니다. 인증 완료 후 [재감지]를 눌러주세요.` });
     } catch (caught) {
       setToast({ kind: "warn", message: caught instanceof Error ? caught.message : "로그인 시작에 실패했습니다" });
@@ -720,6 +850,7 @@ function App() {
       const next = await runtimeRequest("accounts/detect", { id: account.id });
       setRuntime(next);
       setRuntimeStatus("로컬 설정 동기화 완료");
+      setLastRuntimeSyncAt(new Date().toLocaleTimeString("ko-KR"));
       const updated = next.accounts.find((item) => item.id === account.id);
       if (updated) {
         setToast({
@@ -759,19 +890,19 @@ function App() {
         </div>
 
         <nav className="navStack" aria-label="작업 영역 섹션">
-          <a href="#run">
+          <a className={activeSection === "run" ? "active" : ""} href="#run" onClick={() => setActiveSection("run")}>
             <Zap aria-hidden="true" size={16} />
             실행
           </a>
-          <a href="#projects">
+          <a className={activeSection === "projects" ? "active" : ""} href="#projects" onClick={() => setActiveSection("projects")}>
             <FolderGit2 aria-hidden="true" size={16} />
             프로젝트
           </a>
-          <a href="#accounts">
+          <a className={activeSection === "accounts" ? "active" : ""} href="#accounts" onClick={() => setActiveSection("accounts")}>
             <KeyRound aria-hidden="true" size={16} />
             계정
           </a>
-          <a href="#handoff">
+          <a className={activeSection === "handoff" ? "active" : ""} href="#handoff" onClick={() => setActiveSection("handoff")}>
             <ClipboardList aria-hidden="true" size={16} />
             인수인계
           </a>
@@ -812,6 +943,13 @@ function App() {
               value={projectForm.path}
               onChange={(event) => setProjectForm({ ...projectForm, path: event.target.value })}
             />
+            {projectErrors.length > 0 ? (
+              <div className="formError" role="alert">
+                {projectErrors.map((item) => (
+                  <span key={item}>{item}</span>
+                ))}
+              </div>
+            ) : null}
             <IconButton icon={Plus} type="submit" title="새 로컬 프로젝트를 목록에 추가합니다">
               추가
             </IconButton>
@@ -831,6 +969,9 @@ function App() {
             <span>준비된 세션 프로필 수</span>
           </div>
           <div className="accountList">
+            {localAccounts.length === 0 ? (
+              <p className="emptyState">로컬 계정이 없습니다. 계정 추가 후 공식 도구에서 인증을 완료하면 실행 후보에 들어갑니다.</p>
+            ) : null}
             {accounts.map((account) => {
               const percent = account.weeklyUnits > 0 ? Math.round((account.remainingUnits / account.weeklyUnits) * 100) : 0;
               return (
@@ -845,6 +986,7 @@ function App() {
                     <label className="enableToggle">
                       <input
                         checked={account.enabled !== false}
+                        disabled={account.source !== "local"}
                         type="checkbox"
                         title="이 계정을 자동 라우팅 후보에 포함하거나 제외합니다"
                         onChange={() => toggleAccount(account)}
@@ -1026,6 +1168,13 @@ function App() {
                 value={accountForm.secret}
                 onChange={(event) => setAccountForm({ ...accountForm, secret: event.target.value })}
               />
+              {accountErrors.length > 0 ? (
+                <div className="formError" role="alert">
+                  {accountErrors.map((item) => (
+                    <span key={item}>{item}</span>
+                  ))}
+                </div>
+              ) : null}
               <div className="formHint">
                 <strong>자동 처리</strong>
                 <span>주간 사용량은 요금제 기본값으로, 세션 상태는 CLI 설치 여부와 세션 프로필을 자동 감지해 설정합니다.</span>
@@ -1068,6 +1217,7 @@ function App() {
                 icon={activeRun ? Square : Play}
                 variant={activeRun ? "danger" : "primary"}
                 title={activeRun ? "현재 실행 중인 작업을 중지합니다" : "입력한 프롬프트로 작업을 시작합니다"}
+                disabled={!activeRun && !localRecommendation}
                 onClick={activeRun ? stopRun : startRun}
               >
                 {activeRun ? "중지" : "시작"}
@@ -1081,7 +1231,10 @@ function App() {
               <select
                 title="이번 작업을 실행할 에이전트를 선택합니다"
                 value={selectedWorker}
-                onChange={(event) => setSelectedWorker(event.target.value)}
+                onChange={(event) => {
+                  setSelectedWorker(event.target.value);
+                  setRunError("");
+                }}
               >
                 {snapshot.workers.map((worker) => (
                   <option key={worker.id} value={worker.id}>
@@ -1111,7 +1264,10 @@ function App() {
               <select
                 title="작업 난이도에 따라 모델과 예산 추천이 달라집니다"
                 value={complexity}
-                onChange={(event) => setComplexity(event.target.value)}
+                onChange={(event) => {
+                  setComplexity(event.target.value);
+                  setRunError("");
+                }}
               >
                 <option value="routine">기본</option>
                 <option value="standard">일반</option>
@@ -1170,6 +1326,7 @@ function App() {
             </span>
             <StatusPill status={localRecommendation ? "recommended" : "blocked"} />
           </div>
+          {runError ? <div className="formError inline" role="alert">{runError}</div> : null}
         </section>
 
         <section className="contentGrid">
@@ -1235,6 +1392,7 @@ function App() {
               <p className="empty">실행 중인 작업이 없습니다.</p>
             )}
             <div className="historyList">
+              {runtime.runHistory.length === 0 ? <p className="emptyState">아직 실행 기록이 없습니다.</p> : null}
               {runtime.runHistory.slice(0, 4).map((run) => (
                 <article key={run.id}>
                   <StatusPill status={run.status} />
@@ -1268,6 +1426,7 @@ function App() {
               <ClipboardList aria-hidden="true" size={17} />
             </div>
             <div className="handoffGrid">
+              {snapshot.handoff_documents.length === 0 ? <p className="emptyState">인수인계 문서가 없습니다.</p> : null}
               {snapshot.handoff_documents.map((document) => (
                 <article className="handoffDoc" key={document.id}>
                   <header>
@@ -1322,6 +1481,7 @@ function App() {
               <Settings aria-hidden="true" size={17} />
             </div>
             <div className="workerList">
+              {snapshot.workers.length === 0 ? <p className="emptyState">등록된 작업 도구가 없습니다.</p> : null}
               {snapshot.workers.map((worker) => (
                 <article key={worker.id}>
                   <Bot aria-hidden="true" size={16} />
@@ -1341,12 +1501,35 @@ function App() {
         <section className="railPanel">
           <div className="sectionTitle compact">
             <h2>사용량</h2>
-            <RefreshCcw aria-hidden="true" size={16} />
+            <button className="iconOnly" type="button" title="로컬 사용량을 다시 동기화합니다" onClick={() => void refreshRuntime()}>
+              <RefreshCcw aria-hidden="true" size={15} />
+            </button>
           </div>
-          <strong className="bigNumber">{numberFormatter.format(snapshot.usage_budget.total_remaining_units)}</strong>
+          <strong className="bigNumber">{numberFormatter.format(liveUsage.remaining)}</strong>
           <span>남은 전체 사용량</span>
-          <ProgressBar value={snapshot.usage_budget.reserve_ok_now ? 100 : 40} />
-          <small>주말 예비 사용량 {numberFormatter.format(snapshot.usage_budget.weekend_reserve_units)}</small>
+          <ProgressBar value={liveUsagePercent} />
+          <small>주간 예산 {numberFormatter.format(liveUsage.weekly)} / 동기화 {lastRuntimeSyncAt || "대기"}</small>
+        </section>
+
+        <section className="railPanel">
+          <div className="sectionTitle compact">
+            <h2>환경</h2>
+            <button className="iconOnly" type="button" title="설치 환경을 다시 점검합니다" onClick={() => void refreshEnvironment()}>
+              <RefreshCcw aria-hidden="true" size={15} />
+            </button>
+          </div>
+          <strong className="bigNumber">{environment ? `${environment.summary.ok}/${environment.summary.total}` : "-"}</strong>
+          <span>설치된 도구</span>
+          <ProgressBar value={environment ? Math.round((environment.summary.ok / Math.max(1, environment.summary.total)) * 100) : 0} />
+          {missingAiTools.length > 0 ? (
+            <div className="installList">
+              {missingAiTools.slice(0, 3).map((target) => (
+                <code key={target.id}>{target.installCommand}</code>
+              ))}
+            </div>
+          ) : (
+            <small>AI CLI 경로 점검 완료</small>
+          )}
         </section>
 
         <section className="railPanel">

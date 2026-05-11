@@ -96,7 +96,16 @@
 
 ## Phase 11 — Tool별 확장
 
-- [ ] Claude Code command-mode adapter profile
-- [ ] Gemini CLI command-mode adapter profile
-- [ ] tool별 login/session-expired detector 보강
-- [ ] doctor에 session profile readiness 진단 추가
+- [x] Claude Code command-mode adapter profile
+- [x] Gemini CLI command-mode adapter profile
+- [x] tool별 login/session-expired detector 보강
+- [x] doctor에 session profile readiness 진단 추가
+
+## Phase 12 — v0.1.0 사용자 환경 검증
+
+- [x] 설치 환경 점검/설치 명령 포함 (`pnpm agent:setup`)
+- [x] dashboard 잔여 UX 정리: 빈 상태, nav active, form validation, live 사용량 동기화
+- [x] dashboard dev/prod runtime API parity
+- [x] dashboard cycle test CLI (`pnpm agent:cycle-test`)
+- [x] v0.1.0 CHANGELOG와 Windows EXE 재패키징
+- [ ] Claude/Gemini CLI 설치 후 실제 authenticated cycle 재검증

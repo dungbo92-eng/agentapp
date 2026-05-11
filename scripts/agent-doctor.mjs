@@ -190,10 +190,10 @@ async function checkGitRemote() {
 }
 
 const WORKER_CLIS = [
-  { name: "codex", commandEnv: "AGENTAPP_CODEX_COMMAND" },
-  { name: "claude", commandEnv: "AGENTAPP_CLAUDE_COMMAND" },
-  { name: "cursor", commandEnv: "AGENTAPP_CURSOR_COMMAND" },
-  { name: "gemini", commandEnv: "AGENTAPP_GEMINI_COMMAND" },
+  { name: "codex", commandEnv: "AGENTAPP_CODEX_COMMAND", install: "npm install -g @openai/codex" },
+  { name: "claude", commandEnv: "AGENTAPP_CLAUDE_COMMAND", install: "npm install -g @anthropic-ai/claude-code" },
+  { name: "cursor", commandEnv: "AGENTAPP_CURSOR_COMMAND", install: "winget install --id Anysphere.Cursor -e --source winget" },
+  { name: "gemini", commandEnv: "AGENTAPP_GEMINI_COMMAND", install: "npm install -g @google/gemini-cli" },
 ];
 
 async function findInPath(name) {
@@ -210,7 +210,11 @@ async function checkWorkerClis() {
     if (found) {
       note("ok", `worker cli ${worker.name}`, found);
     } else {
-      note("warn", `worker cli ${worker.name}`, `not found in PATH (set ${worker.commandEnv} or install ${worker.name})`);
+      note(
+        "warn",
+        `worker cli ${worker.name}`,
+        `not found in PATH (set ${worker.commandEnv}, or run: ${worker.install})`,
+      );
     }
   }
 }
