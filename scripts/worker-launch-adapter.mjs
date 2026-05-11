@@ -27,7 +27,13 @@ const LOGIN_REQUIRED_PATTERNS = [
   /session expired/i,
   /reauth/i,
   /authentication/i,
+  /openai_api_key/i,
+  /api key/i,
+  /missing credential/i,
 ];
+
+const IDLE_WARN_MS = 30000;
+const IDLE_KILL_MS = 120000;
 
 const HELP = `Usage:
   node scripts/worker-launch-adapter.mjs --execute-run <run-id>
@@ -327,11 +333,35 @@ async function streamProcess(command, args, options = {}) {
     let stderrBuffer = "";
     let combined = "";
     let stdoutOnly = "";
+    let lastActivityAt = Date.now();
+    let warned = false;
+    let idleKilled = false;
+
+    const idleTimer = options.idleWarnMs || options.idleKillMs
+      ? setInterval(async () => {
+          const idleMs = Date.now() - lastActivityAt;
+          if (!warned && options.idleWarnMs && idleMs >= options.idleWarnMs) {
+            warned = true;
+            if (options.onIdleWarn) await options.onIdleWarn(idleMs);
+          }
+          if (options.idleKillMs && idleMs >= options.idleKillMs) {
+            idleKilled = true;
+            clearInterval(idleTimer);
+            if (options.onIdleKill) await options.onIdleKill(idleMs);
+            if (process.platform === "win32") {
+              spawn("taskkill.exe", ["/PID", String(child.pid), "/T", "/F"], { windowsHide: true });
+            } else {
+              try { process.kill(child.pid, "SIGKILL"); } catch { /* already gone */ }
+            }
+          }
+        }, 5000)
+      : null;
 
     const forwardLines = async (lines, level) => {
       for (const line of lines) {
         const trimmed = line.trim();
         if (!trimmed) continue;
+        lastActivityAt = Date.now();
         combined += `${trimmed}\n`;
         if (level === "stdout") stdoutOnly += `${trimmed}\n`;
         await appendLog(options.logPath, `[${level}] ${trimmed}`);
@@ -351,8 +381,12 @@ async function streamProcess(command, args, options = {}) {
       await forwardLines(next.lines, "stderr");
     });
 
-    child.on("error", reject);
+    child.on("error", (error) => {
+      if (idleTimer) clearInterval(idleTimer);
+      reject(error);
+    });
     child.on("close", async (code, signal) => {
+      if (idleTimer) clearInterval(idleTimer);
       if (stdoutBuffer.trim()) await forwardLines([stdoutBuffer.trim()], "stdout");
       if (stderrBuffer.trim()) await forwardLines([stderrBuffer.trim()], "stderr");
       resolve({
@@ -361,6 +395,7 @@ async function streamProcess(command, args, options = {}) {
         pid: child.pid,
         combinedOutput: combined.trim(),
         stdoutOnly: stdoutOnly.trim(),
+        idleKilled,
       });
     });
 
@@ -459,6 +494,8 @@ async function launchCommandWorker(run, files, adapter, promptText) {
     env: adapter.env,
     logPath: files.launchLogPath,
     stdinText: promptText,
+    idleWarnMs: IDLE_WARN_MS,
+    idleKillMs: IDLE_KILL_MS,
     onSpawn: async (pid) => {
       await patchRunRecord(run.id, {
         adapter: {
@@ -478,6 +515,18 @@ async function launchCommandWorker(run, files, adapter, promptText) {
         message: line.length > 220 ? `${line.slice(0, 220)}...` : line,
       });
     },
+    onIdleWarn: async (idleMs) => {
+      await appendRunEvent(run.id, {
+        level: "warn",
+        message: `${run.workerId} 가 ${Math.round(idleMs / 1000)} 초간 응답이 없습니다. 인증/네트워크 상태를 확인하거나, 응답이 길어지는 작업이라면 잠시 더 기다려 주세요.`,
+      });
+    },
+    onIdleKill: async (idleMs) => {
+      await appendRunEvent(run.id, {
+        level: "error",
+        message: `${run.workerId} 가 ${Math.round(idleMs / 1000)} 초간 출력이 없어 자동 중지합니다. 인증 또는 CLI 설치 상태를 확인한 뒤 다시 시작하세요.`,
+      });
+    },
   });
 
   if (adapter.writeLastMessageFromStdout && result.stdoutOnly) {
@@ -493,6 +542,32 @@ async function launchCommandWorker(run, files, adapter, promptText) {
     lastMessage = (await readFile(files.lastMessagePath, "utf8")).trim();
   } catch {
     lastMessage = "";
+  }
+
+  if (result.idleKilled) {
+    if (run.routing?.accountId) {
+      await updateAccountSession(run.routing.accountId, "needs-login");
+    }
+    await finishRunRecord(
+      run.id,
+      {
+        status: "needs_user",
+        adapter: {
+          status: "idle-timeout",
+          mode: adapter.mode,
+          pid: result.pid,
+          exitCode: result.code,
+          logPath: relativePath(files.launchLogPath),
+          promptPath: relativePath(files.promptPath),
+          sessionDir: relativePath(adapter.sessionDir),
+        },
+      },
+      {
+        handoffStatus: "needs_user",
+        handoffReason: "idle_timeout",
+      },
+    );
+    return;
   }
 
   if (result.code === 0) {

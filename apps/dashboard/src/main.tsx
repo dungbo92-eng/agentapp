@@ -484,6 +484,12 @@ function App() {
   const [projectForm, setProjectForm] = React.useState({ name: "", path: "" });
   const [editingBudgetId, setEditingBudgetId] = React.useState<string | null>(null);
   const [budgetDraft, setBudgetDraft] = React.useState<{ remaining: string; weekly: string }>({ remaining: "", weekly: "" });
+  const [now, setNow] = React.useState<number>(Date.now());
+
+  React.useEffect(() => {
+    const interval = window.setInterval(() => setNow(Date.now()), 1000);
+    return () => window.clearInterval(interval);
+  }, []);
 
   React.useEffect(() => {
     fetch("/agent-snapshot.json", { cache: "no-store" })
@@ -1152,9 +1158,27 @@ function App() {
               <h2>현재 실행</h2>
               <CircleStop aria-hidden="true" size={17} />
             </div>
-            {activeRun ? (
+            {activeRun ? (() => {
+              const startMs = new Date(activeRun.startedAt).getTime();
+              const elapsedMs = Math.max(0, now - startMs);
+              const elapsedSec = Math.floor(elapsedMs / 1000);
+              const mm = String(Math.floor(elapsedSec / 60)).padStart(2, "0");
+              const ss = String(elapsedSec % 60).padStart(2, "0");
+              const lastEventMs = (activeRun.events && activeRun.events.length > 0)
+                ? new Date(activeRun.events[activeRun.events.length - 1].at).getTime()
+                : startMs;
+              const idleMs = Math.max(0, now - lastEventMs);
+              const idleSec = Math.floor(idleMs / 1000);
+              const showIdleWarn = activeRun.status === "running" && idleSec >= 20;
+              return (
               <div className="activeRun">
                 <strong>{activeRun.prompt}</strong>
+                <div className="runMetrics">
+                  <span className="runTimer">⏱ 경과 {mm}:{ss}</span>
+                  {showIdleWarn ? (
+                    <span className="idleWarn">⚠️ 마지막 응답 {idleSec}초 전 — 도구가 응답 중인지 확인 필요</span>
+                  ) : null}
+                </div>
                 <span>
                   {activeRun.workerId} / {complexityLabel(activeRun.complexity)} / {modelOverrideLabel(activeRun.modelOverride || "auto")}
                 </span>
@@ -1186,7 +1210,8 @@ function App() {
                   ))}
                 </div>
               </div>
-            ) : (
+              );
+            })() : (
               <p className="empty">실행 중인 작업이 없습니다.</p>
             )}
             <div className="historyList">
