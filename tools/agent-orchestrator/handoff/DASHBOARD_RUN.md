@@ -1,19 +1,19 @@
 # DASHBOARD_RUN
 
-- Generated: 2026-05-10T07:40:25.824Z
-- Run state: tools/agent-orchestrator/handoff/run-states/dashboard-current.json
-- Worker: codex
-- Status: interrupted
-- Reason: user_stopped
-- Account: codex-google-a
-- Model: gpt-5.4
-- Prompt body: local-only in data/dashboard-runtime.json
-- Contains secrets: false
+- 생성 시각: 2026-05-11T00:21:30.135Z
+- 실행 상태 파일: tools/agent-orchestrator/handoff/run-states/dashboard-current.json
+- 작업 도구: codex
+- 상태: interrupted
+- 사유: user_stopped
+- 계정: dungbo92-gmail.com
+- 모델: gpt-5.4
+- 프롬프트 본문: data/dashboard-runtime.json 에만 저장
+- 비밀 포함 여부: false
 
-## Summary
+## 요약
 
-Dashboard recorded interrupted for codex. Prompt body is stored local-only in data/dashboard-runtime.json.
+대시보드가 codex 작업의 상태를 interrupted 로 기록했습니다. 프롬프트 본문은 data/dashboard-runtime.json 에만 저장됩니다.
 
-## Next Step
+## 다음 단계
 
-Review the local run history and continue from NEXT_TASK.md or start a new dashboard run.
+로컬 실행 기록을 확인하고 NEXT_TASK.md 에서 이어가거나 새 작업을 시작하세요.

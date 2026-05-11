@@ -1,11 +1,11 @@
 # NEXT_TASK
 
-- Generated: 2026-05-10T14:35:07.559Z
-- Selected task: Claude Code command-mode adapter profile
+- Generated: 2026-05-11T00:21:28.259Z
+- Selected task: Gemini CLI command-mode adapter profile
 - Selection source: task-queue
-- Task id: claude-command-mode-adapter
-- Task priority: 32
-- Workspace: E:\agentApp
+- Task id: gemini-command-mode-adapter
+- Task priority: 31
+- Workspace: D:\agentApp
 - Policy: tools/agent-orchestrator/approval-policy.yaml
 
 ## Required Reads
@@ -25,7 +25,7 @@
 
 다음 작업을 진행한다:
 
-> Claude Code command-mode adapter profile
+> Gemini CLI command-mode adapter profile
 
 ## Execution Rules
 

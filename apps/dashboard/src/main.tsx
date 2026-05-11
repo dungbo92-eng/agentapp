@@ -519,11 +519,13 @@ function App() {
     return () => window.clearInterval(interval);
   }, [runtime.activeRun?.id]);
 
+  const [toast, setToast] = React.useState<{ kind: "success" | "warn" | "info"; message: string } | null>(null);
+
   React.useEffect(() => {
-    if (snapshot?.next_task.title && !prompt) {
-      setPrompt(snapshot.next_task.title === "none" ? "" : snapshot.next_task.title);
-    }
-  }, [snapshot, prompt]);
+    if (!toast) return;
+    const timer = window.setTimeout(() => setToast(null), 5000);
+    return () => window.clearTimeout(timer);
+  }, [toast]);
 
   if (error) {
     return (
@@ -591,7 +593,7 @@ function App() {
     }
   }
 
-  function addAccount(event: React.FormEvent<HTMLFormElement>) {
+  async function addAccount(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault();
     const email = accountForm.email.trim().toLowerCase();
     const alias =
@@ -599,8 +601,8 @@ function App() {
       `${accountForm.provider}-${email ? email.replace(/[^a-z0-9]+/gi, "-").replace(/^-+|-+$/g, "") : Date.now()}`;
     if (!alias) return;
 
-    void updateRuntime(
-      runtimeRequest("accounts", {
+    try {
+      const next = await runtimeRequest("accounts", {
         id: alias,
         displayName: accountForm.displayName.trim() || alias,
         provider: accountForm.provider,
@@ -611,8 +613,24 @@ function App() {
         sessionProfile: accountForm.sessionProfile,
         secret: accountForm.secret,
         enabled: true,
-      }),
-    );
+      });
+      setRuntime(next);
+      setRuntimeStatus("로컬 설정 동기화 완료");
+      const added = next.accounts.find((account) => account.id === alias);
+      if (added) {
+        const kind = added.sessionStatus === "ready" ? "success" : "warn";
+        setToast({
+          kind,
+          message:
+            added.sessionStatus === "ready"
+              ? `'${added.displayName || added.id}' 계정이 자동으로 준비 상태로 연동됐습니다.`
+              : `'${added.displayName || added.id}' 계정이 추가됐지만 아직 로그인이 필요합니다. ${added.sessionDetectionReason || ""}`,
+        });
+      }
+    } catch (caught) {
+      setRuntimeStatus(caught instanceof Error ? caught.message : "계정 추가에 실패했습니다");
+      setToast({ kind: "warn", message: "계정 추가에 실패했습니다" });
+    }
     setAccountForm({
       ...accountForm,
       displayName: "",
@@ -657,8 +675,24 @@ function App() {
     void updateRuntime(runtimeRequest("accounts/enabled", { ...account, enabled: !account.enabled }));
   }
 
-  function detectSession(account: ManagedAccount) {
-    void updateRuntime(runtimeRequest("accounts/detect", { id: account.id }));
+  async function detectSession(account: ManagedAccount) {
+    try {
+      const next = await runtimeRequest("accounts/detect", { id: account.id });
+      setRuntime(next);
+      setRuntimeStatus("로컬 설정 동기화 완료");
+      const updated = next.accounts.find((item) => item.id === account.id);
+      if (updated) {
+        setToast({
+          kind: updated.sessionStatus === "ready" ? "success" : "warn",
+          message:
+            updated.sessionStatus === "ready"
+              ? `'${updated.displayName || updated.id}' 세션이 준비 상태입니다.`
+              : `'${updated.displayName || updated.id}' 아직 로그인 필요: ${updated.sessionDetectionReason || ""}`,
+        });
+      }
+    } catch (caught) {
+      setToast({ kind: "warn", message: caught instanceof Error ? caught.message : "재감지에 실패했습니다" });
+    }
   }
 
   function deleteAccount(account: ManagedAccount) {
@@ -669,6 +703,12 @@ function App() {
 
   return (
     <main className="appShell">
+      {toast ? (
+        <div className={`toast ${toast.kind}`} role="status">
+          <span>{toast.message}</span>
+          <button type="button" onClick={() => setToast(null)} aria-label="알림 닫기">×</button>
+        </div>
+      ) : null}
       <aside className="sidebar">
         <div className="brand">
           <Bot aria-hidden="true" size={22} />
@@ -1005,9 +1045,25 @@ function App() {
           </div>
 
           <label className="promptBox">
-            프롬프트
+            <div className="promptBoxHeader">
+              <span>프롬프트</span>
+              {nextTaskTitle && nextTaskTitle !== "다음 계획 작성" ? (
+                <button
+                  className="promptSuggestionChip"
+                  type="button"
+                  title="다음 작업 제목을 프롬프트에 채워 넣습니다"
+                  onClick={() => setPrompt(nextTaskTitle)}
+                >
+                  → 다음 작업 사용: {nextTaskTitle}
+                </button>
+              ) : null}
+            </div>
             <textarea
-              placeholder="작업 지시사항을 입력하세요"
+              placeholder={
+                nextTaskTitle && nextTaskTitle !== "다음 계획 작성"
+                  ? `예: ${nextTaskTitle}  (위 칩을 누르면 자동으로 채워집니다)`
+                  : "작업 지시사항을 입력하세요"
+              }
               title="에이전트가 바로 수행할 작업 지시를 입력합니다"
               value={prompt}
               onChange={(event) => setPrompt(event.target.value)}
