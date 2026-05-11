@@ -227,6 +227,77 @@ button:disabled {
   line-height: 1.4;
 }
 
+.accountNameRow {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  flex-wrap: wrap;
+}
+
+.badge {
+  display: inline-flex;
+  align-items: center;
+  padding: 2px 7px;
+  border-radius: 999px;
+  font-size: 0.7rem;
+  font-weight: 800;
+  letter-spacing: 0.02em;
+}
+
+.badge.example {
+  background: #fef3c7;
+  color: #92400e;
+}
+
+.budgetRow {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.budgetRow strong {
+  color: #0f172a;
+}
+
+.linkButton {
+  border: 0;
+  background: transparent;
+  color: #1d4ed8;
+  font-size: 0.76rem;
+  font-weight: 800;
+  text-decoration: underline;
+  text-underline-offset: 2px;
+}
+
+.linkButton:hover {
+  color: #1e40af;
+}
+
+.budgetEditor {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 6px;
+  align-items: end;
+}
+
+.budgetEditor label {
+  font-size: 0.74rem;
+}
+
+.budgetEditor input {
+  height: 30px;
+  padding: 0 8px;
+  font-size: 0.84rem;
+}
+
+.budgetActions {
+  grid-column: 1 / -1;
+  display: flex;
+  gap: 6px;
+  justify-content: flex-end;
+}
+
 .formHint {
   display: grid;
   gap: 2px;

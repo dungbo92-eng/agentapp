@@ -675,6 +675,31 @@ function App() {
     void updateRuntime(runtimeRequest("accounts/enabled", { ...account, enabled: !account.enabled }));
   }
 
+  const [editingBudgetId, setEditingBudgetId] = React.useState<string | null>(null);
+  const [budgetDraft, setBudgetDraft] = React.useState<{ remaining: string; weekly: string }>({ remaining: "", weekly: "" });
+
+  function openBudgetEditor(account: ManagedAccount) {
+    setEditingBudgetId(account.id);
+    setBudgetDraft({ remaining: String(account.remainingUnits), weekly: String(account.weeklyUnits) });
+  }
+
+  async function saveBudget(account: ManagedAccount) {
+    const remaining = Number(budgetDraft.remaining);
+    const weekly = Number(budgetDraft.weekly);
+    if (!Number.isFinite(weekly) || weekly <= 0 || !Number.isFinite(remaining) || remaining < 0) {
+      setToast({ kind: "warn", message: "주간 예산은 1 이상, 남은 사용량은 0 이상이어야 합니다." });
+      return;
+    }
+    try {
+      const next = await runtimeRequest("accounts/budget", { id: account.id, remainingUnits: remaining, weeklyUnits: weekly });
+      setRuntime(next);
+      setEditingBudgetId(null);
+      setToast({ kind: "success", message: `'${account.displayName || account.id}' 사용량을 ${remaining}/${weekly} 로 저장했습니다.` });
+    } catch (caught) {
+      setToast({ kind: "warn", message: caught instanceof Error ? caught.message : "사용량 저장에 실패했습니다" });
+    }
+  }
+
   async function detectSession(account: ManagedAccount) {
     try {
       const next = await runtimeRequest("accounts/detect", { id: account.id });
@@ -796,7 +821,12 @@ function App() {
               return (
                 <article className={`accountItem ${account.enabled === false ? "disabled" : ""}`} key={account.id}>
                   <header>
-                    <strong>{account.displayName || account.id}</strong>
+                    <div className="accountNameRow">
+                      <strong>{account.displayName || account.id}</strong>
+                      {account.source === "config" ? (
+                        <span className="badge example" title="usage-budget.example.json 의 예시 데이터입니다. 실제 본인 계정으로 사용하려면 사이드바에서 새 계정을 추가하세요.">예시</span>
+                      ) : null}
+                    </div>
                     <label className="enableToggle">
                       <input
                         checked={account.enabled !== false}
@@ -844,10 +874,46 @@ function App() {
                   {account.sessionDetectionReason ? (
                     <small className="detectionReason">{account.sessionDetectionReason}</small>
                   ) : null}
-                  <small>
-                    남은 사용량 {numberFormatter.format(account.remainingUnits)} / 주간 예산 {numberFormatter.format(account.weeklyUnits)} /{" "}
-                    {planLabel(account.plan)}
-                  </small>
+                  {editingBudgetId === account.id ? (
+                    <div className="budgetEditor">
+                      <label>
+                        남은
+                        <input
+                          inputMode="numeric"
+                          value={budgetDraft.remaining}
+                          onChange={(event) => setBudgetDraft({ ...budgetDraft, remaining: event.target.value })}
+                        />
+                      </label>
+                      <label>
+                        주간
+                        <input
+                          inputMode="numeric"
+                          value={budgetDraft.weekly}
+                          onChange={(event) => setBudgetDraft({ ...budgetDraft, weekly: event.target.value })}
+                        />
+                      </label>
+                      <div className="budgetActions">
+                        <button className="segButton" type="button" onClick={() => saveBudget(account)}>저장</button>
+                        <button className="segButton" type="button" onClick={() => setEditingBudgetId(null)}>취소</button>
+                      </div>
+                    </div>
+                  ) : (
+                    <div className="budgetRow">
+                      <small>
+                        남은 사용량 <strong>{numberFormatter.format(account.remainingUnits)}</strong> / 주간 예산 {numberFormatter.format(account.weeklyUnits)} / {planLabel(account.plan)}
+                      </small>
+                      {account.source === "local" ? (
+                        <button
+                          className="linkButton"
+                          type="button"
+                          title="잔여 사용량을 수정합니다. 외부 API 에서 실제 사용량을 가져올 수 없어 사용자 입력으로만 업데이트됩니다."
+                          onClick={() => openBudgetEditor(account)}
+                        >
+                          수정
+                        </button>
+                      ) : null}
+                    </div>
+                  )}
                   <ProgressBar value={percent} />
                 </article>
               );

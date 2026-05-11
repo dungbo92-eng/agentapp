@@ -301,6 +301,20 @@ export async function deleteAccount(input) {
   return writeRuntime(runtime);
 }
 
+export async function setAccountBudget(input) {
+  const runtime = await readRuntime();
+  const id = normalizeId(input.id);
+  const remaining = Number(input.remainingUnits ?? input.remaining_units);
+  const weekly = Number(input.weeklyUnits ?? input.weekly_units);
+  runtime.accounts = runtime.accounts.map((account) => {
+    if (account.id !== id) return account;
+    const nextWeekly = Number.isFinite(weekly) && weekly > 0 ? weekly : account.weeklyUnits;
+    const nextRemaining = Number.isFinite(remaining) && remaining >= 0 ? Math.min(remaining, nextWeekly) : account.remainingUnits;
+    return { ...account, weeklyUnits: nextWeekly, remainingUnits: nextRemaining };
+  });
+  return writeRuntime(runtime);
+}
+
 export async function setAccountEnabled(input) {
   const runtime = await readRuntime();
   const id = normalizeId(input.id);
