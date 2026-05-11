@@ -8,6 +8,7 @@ import {
   addAccount,
   deleteAccount,
   detectAndUpdateAccount,
+  runAccountLogin,
   addProject,
   applyAccountPreset,
   applyFourAccountPreset,
@@ -90,6 +91,11 @@ async function handleApi(req, res, url) {
   if (req.method === "POST" && url === "/api/agentapp/accounts/detect") {
     const body = await readBody(req);
     sendJson(res, 200, await detectAndUpdateAccount(body.id || body.accountId));
+    return true;
+  }
+  if (req.method === "POST" && url === "/api/agentapp/accounts/login") {
+    const body = await readBody(req);
+    sendJson(res, 200, await runAccountLogin(body.id || body.accountId));
     return true;
   }
   if (req.method === "POST" && url === "/api/agentapp/accounts/credential") {

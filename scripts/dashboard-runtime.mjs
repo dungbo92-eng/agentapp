@@ -389,6 +389,35 @@ export async function detectAccountSession(account) {
   return { sessionStatus: "needs-login", reason: "세션 프로필이 비어 있습니다. 해당 도구에서 한 번 로그인하면 자동으로 준비 상태로 바뀝니다." };
 }
 
+export async function runAccountLogin(accountId) {
+  const runtime = await readRuntime();
+  const id = normalizeId(accountId);
+  const account = runtime.accounts.find((item) => item.id === id);
+  if (!account) return runtime;
+
+  const { resolveLoginAdapter, launchLoginProcess } = await import("./worker-launch-adapter.mjs");
+  const adapter = await resolveLoginAdapter(account.provider, account.sessionProfile);
+  if (adapter.status !== "ready") {
+    runtime.accounts = runtime.accounts.map((item) =>
+      item.id === id ? { ...item, sessionDetectionReason: adapter.reason || "로그인 명령을 준비할 수 없습니다." } : item,
+    );
+    return writeRuntime(runtime);
+  }
+
+  launchLoginProcess(adapter);
+
+  runtime.accounts = runtime.accounts.map((item) =>
+    item.id === id
+      ? {
+          ...item,
+          sessionStatus: "paused",
+          sessionDetectionReason: "로그인 창을 띄웠습니다. 브라우저/콘솔에서 인증을 완료한 뒤 '재감지'를 눌러 주세요.",
+        }
+      : item,
+  );
+  return writeRuntime(runtime);
+}
+
 export async function detectAndUpdateAccount(accountId) {
   const runtime = await readRuntime();
   const id = normalizeId(accountId);

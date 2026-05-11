@@ -705,6 +705,16 @@ function App() {
     }
   }
 
+  async function startLogin(account: ManagedAccount) {
+    try {
+      const next = await runtimeRequest("accounts/login", { id: account.id });
+      setRuntime(next);
+      setToast({ kind: "info", message: `'${account.displayName || account.id}' 로그인 창을 띄웠습니다. 인증 완료 후 [재감지]를 눌러주세요.` });
+    } catch (caught) {
+      setToast({ kind: "warn", message: caught instanceof Error ? caught.message : "로그인 시작에 실패했습니다" });
+    }
+  }
+
   async function detectSession(account: ManagedAccount) {
     try {
       const next = await runtimeRequest("accounts/detect", { id: account.id });
@@ -850,6 +860,16 @@ function App() {
                   <div className="sessionRow">
                     <StatusPill status={account.sessionStatus || "needs-login"} />
                     <div className="sessionActions">
+                      {account.sessionStatus !== "ready" && account.source === "local" ? (
+                        <button
+                          className="segButton primary"
+                          type="button"
+                          title="이 계정의 공식 CLI 로그인 명령을 띄웁니다. 브라우저나 콘솔에서 직접 인증한 뒤 재감지를 눌러 주세요."
+                          onClick={() => startLogin(account)}
+                        >
+                          로그인 시작
+                        </button>
+                      ) : null}
                       <button
                         className="segButton"
                         type="button"

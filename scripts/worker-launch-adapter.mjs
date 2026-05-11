@@ -312,6 +312,49 @@ async function resolveAdapter(run, files) {
 
 export { resolveAdapter as resolveLaunchAdapter };
 
+export async function resolveLoginAdapter(provider, sessionProfile) {
+  const id = String(provider || "").toLowerCase();
+  if (id === "codex") {
+    const command = process.env.AGENTAPP_CODEX_COMMAND || (await commandPathFor("codex"));
+    if (!command) return { status: "blocked", reason: "codex CLI 가 PATH 에서 발견되지 않습니다." };
+    const sessionDir = buildSessionProfileDir("codex", sessionProfile);
+    await mkdir(sessionDir, { recursive: true });
+    return { status: "ready", command, args: ["login"], env: { CODEX_HOME: sessionDir }, sessionDir };
+  }
+  if (id === "claude" || id === "claude-code") {
+    const command = process.env.AGENTAPP_CLAUDE_COMMAND || (await commandPathFor("claude"));
+    if (!command) return { status: "blocked", reason: "claude CLI 가 PATH 에서 발견되지 않습니다." };
+    const sessionDir = buildSessionProfileDir("claude-code", sessionProfile);
+    await mkdir(sessionDir, { recursive: true });
+    return { status: "ready", command, args: [], env: { CLAUDE_CONFIG_DIR: sessionDir }, sessionDir };
+  }
+  if (id === "gemini" || id === "gemini-cli") {
+    const command = process.env.AGENTAPP_GEMINI_COMMAND || (await commandPathFor("gemini"));
+    if (!command) return { status: "blocked", reason: "gemini CLI 가 PATH 에서 발견되지 않습니다." };
+    return { status: "ready", command, args: ["auth", "login"], env: {}, sessionDir: "" };
+  }
+  if (id === "cursor") {
+    const command = process.env.AGENTAPP_CURSOR_COMMAND || "cursor";
+    const sessionDir = buildSessionProfileDir("cursor", sessionProfile);
+    await mkdir(sessionDir, { recursive: true });
+    return { status: "ready", command, args: ["--user-data-dir", sessionDir], env: {}, sessionDir };
+  }
+  return { status: "blocked", reason: `${id} 는 자동 로그인을 지원하지 않습니다.` };
+}
+
+export function launchLoginProcess(adapter) {
+  const child = spawn(adapter.command, adapter.args, {
+    cwd: REPO_ROOT,
+    env: { ...process.env, ...(adapter.env || {}) },
+    detached: true,
+    stdio: "ignore",
+    shell: process.platform === "win32",
+    windowsHide: false,
+  });
+  child.unref();
+  return { pid: child.pid || 0 };
+}
+
 function lineChunks(buffer, chunk) {
   const text = `${buffer}${chunk.toString("utf8")}`;
   const parts = text.split(/\r?\n/);
