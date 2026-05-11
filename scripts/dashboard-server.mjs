@@ -20,7 +20,7 @@ import {
   startRun,
   stopRun,
 } from "./dashboard-runtime.mjs";
-import { inspectEnvironment } from "./agent-environment-setup.mjs";
+import { inspectEnvironment, installMissingTargets } from "./agent-environment-setup.mjs";
 
 const REPO_ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 const DEFAULT_STATIC_DIR = path.join(REPO_ROOT, "apps", "dashboard", "dist");
@@ -63,6 +63,16 @@ async function handleApi(req, res, url) {
   }
   if (req.method === "GET" && url === "/api/agentapp/environment") {
     sendJson(res, 200, await inspectEnvironment());
+    return true;
+  }
+  if (req.method === "POST" && url === "/api/agentapp/environment/install") {
+    const body = await readBody(req);
+    const logs = [];
+    const result = await installMissingTargets({
+      target: body.target || "all",
+      onLog: (entry) => logs.push({ at: new Date().toISOString(), ...entry }),
+    });
+    sendJson(res, 200, { ...result, logs });
     return true;
   }
   if (req.method === "POST" && url === "/api/agentapp/accounts") {

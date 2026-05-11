@@ -308,6 +308,55 @@ function printReport(report) {
   );
 }
 
+export async function installMissingTargets(options = {}) {
+  const onLog = typeof options.onLog === "function" ? options.onLog : () => {};
+  const targetFilter = options.target || "all";
+  let report = await inspectEnvironment({ target: targetFilter });
+  const missing = report.targets.filter((target) => !target.ok && target.installable !== false && target.installCommand);
+  if (missing.length === 0) {
+    onLog({ level: "info", message: "설치가 필요한 도구가 없습니다." });
+    return { report, installed: [], failed: [] };
+  }
+  const installed = [];
+  const failed = [];
+  for (const target of missing) {
+    onLog({ level: "info", message: `[install] ${target.label}: ${target.installCommand}` });
+    const { command, args } = shellCommand(target.installCommand);
+    try {
+      await new Promise((resolve, reject) => {
+        const child = spawn(command, args, {
+          cwd: REPO_ROOT,
+          shell: false,
+          windowsHide: true,
+        });
+        child.stdout.on("data", (chunk) => {
+          for (const line of String(chunk).split(/\r?\n/)) {
+            const trimmed = line.trim();
+            if (trimmed) onLog({ level: "info", message: trimmed });
+          }
+        });
+        child.stderr.on("data", (chunk) => {
+          for (const line of String(chunk).split(/\r?\n/)) {
+            const trimmed = line.trim();
+            if (trimmed) onLog({ level: "warn", message: trimmed });
+          }
+        });
+        child.on("error", reject);
+        child.on("close", (code) =>
+          code === 0 ? resolve() : reject(new Error(`${target.id} install exited ${code}`)),
+        );
+      });
+      installed.push(target.id);
+      onLog({ level: "info", message: `[done] ${target.label}` });
+    } catch (error) {
+      failed.push({ id: target.id, error: error instanceof Error ? error.message : String(error) });
+      onLog({ level: "error", message: `[fail] ${target.label}: ${error instanceof Error ? error.message : error}` });
+    }
+  }
+  report = await inspectEnvironment({ target: targetFilter });
+  return { report, installed, failed };
+}
+
 async function executeInstall(targets) {
   for (const target of targets) {
     if (!target.installCommand || target.ok) continue;

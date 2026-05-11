@@ -447,3 +447,12 @@ NEXT_TASK.md 템플릿 확정: agent-next 생성물을 Required Reads, Execution
 - Git: not recorded
 - Decisions: none
 - Next: Claude/Gemini CLI 설치 또는 env override 후 authenticated cycle 재검증
+
+## 2026-05-11T04:38:13.960Z
+
+- Status: completed
+- Summary: 사용자/배포 PC 모두에서 누락 AI CLI 를 자동 설치할 수 있도록 dashboard install API + UI 버튼을 추가하고 EXE 를 재패키징했다.
+- Verification: pnpm validate; pnpm dashboard:build; pnpm agent:cycle-test --execute (timeout_stopped); pnpm desktop:pack; pnpm desktop:artifact sha256=bdb25a...
+- Git: not recorded
+- Decisions: none
+- Next: See tools/agent-orchestrator/handoff/NEXT_TASK.md

@@ -1015,6 +1015,29 @@ label {
   overflow-wrap: anywhere;
 }
 
+.installLog {
+  display: grid;
+  gap: 3px;
+  max-height: 180px;
+  overflow: auto;
+  margin-top: 8px;
+  padding: 8px;
+  border-radius: 6px;
+  background: #f8fafc;
+  border: 1px solid #e2e8f0;
+}
+
+.installLogLine {
+  color: #1f2937;
+  font-family: "Cascadia Mono", "SFMono-Regular", Consolas, monospace;
+  font-size: 0.72rem;
+  line-height: 1.4;
+  overflow-wrap: anywhere;
+}
+
+.installLogLine.warn { color: #92400e; }
+.installLogLine.error { color: #991b1b; }
+
 .promptBoxHeader {
   display: flex;
   flex-wrap: wrap;

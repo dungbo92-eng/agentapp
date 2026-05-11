@@ -1,6 +1,6 @@
 {
   "version": 1,
-  "run_id": "run-1778468648720",
+  "run_id": "run-1778473702812",
   "worker_id": "codex",
   "worker_kind": "codex",
   "workspace": "D:\\agentApp",
@@ -12,8 +12,8 @@
   "status": "interrupted",
   "reason": "user_stopped",
   "timestamps": {
-    "started_at": "2026-05-11T03:04:08.720Z",
-    "updated_at": "2026-05-11T03:05:09.623Z"
+    "started_at": "2026-05-11T04:28:22.812Z",
+    "updated_at": "2026-05-11T04:30:23.931Z"
   },
   "usage": {
     "provider": "codex",
@@ -32,13 +32,13 @@
     ],
     "result": "passed",
     "summary": "사전 검증 통과",
-    "log_path": "data/worker-launches/run-1778468648720/validate.log"
+    "log_path": "data/worker-launches/run-1778473702812/validate.log"
   },
   "adapter": {
     "mode": "command",
     "status": "stopped",
-    "prompt_path": "data/worker-launches/run-1778468648720/launch-prompt.md",
-    "log_path": "data/worker-launches/run-1778468648720/worker.log",
+    "prompt_path": "data/worker-launches/run-1778473702812/launch-prompt.md",
+    "log_path": "data/worker-launches/run-1778473702812/worker.log",
     "session_dir": "data/session-profiles/codex/local-account"
   },
   "handoff": {

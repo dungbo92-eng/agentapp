@@ -1,9 +1,9 @@
 # RELEASE_ARTIFACTS
 
-- Generated: 2026-05-11T03:18:03.403Z
+- Generated: 2026-05-11T04:37:25.651Z
 - Artifact: dist-desktop/AgentApp-0.1.0-x64.exe
-- Size bytes: 92005007
-- SHA256: 3dae74370d6b9ec73089a3081a3007345f4c97448dac4cfb0ba9cd149d26c28f
+- Size bytes: 92005024
+- SHA256: bdb25a2feacfb9ae45c91d1b9ec2e9f68145f66c6f27d3f88b8aea9a18223d29
 
 ## Run
 

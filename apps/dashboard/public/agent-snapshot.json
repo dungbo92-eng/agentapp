@@ -1,10 +1,10 @@
 {
-  "generated_at": "2026-05-11T03:18:17.165Z",
+  "generated_at": "2026-05-11T04:34:08.632Z",
   "repo_root": "D:\\agentApp",
   "progress": {
     "percent": 99,
-    "done": 68,
-    "total": 69,
+    "done": 69,
+    "total": 70,
     "phases": [
       {
         "title": "Phase 0 — 프로젝트 운영 골격",
@@ -344,8 +344,8 @@
       },
       {
         "title": "Phase 12 — v0.1.0 사용자 환경 검증",
-        "done": 5,
-        "total": 6,
+        "done": 6,
+        "total": 7,
         "items": [
           {
             "title": "설치 환경 점검/설치 명령 포함 (`pnpm agent:setup`)",
@@ -368,7 +368,11 @@
             "done": true
           },
           {
-            "title": "Claude/Gemini CLI 설치 후 실제 authenticated cycle 재검증",
+            "title": "Claude/Gemini CLI 자동 설치 (`pnpm agent:setup --install` + dashboard 환경 패널 자동 설치 버튼)",
+            "done": true
+          },
+          {
+            "title": "실제 authenticated cycle 재검증 (사용자 OAuth 후 dashboard Start)",
             "done": false
           }
         ]
@@ -555,7 +559,7 @@
       "generated": "",
       "decision_count": 0,
       "line_count": 14,
-      "excerpt": "# DASHBOARD_RUN\n\n- 생성 시각: 2026-05-11T03:05:09.623Z\n- 실행 상태 파일: tools/agent-orchestrator/handoff/run-states/dashboard-current.json\n- 작업 도구: codex\n- 상태: interrupted\n- 사유: user_stopped\n- 계정: local-account\n- 모델: gpt-5.4-mini\n- 프롬프트 본문: data/dashboard-runtime.json 에만 저장\n- 비밀 포함 여부: false\n\n## 요약\n\n대시보드가 codex 작업의 상태를 interrupted 로 기록했습니다. 프롬프트 본문은 data/dashboard-runtime.json 에만 저장됩니다.\n\n## 다음 단계\n\n로컬 실행 기록을 확인하고 NEXT_TASK.md 에서 이어가거나 새 작업을 시작하세요."
+      "excerpt": "# DASHBOARD_RUN\n\n- 생성 시각: 2026-05-11T04:30:23.931Z\n- 실행 상태 파일: tools/agent-orchestrator/handoff/run-states/dashboard-current.json\n- 작업 도구: codex\n- 상태: interrupted\n- 사유: user_stopped\n- 계정: local-account\n- 모델: gpt-5.4-mini\n- 프롬프트 본문: data/dashboard-runtime.json 에만 저장\n- 비밀 포함 여부: false\n\n## 요약\n\n대시보드가 codex 작업의 상태를 interrupted 로 기록했습니다. 프롬프트 본문은 data/dashboard-runtime.json 에만 저장됩니다.\n\n## 다음 단계\n\n로컬 실행 기록을 확인하고 NEXT_TASK.md 에서 이어가거나 새 작업을 시작하세요."
     },
     {
       "id": "decisions",
@@ -626,7 +630,7 @@
       "latest_status": "interrupted",
       "latest_reason": "user_stopped",
       "latest_task": "대시보드 시작 요청",
-      "latest_updated_at": "2026-05-11T03:05:09.623Z",
+      "latest_updated_at": "2026-05-11T04:30:23.931Z",
       "handoff_summary": "대시보드가 codex 작업의 상태를 interrupted 로 기록했습니다. 프롬프트 본문은 data/dashboard-runtime.json 에만 저장됩니다."
     },
     {

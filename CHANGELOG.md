@@ -8,7 +8,9 @@
 
 - `pnpm agent:setup`: Node.js, Git, pnpm, Codex, Claude Code, Cursor, Gemini CLI 설치와 PATH/env override 진단.
 - `pnpm agent:cycle-test`: 인증 완료 후 dashboard Start/worker/validation/handoff 한 사이클을 점검하는 통합 테스트 명령.
-- dashboard 환경 패널: AI CLI 누락 상태와 설치 명령 표시.
+- dashboard 환경 패널: AI CLI 누락 상태와 설치 명령 표시, **[누락 AI CLI 자동 설치] 버튼과 실시간 설치 로그**.
+- `POST /api/agentapp/environment/install` runtime API: dev/desktop 양쪽에서 누락 CLI 를 npm install -g 로 자동 설치하고 stdout/stderr 를 로그로 반환.
+- `installMissingTargets` runtime export: Electron 패키지 안에서도 콘솔 없이 stdout/stderr 캡처가 가능하도록 분리.
 
 ### Changed
 

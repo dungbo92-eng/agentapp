@@ -511,6 +511,8 @@ function App() {
   const [error, setError] = React.useState("");
   const [runtime, setRuntime] = React.useState<RuntimeState>(emptyRuntime);
   const [environment, setEnvironment] = React.useState<EnvironmentState | null>(null);
+  const [installing, setInstalling] = React.useState(false);
+  const [installLogs, setInstallLogs] = React.useState<{ at: string; level: string; message: string }[]>([]);
   const [runtimeStatus, setRuntimeStatus] = React.useState("로컬 설정 불러오는 중");
   const [lastRuntimeSyncAt, setLastRuntimeSyncAt] = React.useState("");
   const [prompt, setPrompt] = React.useState("");
@@ -588,6 +590,41 @@ function App() {
       setEnvironment(await environmentRequest());
     } catch {
       setEnvironment(null);
+    }
+  }, []);
+
+  const installMissingTools = React.useCallback(async (target: string = "ai") => {
+    setInstalling(true);
+    setInstallLogs([{ at: new Date().toISOString(), level: "info", message: `누락된 ${target === "ai" ? "AI CLI" : target} 설치를 시작합니다…` }]);
+    try {
+      const response = await fetch("/api/agentapp/environment/install", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ target }),
+      });
+      if (!response.ok) throw new Error(`install API failed: ${response.status}`);
+      const result = await response.json() as {
+        report: EnvironmentState;
+        installed: string[];
+        failed: { id: string; error: string }[];
+        logs: { at: string; level: string; message: string }[];
+      };
+      setInstallLogs(result.logs);
+      setEnvironment(result.report);
+      const installed = result.installed.length;
+      const failed = result.failed.length;
+      setToast({
+        kind: failed > 0 ? "warn" : "success",
+        message: failed > 0
+          ? `설치 완료 ${installed}개, 실패 ${failed}개. 로그를 확인하세요.`
+          : installed > 0
+            ? `${installed}개 도구를 설치했습니다. CLI 인증이 필요한 경우 [로그인 시작] 을 사용하세요.`
+            : "추가로 설치할 도구가 없습니다.",
+      });
+    } catch (caught) {
+      setToast({ kind: "warn", message: caught instanceof Error ? caught.message : "설치 요청에 실패했습니다" });
+    } finally {
+      setInstalling(false);
     }
   }, []);
 
@@ -1522,14 +1559,34 @@ function App() {
           <span>설치된 도구</span>
           <ProgressBar value={environment ? Math.round((environment.summary.ok / Math.max(1, environment.summary.total)) * 100) : 0} />
           {missingAiTools.length > 0 ? (
-            <div className="installList">
-              {missingAiTools.slice(0, 3).map((target) => (
-                <code key={target.id}>{target.installCommand}</code>
-              ))}
-            </div>
+            <>
+              <div className="installList">
+                {missingAiTools.slice(0, 3).map((target) => (
+                  <code key={target.id}>{target.installCommand}</code>
+                ))}
+              </div>
+              <button
+                className="button primary"
+                type="button"
+                disabled={installing}
+                title="누락된 AI CLI 도구들을 자동으로 설치합니다 (npm install -g)"
+                onClick={() => void installMissingTools("ai")}
+              >
+                {installing ? "설치 중…" : "누락된 AI CLI 자동 설치"}
+              </button>
+            </>
           ) : (
             <small>AI CLI 경로 점검 완료</small>
           )}
+          {installLogs.length > 0 ? (
+            <div className="installLog">
+              {installLogs.slice(-8).map((entry, index) => (
+                <div className={`installLogLine ${entry.level}`} key={`${entry.at}-${index}`}>
+                  {entry.message}
+                </div>
+              ))}
+            </div>
+          ) : null}
         </section>
 
         <section className="railPanel">
