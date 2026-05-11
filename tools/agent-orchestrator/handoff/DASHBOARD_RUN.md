@@ -1,18 +1,18 @@
 # DASHBOARD_RUN
 
-- 생성 시각: 2026-05-11T04:30:23.931Z
+- 생성 시각: 2026-05-11T07:32:39.363Z
 - 실행 상태 파일: tools/agent-orchestrator/handoff/run-states/dashboard-current.json
-- 작업 도구: codex
+- 작업 도구: cursor
 - 상태: interrupted
 - 사유: user_stopped
 - 계정: local-account
-- 모델: gpt-5.4-mini
+- 모델: efficient
 - 프롬프트 본문: data/dashboard-runtime.json 에만 저장
 - 비밀 포함 여부: false
 
 ## 요약
 
-대시보드가 codex 작업의 상태를 interrupted 로 기록했습니다. 프롬프트 본문은 data/dashboard-runtime.json 에만 저장됩니다.
+대시보드가 cursor 작업의 상태를 interrupted 로 기록했습니다. 프롬프트 본문은 data/dashboard-runtime.json 에만 저장됩니다.
 
 ## 다음 단계
 

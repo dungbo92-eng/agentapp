@@ -1,8 +1,8 @@
 {
   "version": 1,
-  "run_id": "run-1778473702812",
-  "worker_id": "codex",
-  "worker_kind": "codex",
+  "run_id": "run-1778484697511",
+  "worker_id": "cursor",
+  "worker_kind": "cursor",
   "workspace": "D:\\agentApp",
   "task": {
     "id": "dashboard-run",
@@ -12,16 +12,16 @@
   "status": "interrupted",
   "reason": "user_stopped",
   "timestamps": {
-    "started_at": "2026-05-11T04:28:22.812Z",
-    "updated_at": "2026-05-11T04:30:23.931Z"
+    "started_at": "2026-05-11T07:31:37.511Z",
+    "updated_at": "2026-05-11T07:32:39.363Z"
   },
   "usage": {
-    "provider": "codex",
+    "provider": "cursor",
     "account_id": "local-account",
     "login_label": "local-account",
     "session_profile": "local-account",
     "auth_method": "google",
-    "model_tier": "gpt-5.4-mini",
+    "model_tier": "efficient",
     "reasoning_effort": "medium",
     "estimated_units": 3,
     "budget_status": "reserved"
@@ -32,17 +32,17 @@
     ],
     "result": "passed",
     "summary": "사전 검증 통과",
-    "log_path": "data/worker-launches/run-1778473702812/validate.log"
+    "log_path": "data/worker-launches/run-1778484697511/validate.log"
   },
   "adapter": {
-    "mode": "command",
+    "mode": "open-window",
     "status": "stopped",
-    "prompt_path": "data/worker-launches/run-1778473702812/launch-prompt.md",
-    "log_path": "data/worker-launches/run-1778473702812/worker.log",
-    "session_dir": "data/session-profiles/codex/local-account"
+    "prompt_path": "data/worker-launches/run-1778484697511/launch-prompt.md",
+    "log_path": "data/worker-launches/run-1778484697511/worker.log",
+    "session_dir": "data/session-profiles/cursor/local-account"
   },
   "handoff": {
-    "summary": "대시보드가 codex 작업의 상태를 interrupted 로 기록했습니다. 프롬프트 본문은 data/dashboard-runtime.json 에만 저장됩니다.",
+    "summary": "대시보드가 cursor 작업의 상태를 interrupted 로 기록했습니다. 프롬프트 본문은 data/dashboard-runtime.json 에만 저장됩니다.",
     "next_step": "로컬 실행 기록을 확인하고 NEXT_TASK.md 에서 이어가거나 새 작업을 시작하세요.",
     "files": [
       "data/dashboard-runtime.json",

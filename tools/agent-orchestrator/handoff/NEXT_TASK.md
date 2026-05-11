@@ -1,6 +1,6 @@
 # NEXT_TASK
 
-- Generated: 2026-05-11T06:16:00.390Z
+- Generated: 2026-05-11T07:39:42.681Z
 - Selected task: Claude/Gemini CLI 설치 후 실제 authenticated cycle 재검증
 - Selection source: roadmap
 - Task id: n/a
@@ -303,7 +303,11 @@ workers:
   "version": 1,
   "selection": {
     "priority_order": "higher_first",
-    "skip_statuses": ["done", "blocked", "hold"],
+    "skip_statuses": [
+      "done",
+      "blocked",
+      "hold"
+    ],
     "pending_decisions_source": "tools/agent-orchestrator/handoff/DECISIONS_REQUIRED.md"
   },
   "tasks": [
@@ -333,7 +337,9 @@ workers:
       "phase": "phase-4",
       "priority": 90,
       "status": "done",
-      "depends_on": ["usage-budget-schema"],
+      "depends_on": [
+        "usage-budget-schema"
+      ],
       "blocked_by": [],
       "reason": "계정/예산 스키마가 있어야 추천 로직이 안정적으로 동작한다."
     },
@@ -343,7 +349,10 @@ workers:
       "phase": "phase-4",
       "priority": 85,
       "status": "done",
-      "depends_on": ["usage-budget-schema", "model-routing-cli"],
+      "depends_on": [
+        "usage-budget-schema",
+        "model-routing-cli"
+      ],
       "blocked_by": [],
       "reason": "모델 추천이 주말 예비분을 더 정확히 반영하려면 날짜 기반 예산 계산이 필요하다."
     },
@@ -353,7 +362,11 @@ workers:
       "phase": "phase-4",
       "priority": 80,
       "status": "done",
-      "depends_on": ["usage-budget-schema", "model-routing-cli", "weekly-budget-calculator"],
+      "depends_on": [
+        "usage-budget-schema",
+        "model-routing-cli",
+        "weekly-budget-calculator"
+      ],
       "blocked_by": [],
       "reason": "예산 부족 상태를 감지했을 때 자동 계정 전환이 아니라 작업 분해/사용자 결정 큐로 넘겨야 한다."
     },
@@ -373,14 +386,12 @@ workers:
       "phase": "phase-2",
       "priority": 65,
       "status": "done",
-      "depends_on": ["agent-progress-by-phase"],
+      "depends_on": [
+        "agent-progress-by-phase"
+      ],
       "blocked_by": [],
       "reason": "보고와 상태 갱신을 한 번에 묶어 handoff 누락을 줄인다."
     },
-    {
-      "id": "safe-dry-run",
-      "title": "안전 작업/보류 작업을 분류하는 dry-run 명령 추가",
-      "phase": "phase-2",
 
 ...truncated...
 ```

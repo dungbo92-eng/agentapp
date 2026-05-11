@@ -1,6 +1,7 @@
 #!/usr/bin/env node
 
 import { execFile, spawn } from "node:child_process";
+import { existsSync } from "node:fs";
 import { readFile } from "node:fs/promises";
 import { promisify } from "node:util";
 import { platform } from "node:os";
@@ -92,6 +93,28 @@ function shellCommand(command) {
   return isWindows()
     ? { command: windowsShell(), args: ["/d", "/s", "/c", command] }
     : { command: "sh", args: ["-lc", command] };
+}
+
+function needsWindowsShell(command) {
+  return isWindows() && /\.(cmd|bat)$/i.test(command);
+}
+
+function executableFromPathProbe(stdout) {
+  const lines = stdout
+    .split(/\r?\n/)
+    .map((line) => line.trim())
+    .filter(Boolean);
+  if (!isWindows()) return lines[0] || "";
+
+  const direct = lines.find((line) => /\.(exe|cmd|bat)$/i.test(line));
+  if (direct) return direct;
+  for (const line of lines) {
+    for (const extension of [".cmd", ".exe", ".bat"]) {
+      const candidate = `${line}${extension}`;
+      if (existsSync(candidate)) return candidate;
+    }
+  }
+  return lines[0] || "";
 }
 
 const TARGETS = [
@@ -251,6 +274,7 @@ async function run(command, args, options = {}) {
       timeout: options.timeoutMs || 15000,
       ...execOptions,
       env: installEnv(execOptions.env || process.env),
+      shell: execOptions.shell ?? needsWindowsShell(command),
     });
     return { ok: true, stdout: result.stdout.trim(), stderr: result.stderr.trim() };
   } catch (error) {
@@ -271,10 +295,7 @@ async function findCommand(commandName) {
   const probe = isWindows() ? windowsSystemCommand("where.exe") : "which";
   const result = await run(probe, [commandName], { timeoutMs: 5000 });
   if (!result.ok) return "";
-  return result.stdout
-    .split(/\r?\n/)
-    .map((line) => line.trim())
-    .find(Boolean) || "";
+  return executableFromPathProbe(result.stdout);
 }
 
 async function checkTarget(target) {

@@ -200,7 +200,20 @@ async function findInPath(name) {
   const probe = platform() === "win32" ? "where.exe" : "which";
   const result = await command(probe, [name]);
   if (!result.ok) return "";
-  return result.stdout.split(/\r?\n/).map((line) => line.trim()).find(Boolean) || "";
+  const lines = result.stdout
+    .split(/\r?\n/)
+    .map((line) => line.trim())
+    .filter(Boolean);
+  if (platform() !== "win32") return lines[0] || "";
+  const direct = lines.find((line) => /\.(exe|cmd|bat)$/i.test(line));
+  if (direct) return direct;
+  for (const line of lines) {
+    for (const extension of [".cmd", ".exe", ".bat"]) {
+      const candidate = `${line}${extension}`;
+      if (existsSync(candidate)) return candidate;
+    }
+  }
+  return lines[0] || "";
 }
 
 async function checkWorkerClis() {

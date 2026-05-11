@@ -2,7 +2,11 @@
   "version": 1,
   "selection": {
     "priority_order": "higher_first",
-    "skip_statuses": ["done", "blocked", "hold"],
+    "skip_statuses": [
+      "done",
+      "blocked",
+      "hold"
+    ],
     "pending_decisions_source": "tools/agent-orchestrator/handoff/DECISIONS_REQUIRED.md"
   },
   "tasks": [
@@ -32,7 +36,9 @@
       "phase": "phase-4",
       "priority": 90,
       "status": "done",
-      "depends_on": ["usage-budget-schema"],
+      "depends_on": [
+        "usage-budget-schema"
+      ],
       "blocked_by": [],
       "reason": "계정/예산 스키마가 있어야 추천 로직이 안정적으로 동작한다."
     },
@@ -42,7 +48,10 @@
       "phase": "phase-4",
       "priority": 85,
       "status": "done",
-      "depends_on": ["usage-budget-schema", "model-routing-cli"],
+      "depends_on": [
+        "usage-budget-schema",
+        "model-routing-cli"
+      ],
       "blocked_by": [],
       "reason": "모델 추천이 주말 예비분을 더 정확히 반영하려면 날짜 기반 예산 계산이 필요하다."
     },
@@ -52,7 +61,11 @@
       "phase": "phase-4",
       "priority": 80,
       "status": "done",
-      "depends_on": ["usage-budget-schema", "model-routing-cli", "weekly-budget-calculator"],
+      "depends_on": [
+        "usage-budget-schema",
+        "model-routing-cli",
+        "weekly-budget-calculator"
+      ],
       "blocked_by": [],
       "reason": "예산 부족 상태를 감지했을 때 자동 계정 전환이 아니라 작업 분해/사용자 결정 큐로 넘겨야 한다."
     },
@@ -72,7 +85,9 @@
       "phase": "phase-2",
       "priority": 65,
       "status": "done",
-      "depends_on": ["agent-progress-by-phase"],
+      "depends_on": [
+        "agent-progress-by-phase"
+      ],
       "blocked_by": [],
       "reason": "보고와 상태 갱신을 한 번에 묶어 handoff 누락을 줄인다."
     },
@@ -82,7 +97,9 @@
       "phase": "phase-2",
       "priority": 60,
       "status": "done",
-      "depends_on": ["agent-next-priority"],
+      "depends_on": [
+        "agent-next-priority"
+      ],
       "blocked_by": [],
       "reason": "실행 전에 allow/hold/deny 분류를 확인해야 한다."
     },
@@ -92,7 +109,9 @@
       "phase": "phase-2",
       "priority": 55,
       "status": "done",
-      "depends_on": ["agent-next-priority"],
+      "depends_on": [
+        "agent-next-priority"
+      ],
       "blocked_by": [],
       "reason": "Codex, Claude Code, Cursor, Gemini CLI별 handoff 시작을 표준화한다."
     },
@@ -102,7 +121,9 @@
       "phase": "phase-3",
       "priority": 58,
       "status": "done",
-      "depends_on": ["worker-prompt-templates"],
+      "depends_on": [
+        "worker-prompt-templates"
+      ],
       "blocked_by": [],
       "reason": "Codex Desktop에 맞는 시작 계약, 안전 분류, 모델 라우팅, 완료 보고 지침이 필요하다."
     },
@@ -112,7 +133,9 @@
       "phase": "phase-3",
       "priority": 56,
       "status": "done",
-      "depends_on": ["worker-prompt-templates"],
+      "depends_on": [
+        "worker-prompt-templates"
+      ],
       "blocked_by": [],
       "reason": "Claude Code의 CLAUDE.md 자동 로드와 터미널 중심 흐름에 맞춘 시작 프롬프트가 필요하다."
     },
@@ -122,7 +145,9 @@
       "phase": "phase-3",
       "priority": 54,
       "status": "done",
-      "depends_on": ["worker-prompt-templates"],
+      "depends_on": [
+        "worker-prompt-templates"
+      ],
       "blocked_by": [],
       "reason": "Cursor 작업공간에 붙여넣기 쉬운 IDE 중심 handoff 프롬프트가 필요하다."
     },
@@ -132,7 +157,9 @@
       "phase": "phase-3",
       "priority": 52,
       "status": "done",
-      "depends_on": ["worker-prompt-templates"],
+      "depends_on": [
+        "worker-prompt-templates"
+      ],
       "blocked_by": [],
       "reason": "worker가 멈춘 이유를 공통 상태로 기록해야 다음 에이전트가 안전하게 이어받는다."
     },
@@ -142,7 +169,9 @@
       "phase": "phase-3",
       "priority": 50,
       "status": "done",
-      "depends_on": ["worker-state-model"],
+      "depends_on": [
+        "worker-state-model"
+      ],
       "blocked_by": [],
       "reason": "외부 도구 실행이 불가능한 환경에서도 다음 worker가 이어받을 수 있어야 한다."
     },
@@ -152,7 +181,9 @@
       "phase": "phase-5",
       "priority": 45,
       "status": "done",
-      "depends_on": ["handoff-only-fallback"],
+      "depends_on": [
+        "handoff-only-fallback"
+      ],
       "blocked_by": [],
       "reason": "대시보드 구현 전에 로컬 read-only MVP에 맞는 가벼운 기술 스택을 확정한다."
     },
@@ -162,7 +193,9 @@
       "phase": "phase-5",
       "priority": 40,
       "status": "done",
-      "depends_on": ["dashboard-tech-selection"],
+      "depends_on": [
+        "dashboard-tech-selection"
+      ],
       "blocked_by": [],
       "reason": "CLI 기반 작업이 안정화되었고 로컬 대시보드 기술 선택이 완료되어 read-only 화면부터 진행한다."
     },
@@ -172,7 +205,9 @@
       "phase": "phase-5",
       "priority": 38,
       "status": "done",
-      "depends_on": ["dashboard-decision-screen"],
+      "depends_on": [
+        "dashboard-decision-screen"
+      ],
       "blocked_by": [],
       "reason": "worker registry와 run-state 요약을 대시보드에서 확인할 수 있어야 한다."
     },
@@ -182,7 +217,9 @@
       "phase": "phase-5",
       "priority": 36,
       "status": "done",
-      "depends_on": ["dashboard-worker-status"],
+      "depends_on": [
+        "dashboard-worker-status"
+      ],
       "blocked_by": [],
       "reason": "NEXT_TASK, RUN_STATUS, DECISIONS_REQUIRED 내용을 읽기 전용으로 확인하는 화면이 필요하다."
     },
@@ -192,7 +229,9 @@
       "phase": "phase-5",
       "priority": 34,
       "status": "done",
-      "depends_on": ["dashboard-handoff-viewer"],
+      "depends_on": [
+        "dashboard-handoff-viewer"
+      ],
       "blocked_by": [],
       "reason": "hold_for_user 또는 deny로 분류되는 작업과 대기 중 decision을 더 명확히 추적해야 한다."
     },
@@ -202,7 +241,9 @@
       "phase": "phase-5",
       "priority": 32,
       "status": "done",
-      "depends_on": ["dashboard-approval-queue"],
+      "depends_on": [
+        "dashboard-approval-queue"
+      ],
       "blocked_by": [],
       "reason": "품질 우선 모델 라우팅과 주말 예비 사용량을 대시보드에서 확인할 수 있어야 한다."
     },
@@ -212,7 +253,9 @@
       "phase": "phase-6",
       "priority": 30,
       "status": "done",
-      "depends_on": ["dashboard-usage-budget-view"],
+      "depends_on": [
+        "dashboard-usage-budget-view"
+      ],
       "blocked_by": [],
       "reason": "대시보드 MVP가 완성되었으므로 다음 단계는 안전한 주기 실행/자동화 연동 방식을 정리하는 것이다."
     },
@@ -222,7 +265,9 @@
       "phase": "phase-6",
       "priority": 28,
       "status": "done",
-      "depends_on": ["automation-integration-plan"],
+      "depends_on": [
+        "automation-integration-plan"
+      ],
       "blocked_by": [],
       "reason": "자동화 연동 원칙이 정리되었으므로 안전한 scheduled check/next 실행 명령을 구현한다."
     },
@@ -232,7 +277,9 @@
       "phase": "phase-6",
       "priority": 26,
       "status": "done",
-      "depends_on": ["scheduled-agent-next"],
+      "depends_on": [
+        "scheduled-agent-next"
+      ],
       "blocked_by": [],
       "reason": "주기 실행이 생겼으므로 pending decision을 사용자에게 안전하게 알리는 방식을 정리한다."
     },
@@ -242,7 +289,9 @@
       "phase": "phase-6",
       "priority": 24,
       "status": "done",
-      "depends_on": ["decision-notification-plan"],
+      "depends_on": [
+        "decision-notification-plan"
+      ],
       "blocked_by": [],
       "reason": "주기 점검과 보류 결정 알림이 생겼으므로 git/sync 상태를 자동 점검 결과에 더 명확히 반영한다."
     },
@@ -252,7 +301,9 @@
       "phase": "phase-7",
       "priority": 22,
       "status": "done",
-      "depends_on": ["git-sync-auto-check"],
+      "depends_on": [
+        "git-sync-auto-check"
+      ],
       "blocked_by": [],
       "reason": "MVP 기능과 자동화 점검이 갖춰졌으므로 새 PC/새 프로젝트 설치 가이드를 제품화 문서로 정리한다."
     },
@@ -262,7 +313,9 @@
       "phase": "phase-7",
       "priority": 20,
       "status": "done",
-      "depends_on": ["installation-guide"],
+      "depends_on": [
+        "installation-guide"
+      ],
       "blocked_by": [],
       "reason": "설치 가이드가 완성되었으므로 비밀값, 계정, 자동화, 외부 쓰기 경계를 제품화 문서로 정리했다."
     },
@@ -272,7 +325,9 @@
       "phase": "phase-7",
       "priority": 18,
       "status": "done",
-      "depends_on": ["security-model-doc"],
+      "depends_on": [
+        "security-model-doc"
+      ],
       "blocked_by": [],
       "reason": "보안 모델이 정리되었으므로 외부 MCP/플러그인을 어떤 권한 경계로 확장할지 제품화 전략으로 정리했다."
     },
@@ -282,7 +337,9 @@
       "phase": "phase-7",
       "priority": 16,
       "status": "done",
-      "depends_on": ["plugin-mcp-extension-plan"],
+      "depends_on": [
+        "plugin-mcp-extension-plan"
+      ],
       "blocked_by": [],
       "reason": "제품화 문서와 확장 전략이 정리되었으므로 새 PC 시작, handoff 이어받기, 예산 라우팅, 보류 결정, dashboard smoke test를 시나리오로 정리했다."
     },
@@ -292,7 +349,9 @@
       "phase": "phase-7",
       "priority": 14,
       "status": "done",
-      "depends_on": ["test-scenarios"],
+      "depends_on": [
+        "test-scenarios"
+      ],
       "blocked_by": [],
       "reason": "제품화 테스트 시나리오까지 정리되었으므로 release note와 v0.0.1 tag 기준을 정리했다."
     },
@@ -302,7 +361,9 @@
       "phase": "phase-8",
       "priority": 40,
       "status": "done",
-      "depends_on": ["first-release-tag"],
+      "depends_on": [
+        "first-release-tag"
+      ],
       "blocked_by": [],
       "reason": "사용자가 계정 연결 위치, 로컬 프로젝트 추가, 프롬프트 입력, Start/Stop UX가 없다고 지적해 통합 콘솔 화면 MVP를 추가했다."
     },
@@ -312,7 +373,9 @@
       "phase": "phase-8",
       "priority": 38,
       "status": "done",
-      "depends_on": ["dashboard-control-surface"],
+      "depends_on": [
+        "dashboard-control-surface"
+      ],
       "blocked_by": [],
       "reason": "dashboard dev server에 local-only runtime API를 추가해 계정/프로젝트 저장, Start 라우팅, Stop 상태 기록을 연결했다."
     },
@@ -322,7 +385,9 @@
       "phase": "phase-8",
       "priority": 36,
       "status": "done",
-      "depends_on": ["dashboard-control-surface"],
+      "depends_on": [
+        "dashboard-control-surface"
+      ],
       "blocked_by": [],
       "reason": "dashboard에서 추가한 로컬 프로젝트를 브라우저 localStorage가 아니라 gitignore된 data/dashboard-runtime.json 저장소에 유지한다."
     },
@@ -332,7 +397,9 @@
       "phase": "phase-8",
       "priority": 34,
       "status": "done",
-      "depends_on": ["dashboard-control-surface"],
+      "depends_on": [
+        "dashboard-control-surface"
+      ],
       "blocked_by": [],
       "reason": "Claude/Codex/Cursor 계정 별칭과 남은 예산 단위를 비밀값 없이 로컬 전용 파일로 편집할 수 있게 했다."
     },
@@ -342,7 +409,9 @@
       "phase": "phase-8",
       "priority": 33,
       "status": "done",
-      "depends_on": ["account-budget-local-store"],
+      "depends_on": [
+        "account-budget-local-store"
+      ],
       "blocked_by": [],
       "reason": "등록된 AI 계정은 유지하되 사용자가 enabled 토글로 사용 여부를 바꾸고, 꺼진 계정은 Start 라우팅 후보에서 제외되도록 했다."
     },
@@ -352,7 +421,9 @@
       "phase": "phase-8",
       "priority": 32,
       "status": "done",
-      "depends_on": ["account-enable-toggle"],
+      "depends_on": [
+        "account-enable-toggle"
+      ],
       "blocked_by": [],
       "reason": "사용자가 계정을 2개, 3개, 4개 등 동적으로 등록하고 공식 앱/CLI 로그인 후 Ready 상태로 표시할 수 있게 했다. Ready가 아닌 계정은 자동 라우팅에서 제외된다."
     },
@@ -362,7 +433,10 @@
       "phase": "phase-8",
       "priority": 31,
       "status": "done",
-      "depends_on": ["dashboard-local-execution-api", "account-session-readiness"],
+      "depends_on": [
+        "dashboard-local-execution-api",
+        "account-session-readiness"
+      ],
       "blocked_by": [],
       "reason": "Start/Stop이 local runtime 상태와 DASHBOARD_RUN/run-state handoff를 갱신해 다음 worker가 현재 실행 상태를 읽을 수 있게 했다. 실제 외부 worker 자동 실행은 계정/승인 우회 없이 별도 어댑터에서 진행한다."
     },
@@ -372,7 +446,9 @@
       "phase": "phase-8",
       "priority": 30,
       "status": "done",
-      "depends_on": ["worker-process-handoff-api"],
+      "depends_on": [
+        "worker-process-handoff-api"
+      ],
       "blocked_by": [],
       "reason": "Electron shell, dashboard local server, portable EXE build script를 추가했고 `pnpm desktop:pack`으로 dist-desktop/AgentApp-0.0.1-x64.exe 생성을 확인했다."
     },
@@ -382,7 +458,9 @@
       "phase": "phase-9",
       "priority": 29,
       "status": "done",
-      "depends_on": ["windows-exe-packaging"],
+      "depends_on": [
+        "windows-exe-packaging"
+      ],
       "blocked_by": [],
       "reason": "사용자가 고정 계정 조합이 아니라 AI tool, login method, email/id, alias, session profile을 직접 추가할 수 있게 했다."
     },
@@ -392,7 +470,9 @@
       "phase": "phase-9",
       "priority": 28,
       "status": "done",
-      "depends_on": ["account-login-setup-wizard"],
+      "depends_on": [
+        "account-login-setup-wizard"
+      ],
       "blocked_by": [],
       "reason": "desktop:artifact 스크립트와 RELEASE_ARTIFACTS.md 산출물을 추가해 EXE 파일 크기와 SHA256을 기록할 수 있게 했다."
     },
@@ -402,7 +482,9 @@
       "phase": "phase-9",
       "priority": 27,
       "status": "done",
-      "depends_on": ["account-login-setup-wizard"],
+      "depends_on": [
+        "account-login-setup-wizard"
+      ],
       "blocked_by": [],
       "reason": "사용자 입력 password/API key는 repo가 아니라 DPAPI 암호화 vault에 저장하고 runtime에는 credential reference만 남기도록 했다."
     },
@@ -412,7 +494,9 @@
       "phase": "phase-9",
       "priority": 26,
       "status": "done",
-      "depends_on": ["worker-process-handoff-api"],
+      "depends_on": [
+        "worker-process-handoff-api"
+      ],
       "blocked_by": [],
       "reason": "Start 화면에서 Auto/GPT/Claude 모델 override를 고르고 active run에서 line별 처리 내역을 볼 수 있게 했다."
     },
@@ -422,7 +506,10 @@
       "phase": "phase-10",
       "priority": 35,
       "status": "done",
-      "depends_on": ["local-encrypted-credential-vault", "model-override-run-console"],
+      "depends_on": [
+        "local-encrypted-credential-vault",
+        "model-override-run-console"
+      ],
       "blocked_by": [],
       "reason": "ready session profile을 실제 launch adapter에 연결했다. Codex는 command mode, Cursor는 open-window mode, Claude/Gemini는 manual fallback으로 시작하고 prompt/log/session dir를 runtime에 기록한다."
     },
@@ -432,7 +519,9 @@
       "phase": "phase-10",
       "priority": 34,
       "status": "done",
-      "depends_on": ["worker-session-profile-launch-adapters"],
+      "depends_on": [
+        "worker-session-profile-launch-adapters"
+      ],
       "blocked_by": [],
       "reason": "launch 전 pnpm validate preflight를 실행하고 결과를 active run과 DASHBOARD_RUN에 남기며, worker log path와 event tail을 dashboard runtime에 기록한다."
     },
@@ -442,7 +531,9 @@
       "phase": "phase-10",
       "priority": 33,
       "status": "done",
-      "depends_on": ["worker-session-profile-launch-adapters"],
+      "depends_on": [
+        "worker-session-profile-launch-adapters"
+      ],
       "blocked_by": [],
       "reason": "worker output에서 login/session expired 패턴을 감지하면 해당 계정을 needs-login으로 바꾸고 run을 needs_user handoff로 마감한다."
     },
@@ -452,7 +543,9 @@
       "phase": "phase-11",
       "priority": 32,
       "status": "done",
-      "depends_on": ["worker-session-profile-launch-adapters"],
+      "depends_on": [
+        "worker-session-profile-launch-adapters"
+      ],
       "blocked_by": [],
       "reason": "claude --print --permission-mode acceptEdits 를 session-profile별 CLAUDE_CONFIG_DIR 로 실행하는 command-mode adapter 를 추가했다. AGENTAPP_CLAUDE_COMMAND 환경변수로 CLI 경로를 override 할 수 있고 stdout 은 last-message 파일로 저장한다."
     },
@@ -462,7 +555,9 @@
       "phase": "phase-11",
       "priority": 31,
       "status": "done",
-      "depends_on": ["worker-session-profile-launch-adapters"],
+      "depends_on": [
+        "worker-session-profile-launch-adapters"
+      ],
       "blocked_by": [],
       "reason": "gemini -p 를 session-profile별 GEMINI_CONFIG_DIR 로 실행하는 command-mode adapter 를 추가했다. AGENTAPP_GEMINI_COMMAND 로 CLI 경로를 override 할 수 있고 stdout 은 last-message 파일로 저장한다."
     },
@@ -472,7 +567,9 @@
       "phase": "phase-11",
       "priority": 30,
       "status": "done",
-      "depends_on": ["session-expiry-needs-login-handoff"],
+      "depends_on": [
+        "session-expiry-needs-login-handoff"
+      ],
       "blocked_by": [],
       "reason": "agent-doctor 에 worker CLI 위치 확인과 등록된 계정별 session profile 인증 흔적 자동 점검을 추가했다. provider별 CLI 가 PATH 에 있는지, 각 계정의 session 디렉터리가 ready/needs-login 인지 doctor 출력으로 확인할 수 있다."
     },
@@ -482,7 +579,9 @@
       "phase": "phase-12",
       "priority": 34,
       "status": "done",
-      "depends_on": ["session-profile-readiness-doctor"],
+      "depends_on": [
+        "session-profile-readiness-doctor"
+      ],
       "blocked_by": [],
       "reason": "pnpm agent:setup 을 추가해 Node/Git/pnpm/Codex/Claude/Cursor/Gemini 설치와 PATH/env override 상태를 점검하고 누락 도구의 설치 명령을 출력하게 했다."
     },
@@ -492,7 +591,9 @@
       "phase": "phase-12",
       "priority": 33,
       "status": "done",
-      "depends_on": ["environment-setup-installer"],
+      "depends_on": [
+        "environment-setup-installer"
+      ],
       "blocked_by": [],
       "reason": "빈 상태, nav active 표시, 계정/프로젝트/예산 validation, live 사용량 동기화, 환경 패널, dev/prod runtime API parity 를 정리했다."
     },
@@ -502,7 +603,9 @@
       "phase": "phase-12",
       "priority": 32,
       "status": "done",
-      "depends_on": ["dashboard-ux-polish-v010"],
+      "depends_on": [
+        "dashboard-ux-polish-v010"
+      ],
       "blocked_by": [],
       "reason": "CHANGELOG 를 v0.1.0 으로 갱신하고 dist-desktop/AgentApp-0.1.0-x64.exe 와 SHA256 산출물을 재생성했다."
     },
@@ -512,9 +615,16 @@
       "phase": "phase-12",
       "priority": 31,
       "status": "hold",
-      "depends_on": ["release-v010-windows"],
-      "blocked_by": ["claude-cli-missing", "gemini-cli-missing", "user-authentication-required"],
-      "reason": "현재 PC에서 Codex dashboard cycle 은 Start와 validate까지 통과했지만 60초 내 worker 응답이 없어 중지됐다. Claude/Gemini CLI 는 아직 PATH 에 없어 실제 cycle 은 설치와 사용자 인증 이후 pnpm agent:cycle-test -- --worker <worker> --execute 로 재검증한다."
+      "depends_on": [
+        "release-v010-windows"
+      ],
+      "blocked_by": [
+        "codex-login-required",
+        "claude-login-required",
+        "gemini-login-required",
+        "cursor-manual-confirmation"
+      ],
+      "reason": "Codex/Claude/Cursor/Gemini CLI installation is complete. Codex reaches the CLI but returns 401 Unauthorized in the session profile, Claude/Gemini profiles still require user login, and Cursor opens successfully but needs manual UI completion."
     }
   ]
 }

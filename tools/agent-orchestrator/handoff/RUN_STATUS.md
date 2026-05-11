@@ -483,3 +483,12 @@ NEXT_TASK.md 템플릿 확정: agent-next 생성물을 Required Reads, Execution
 - Git: not recorded
 - Decisions: none
 - Next: 앱을 일반 실행하면 누락된 Claude/Gemini CLI 자동 설치가 시작됩니다. 설치 후 Claude/Gemini 수동 인증을 완료하고 authenticated cycle-test를 실행하세요.
+
+## 2026-05-11T07:37:25.813Z
+
+- Status: blocked
+- Summary: Installed Claude/Gemini CLI, fixed Windows npm shim execution for worker adapters, updated Gemini CLI launch syntax, rebuilt installer, and ran cycle tests. Remaining blocker is user authentication: Codex session profile returns 401, Claude/Gemini login profiles are empty, Cursor opens but requires manual UI completion.
+- Verification: node scripts/agent-environment-setup.mjs --target all --json: all 7 ok; node scripts/agent-doctor.mjs: CLI ok, auth warnings only; Codex cycle-test reached CLI and logged 401; Cursor cycle opened window with validation passed; pnpm.cmd validate; pnpm.cmd dashboard:build; pnpm.cmd desktop:installer; silent installer smoke; pnpm.cmd desktop:artifact
+- Git: not recorded
+- Decisions: none
+- Next: Complete the opened Codex/Claude/Gemini login flows manually, then click 재감지 or rerun node scripts/user-environment-cycle-test.mjs --worker <worker> --execute.

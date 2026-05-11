@@ -205,8 +205,46 @@ async function appendLog(file, text) {
   await appendFile(file, `${text}\n`, "utf8");
 }
 
+function isWindows() {
+  return process.platform === "win32";
+}
+
+function windowsSystemRoot() {
+  return process.env.SystemRoot || process.env.WINDIR || "C:\\Windows";
+}
+
+function windowsSystemCommand(commandName) {
+  return path.join(windowsSystemRoot(), "System32", commandName);
+}
+
+function windowsShell() {
+  return process.env.ComSpec || process.env.COMSPEC || windowsSystemCommand("cmd.exe");
+}
+
+function needsWindowsShell(command) {
+  return isWindows() && /\.(cmd|bat)$/i.test(command);
+}
+
+function executableFromPathProbe(stdout) {
+  const lines = stdout
+    .split(/\r?\n/)
+    .map((line) => line.trim())
+    .filter(Boolean);
+  if (!isWindows()) return lines[0] || "";
+
+  const direct = lines.find((line) => /\.(exe|cmd|bat)$/i.test(line));
+  if (direct) return direct;
+  for (const line of lines) {
+    for (const extension of [".cmd", ".exe", ".bat"]) {
+      const candidate = `${line}${extension}`;
+      if (existsSync(candidate)) return candidate;
+    }
+  }
+  return lines[0] || "";
+}
+
 async function commandPathFor(command) {
-  const probe = process.platform === "win32" ? "where.exe" : "which";
+  const probe = isWindows() ? windowsSystemCommand("where.exe") : "which";
   return new Promise((resolve) => {
     const child = spawn(probe, [command], { windowsHide: true });
     let stdout = "";
@@ -219,11 +257,7 @@ async function commandPathFor(command) {
         resolve("");
         return;
       }
-      const first = stdout
-        .split(/\r?\n/)
-        .map((line) => line.trim())
-        .find(Boolean);
-      resolve(first || "");
+      resolve(executableFromPathProbe(stdout));
     });
   });
 }
@@ -328,8 +362,6 @@ async function resolveAdapter(run, files) {
         run.routing?.model || run.modelOverride || "gpt-5.4",
         "--sandbox",
         "workspace-write",
-        "--ask-for-approval",
-        "never",
         "-o",
         files.lastMessagePath,
         "-",
@@ -433,7 +465,8 @@ async function resolveAdapter(run, files) {
       mode: "command",
       command,
       args: [
-        "-p",
+        "--prompt",
+        "-",
         ...(geminiModel ? ["--model", geminiModel] : []),
       ],
       env: {
@@ -478,7 +511,7 @@ export async function resolveLoginAdapter(provider, sessionProfile) {
     if (!command) return { status: "blocked", reason: "gemini CLI 가 PATH 에서 발견되지 않습니다." };
     const sessionDir = buildSessionProfileDir("gemini-cli", sessionProfile);
     await mkdir(sessionDir, { recursive: true });
-    return { status: "ready", command, args: ["auth", "login"], env: { GEMINI_CONFIG_DIR: sessionDir }, sessionDir, interactive: true };
+    return { status: "ready", command, args: [], env: { GEMINI_CONFIG_DIR: sessionDir }, sessionDir, interactive: true };
   }
   if (id === "cursor") {
     const command = process.env.AGENTAPP_CURSOR_COMMAND || "cursor";
@@ -498,7 +531,7 @@ export function launchLoginProcess(adapter) {
     // Open a new console window so the user can complete OAuth interactively.
     // cmd /c start "<title>" cmd /k "<command> <args>"
     const inner = [adapter.command, ...adapter.args].map((part) => (/\s/.test(part) ? `"${part}"` : part)).join(" ");
-    command = "cmd.exe";
+    command = windowsShell();
     args = ["/c", "start", "AgentApp Login", "cmd.exe", "/k", inner];
     shellMode = false;
   } else if (adapter.interactive && process.platform === "darwin") {
@@ -542,7 +575,7 @@ async function streamProcess(command, args, options = {}) {
       cwd: options.cwd || REPO_ROOT,
       env: { ...process.env, ...(options.env || {}) },
       windowsHide: options.windowsHide ?? true,
-      shell: options.shell ?? false,
+      shell: options.shell ?? needsWindowsShell(command),
       detached: options.detached ?? false,
     });
 
