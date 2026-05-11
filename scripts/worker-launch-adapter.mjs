@@ -140,6 +140,10 @@ function nowIso() {
   return new Date().toISOString();
 }
 
+function cappedRunEvents(events, nextEvent) {
+  return [...(events || []), nextEvent].slice(-120);
+}
+
 function sanitizeSegment(value) {
   return String(value || "default")
     .trim()
@@ -1159,11 +1163,99 @@ export async function executeRun(runId) {
 }
 
 export async function launchDashboardWorker(run) {
+  if (process.versions.electron && !process.env.ELECTRON_RUN_AS_NODE) {
+    await patchRunRecord(run.id, {
+      adapter: {
+        status: "launching",
+        mode: "runner",
+        runnerPid: process.pid,
+        inlineRunner: true,
+      },
+    });
+    await appendRunEvent(run.id, {
+      level: "info",
+      message: `작업 실행 어댑터를 앱 메인 프로세스에서 백그라운드로 시작했습니다 (pid ${process.pid}).`,
+    });
+    setImmediate(() => {
+      executeRun(run.id).catch(async (error) => {
+        const message = error instanceof Error ? error.message : String(error);
+        await finishRunRecord(
+          run.id,
+          {
+            status: "blocked",
+            adapter: {
+              status: "blocked",
+              mode: "runner",
+              runnerPid: process.pid,
+              inlineRunner: true,
+            },
+            events: cappedRunEvents(run.events || [], {
+              at: nowIso(),
+              level: "error",
+              message: `작업 실행 어댑터 시작 실패: ${message}`,
+            }),
+          },
+          {
+            handoffStatus: "blocked",
+            handoffReason: "runner_failed",
+          },
+        );
+      });
+    });
+    return;
+  }
+
+  if (!existsSync(process.execPath)) {
+    await finishRunRecord(
+      run.id,
+      {
+        status: "blocked",
+        adapter: {
+          status: "blocked",
+          mode: "runner",
+        },
+        events: cappedRunEvents(run.events || [], {
+          at: nowIso(),
+          level: "error",
+          message: `작업 실행 어댑터를 시작할 실행 파일을 찾지 못했습니다: ${process.execPath}`,
+        }),
+      },
+      {
+        handoffStatus: "blocked",
+        handoffReason: "runner_executable_missing",
+      },
+    );
+    return;
+  }
+
   const child = spawn(process.execPath, [SCRIPT_FILE, "--execute-run", run.id], {
     cwd: REPO_ROOT,
     detached: true,
     stdio: "ignore",
     windowsHide: true,
+  });
+
+  child.on("error", async (error) => {
+    const message = error instanceof Error ? error.message : String(error);
+    await finishRunRecord(
+      run.id,
+      {
+        status: "blocked",
+        adapter: {
+          status: "blocked",
+          mode: "runner",
+        },
+        events: cappedRunEvents(run.events || [], {
+          at: nowIso(),
+          level: "error",
+          message: `작업 실행 어댑터 시작 실패: ${message}`,
+        }),
+      },
+      {
+        handoffStatus: "blocked",
+        handoffReason: "runner_spawn_failed",
+      },
+    );
   });
   child.unref();
 
