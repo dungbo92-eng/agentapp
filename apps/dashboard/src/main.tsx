@@ -876,7 +876,7 @@ function App() {
       const next = await runtimeRequest("accounts/login", { id: account.id });
       setRuntime(next);
       setLastRuntimeSyncAt(new Date().toLocaleTimeString("ko-KR"));
-      setToast({ kind: "info", message: `'${account.displayName || account.id}' 로그인 창을 띄웠습니다. 인증 완료 후 [재감지]를 눌러주세요.` });
+      setToast({ kind: "info", message: `'${account.displayName || account.id}' 로그인을 위해 새 콘솔 창을 열었습니다. 그 창의 안내(URL/코드)를 따라 인증을 마친 뒤 [재감지]를 누르세요.` });
     } catch (caught) {
       setToast({ kind: "warn", message: caught instanceof Error ? caught.message : "로그인 시작에 실패했습니다" });
     }

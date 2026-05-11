@@ -418,38 +418,65 @@ export async function resolveLoginAdapter(provider, sessionProfile) {
     if (!command) return { status: "blocked", reason: "codex CLI 가 PATH 에서 발견되지 않습니다." };
     const sessionDir = buildSessionProfileDir("codex", sessionProfile);
     await mkdir(sessionDir, { recursive: true });
-    return { status: "ready", command, args: ["login"], env: { CODEX_HOME: sessionDir }, sessionDir };
+    return { status: "ready", command, args: ["login"], env: { CODEX_HOME: sessionDir }, sessionDir, interactive: true };
   }
   if (id === "claude" || id === "claude-code") {
     const command = process.env.AGENTAPP_CLAUDE_COMMAND || (await commandPathFor("claude"));
     if (!command) return { status: "blocked", reason: "claude CLI 가 PATH 에서 발견되지 않습니다." };
     const sessionDir = buildSessionProfileDir("claude-code", sessionProfile);
     await mkdir(sessionDir, { recursive: true });
-    return { status: "ready", command, args: [], env: { CLAUDE_CONFIG_DIR: sessionDir }, sessionDir };
+    return { status: "ready", command, args: ["auth", "login"], env: { CLAUDE_CONFIG_DIR: sessionDir }, sessionDir, interactive: true };
   }
   if (id === "gemini" || id === "gemini-cli") {
     const command = process.env.AGENTAPP_GEMINI_COMMAND || (await commandPathFor("gemini"));
     if (!command) return { status: "blocked", reason: "gemini CLI 가 PATH 에서 발견되지 않습니다." };
     const sessionDir = buildSessionProfileDir("gemini-cli", sessionProfile);
     await mkdir(sessionDir, { recursive: true });
-    return { status: "ready", command, args: ["auth", "login"], env: { GEMINI_CONFIG_DIR: sessionDir }, sessionDir };
+    return { status: "ready", command, args: ["auth", "login"], env: { GEMINI_CONFIG_DIR: sessionDir }, sessionDir, interactive: true };
   }
   if (id === "cursor") {
     const command = process.env.AGENTAPP_CURSOR_COMMAND || "cursor";
     const sessionDir = buildSessionProfileDir("cursor", sessionProfile);
     await mkdir(sessionDir, { recursive: true });
-    return { status: "ready", command, args: ["--user-data-dir", sessionDir], env: {}, sessionDir };
+    return { status: "ready", command, args: ["--user-data-dir", sessionDir], env: {}, sessionDir, interactive: false };
   }
   return { status: "blocked", reason: `${id} 는 자동 로그인을 지원하지 않습니다.` };
 }
 
 export function launchLoginProcess(adapter) {
-  const child = spawn(adapter.command, adapter.args, {
+  const env = { ...process.env, ...(adapter.env || {}) };
+  let command;
+  let args;
+  let shellMode;
+  if (adapter.interactive && process.platform === "win32") {
+    // Open a new console window so the user can complete OAuth interactively.
+    // cmd /c start "<title>" cmd /k "<command> <args>"
+    const inner = [adapter.command, ...adapter.args].map((part) => (/\s/.test(part) ? `"${part}"` : part)).join(" ");
+    command = "cmd.exe";
+    args = ["/c", "start", "AgentApp Login", "cmd.exe", "/k", inner];
+    shellMode = false;
+  } else if (adapter.interactive && process.platform === "darwin") {
+    const inner = [adapter.command, ...adapter.args].map((p) => `'${p.replace(/'/g, "'\\''")}'`).join(" ");
+    command = "osascript";
+    args = ["-e", `tell application "Terminal" to do script "${inner.replace(/"/g, '\\"')}"`];
+    shellMode = false;
+  } else if (adapter.interactive) {
+    // Linux: best-effort xterm
+    command = "xterm";
+    args = ["-e", `${adapter.command} ${adapter.args.join(" ")}`];
+    shellMode = false;
+  } else {
+    command = adapter.command;
+    args = adapter.args;
+    shellMode = process.platform === "win32";
+  }
+
+  const child = spawn(command, args, {
     cwd: REPO_ROOT,
-    env: { ...process.env, ...(adapter.env || {}) },
+    env,
     detached: true,
     stdio: "ignore",
-    shell: process.platform === "win32",
+    shell: shellMode,
     windowsHide: false,
   });
   child.unref();
