@@ -2,7 +2,7 @@
 
 import { appendFile, mkdir, readFile, writeFile, readdir, cp } from "node:fs/promises";
 import { existsSync } from "node:fs";
-import { homedir } from "node:os";
+import { homedir, tmpdir } from "node:os";
 import path from "node:path";
 import { spawn } from "node:child_process";
 import { fileURLToPath } from "node:url";
@@ -19,6 +19,15 @@ import {
 } from "./dashboard-runtime.mjs";
 
 const SCRIPT_FILE = fileURLToPath(import.meta.url);
+
+function safeSpawnCwd() {
+  if (REPO_ROOT.includes(`${path.sep}app.asar${path.sep}`) || REPO_ROOT.endsWith(`${path.sep}app.asar`)) {
+    return tmpdir();
+  }
+  if (!existsSync(REPO_ROOT)) return tmpdir();
+  return REPO_ROOT;
+}
+
 const WORKER_PROMPTS_DIR = path.join(REPO_ROOT, "tools", "agent-orchestrator", "handoff", "worker-prompts");
 const RUNS_DIR = path.join(DATA_DIR, "worker-launches");
 const LOGIN_PATTERNS_BY_PROVIDER = {
@@ -284,7 +293,7 @@ function openUrl(url) {
     args = [target];
   }
   const child = spawn(command, args, {
-    cwd: REPO_ROOT,
+    cwd: safeSpawnCwd(),
     detached: true,
     stdio: "ignore",
     shell: false,
@@ -580,7 +589,7 @@ export async function launchLoginProcess(adapter) {
   try {
     const invocation = spawnInvocation(adapter.command, adapter.args);
     child = spawn(invocation.command, invocation.args, {
-      cwd: REPO_ROOT,
+      cwd: safeSpawnCwd(),
       env,
       detached: true,
       stdio: ["ignore", "pipe", "pipe"],
@@ -746,7 +755,7 @@ async function runPreflight(run, files) {
     process.platform === "win32" ? "cmd.exe" : "sh",
     process.platform === "win32" ? ["/d", "/s", "/c", "pnpm validate"] : ["-lc", "pnpm validate"],
     {
-      cwd: REPO_ROOT,
+      cwd: safeSpawnCwd(),
       logPath: files.validationLogPath,
       windowsHide: true,
     },
@@ -809,7 +818,7 @@ async function launchCommandWorker(run, files, adapter, promptText) {
   });
 
   const result = await streamProcess(adapter.command, adapter.args, {
-    cwd: REPO_ROOT,
+    cwd: safeSpawnCwd(),
     env: adapter.env,
     logPath: files.launchLogPath,
     stdinText: promptText,
@@ -1001,7 +1010,7 @@ async function launchWindowWorker(run, files, adapter) {
   });
 
   const result = await streamProcess(adapter.command, adapter.args, {
-    cwd: REPO_ROOT,
+    cwd: safeSpawnCwd(),
     env: adapter.env,
     logPath: files.launchLogPath,
     windowsHide: true,
@@ -1229,7 +1238,7 @@ export async function launchDashboardWorker(run) {
   }
 
   const child = spawn(process.execPath, [SCRIPT_FILE, "--execute-run", run.id], {
-    cwd: REPO_ROOT,
+    cwd: safeSpawnCwd(),
     detached: true,
     stdio: "ignore",
     windowsHide: true,
