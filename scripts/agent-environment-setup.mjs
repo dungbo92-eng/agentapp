@@ -32,9 +32,65 @@ function isWindows() {
   return platform() === "win32";
 }
 
+function windowsSystemRoot() {
+  return process.env.SystemRoot || process.env.WINDIR || "C:\\Windows";
+}
+
+function windowsSystemCommand(commandName) {
+  return path.join(windowsSystemRoot(), "System32", commandName);
+}
+
+function windowsShell() {
+  return process.env.ComSpec || process.env.COMSPEC || windowsSystemCommand("cmd.exe");
+}
+
+function windowsToolPathEntries(baseEnv = process.env) {
+  const root = windowsSystemRoot();
+  const userProfile = baseEnv.USERPROFILE || "";
+  const appData = baseEnv.APPDATA || (userProfile ? path.join(userProfile, "AppData", "Roaming") : "");
+  const localAppData = baseEnv.LOCALAPPDATA || (userProfile ? path.join(userProfile, "AppData", "Local") : "");
+  return [
+    path.join(root, "System32"),
+    path.join(root, "System32", "Wbem"),
+    path.join(root, "System32", "WindowsPowerShell", "v1.0"),
+    path.join(root, "System32", "OpenSSH"),
+    path.join(root, "SysWOW64"),
+    root,
+    "C:\\Program Files\\nodejs",
+    "C:\\Program Files\\Git\\cmd",
+    "C:\\Program Files\\Git\\bin",
+    appData ? path.join(appData, "npm") : "",
+    localAppData ? path.join(localAppData, "Programs", "cursor", "resources", "app", "bin") : "",
+    localAppData ? path.join(localAppData, "Microsoft", "WindowsApps") : "",
+  ];
+}
+
+function installEnv(baseEnv = process.env) {
+  if (!isWindows()) return { ...baseEnv };
+  const nextEnv = { ...baseEnv };
+  const pathKey = Object.keys(nextEnv).find((key) => key.toLowerCase() === "path") || "Path";
+  for (const key of Object.keys(nextEnv)) {
+    if (key.toLowerCase() === "path" && key !== pathKey) delete nextEnv[key];
+  }
+  const entries = [...windowsToolPathEntries(nextEnv), nextEnv[pathKey] || ""]
+    .flatMap((entry) => String(entry).split(";"))
+    .map((entry) => entry.trim())
+    .filter(Boolean);
+  const seen = new Set();
+  nextEnv[pathKey] = entries
+    .filter((entry) => {
+      const key = entry.toLowerCase();
+      if (seen.has(key)) return false;
+      seen.add(key);
+      return true;
+    })
+    .join(";");
+  return nextEnv;
+}
+
 function shellCommand(command) {
   return isWindows()
-    ? { command: "cmd.exe", args: ["/d", "/s", "/c", command] }
+    ? { command: windowsShell(), args: ["/d", "/s", "/c", command] }
     : { command: "sh", args: ["-lc", command] };
 }
 
@@ -51,11 +107,21 @@ const TARGETS = [
     installable: isWindows(),
     required: true,
     checker: async () => {
-      const major = Number.parseInt(process.versions.node.split(".")[0], 10);
+      const commandPath = await findCommand("node");
+      if (!commandPath) {
+        return {
+          ok: false,
+          detail: "",
+          reason: "Node.js CLI를 찾지 못했습니다. AI CLI 설치에는 npm이 포함된 Node.js LTS가 필요합니다.",
+        };
+      }
+      const versionResult = await run(commandPath, ["--version"], { timeoutMs: 8000 });
+      const version = versionResult.ok ? versionResult.stdout.split(/\r?\n/)[0] || process.version : process.version;
+      const major = Number.parseInt(version.replace(/^v/, "").split(".")[0], 10);
       return {
         ok: major >= 20,
-        detail: process.version,
-        reason: major >= 20 ? "Node.js runtime is new enough." : "Node.js 20 이상이 필요합니다.",
+        detail: `${version} (${commandPath})`,
+        reason: major >= 20 ? "Node.js CLI is new enough." : "Node.js 20 이상이 필요합니다.",
       };
     },
   },
@@ -177,12 +243,14 @@ async function packageVersion() {
 }
 
 async function run(command, args, options = {}) {
+  const execOptions = options.execOptions || {};
   try {
     const result = await execFileAsync(command, args, {
       cwd: REPO_ROOT,
       windowsHide: true,
       timeout: options.timeoutMs || 15000,
-      ...options.execOptions,
+      ...execOptions,
+      env: installEnv(execOptions.env || process.env),
     });
     return { ok: true, stdout: result.stdout.trim(), stderr: result.stderr.trim() };
   } catch (error) {
@@ -200,7 +268,7 @@ async function runShell(command) {
 }
 
 async function findCommand(commandName) {
-  const probe = isWindows() ? "where.exe" : "which";
+  const probe = isWindows() ? windowsSystemCommand("where.exe") : "which";
   const result = await run(probe, [commandName], { timeoutMs: 5000 });
   if (!result.ok) return "";
   return result.stdout
@@ -272,6 +340,9 @@ export async function inspectEnvironment(options = {}) {
       missingRequired: missingRequired.length,
       ready: missingRequired.length === 0,
     },
+    autoInstall: {
+      aiCli: process.env.AGENTAPP_AUTO_INSTALL_AI_CLI !== "0",
+    },
     targets: targets.map((target) => ({
       id: target.id,
       group: target.group,
@@ -326,6 +397,7 @@ export async function installMissingTargets(options = {}) {
       await new Promise((resolve, reject) => {
         const child = spawn(command, args, {
           cwd: REPO_ROOT,
+          env: installEnv(),
           shell: false,
           windowsHide: true,
         });
@@ -366,8 +438,10 @@ async function executeInstall(targets) {
     }
     console.log(`[install] ${target.label}: ${target.installCommand}`);
     await new Promise((resolve, reject) => {
-      const child = spawn(shellCommand(target.installCommand).command, shellCommand(target.installCommand).args, {
+      const shell = shellCommand(target.installCommand);
+      const child = spawn(shell.command, shell.args, {
         cwd: REPO_ROOT,
+        env: installEnv(),
         stdio: "inherit",
         shell: false,
         windowsHide: false,

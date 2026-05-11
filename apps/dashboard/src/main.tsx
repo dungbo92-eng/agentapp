@@ -244,6 +244,7 @@ type EnvironmentTarget = {
   installCommand: string;
   afterInstall?: string;
   docs?: string;
+  installable?: boolean;
 };
 
 type EnvironmentState = {
@@ -255,6 +256,9 @@ type EnvironmentState = {
     missing: number;
     missingRequired: number;
     ready: boolean;
+  };
+  autoInstall?: {
+    aiCli: boolean;
   };
   targets: EnvironmentTarget[];
 };
@@ -512,6 +516,7 @@ function App() {
   const [runtime, setRuntime] = React.useState<RuntimeState>(emptyRuntime);
   const [environment, setEnvironment] = React.useState<EnvironmentState | null>(null);
   const [installing, setInstalling] = React.useState(false);
+  const [autoInstallAttempted, setAutoInstallAttempted] = React.useState(false);
   const [installLogs, setInstallLogs] = React.useState<{ at: string; level: string; message: string }[]>([]);
   const [runtimeStatus, setRuntimeStatus] = React.useState("로컬 설정 불러오는 중");
   const [lastRuntimeSyncAt, setLastRuntimeSyncAt] = React.useState("");
@@ -593,9 +598,19 @@ function App() {
     }
   }, []);
 
-  const installMissingTools = React.useCallback(async (target: string = "ai") => {
+  const installMissingTools = React.useCallback(async (target: string = "ai", mode: "manual" | "auto" = "manual") => {
+    const targetLabel = target === "ai" ? "AI CLI" : target === "all" ? "필수 환경/AI CLI" : target;
     setInstalling(true);
-    setInstallLogs([{ at: new Date().toISOString(), level: "info", message: `누락된 ${target === "ai" ? "AI CLI" : target} 설치를 시작합니다…` }]);
+    setInstallLogs([
+      {
+        at: new Date().toISOString(),
+        level: "info",
+        message:
+          mode === "auto"
+            ? `메인 화면에서 누락된 ${targetLabel}를 감지해 자동 설치를 시작합니다…`
+            : `누락된 ${targetLabel} 설치를 시작합니다…`,
+      },
+    ]);
     try {
       const response = await fetch("/api/agentapp/environment/install", {
         method: "POST",
@@ -622,7 +637,9 @@ function App() {
             : "추가로 설치할 도구가 없습니다.",
       });
     } catch (caught) {
-      setToast({ kind: "warn", message: caught instanceof Error ? caught.message : "설치 요청에 실패했습니다" });
+      const message = caught instanceof Error ? caught.message : "설치 요청에 실패했습니다";
+      setInstallLogs((current) => [...current, { at: new Date().toISOString(), level: "error", message }]);
+      setToast({ kind: "warn", message });
     } finally {
       setInstalling(false);
     }
@@ -649,6 +666,15 @@ function App() {
   }, [refreshEnvironment]);
 
   const [toast, setToast] = React.useState<{ kind: "success" | "warn" | "info"; message: string } | null>(null);
+  const missingInstallableToolCount =
+    environment?.targets.filter((target) => !target.ok && target.installable !== false && Boolean(target.installCommand)).length || 0;
+  const autoInstallAiCli = environment?.autoInstall?.aiCli !== false;
+
+  React.useEffect(() => {
+    if (!autoInstallAiCli || autoInstallAttempted || installing || missingInstallableToolCount === 0) return;
+    setAutoInstallAttempted(true);
+    void installMissingTools("all", "auto");
+  }, [autoInstallAiCli, autoInstallAttempted, installMissingTools, installing, missingInstallableToolCount]);
 
   React.useEffect(() => {
     if (!toast) return;
@@ -720,7 +746,9 @@ function App() {
   );
   const liveUsagePercent = liveUsage.weekly > 0 ? Math.round((liveUsage.remaining / liveUsage.weekly) * 100) : 0;
   const missingEnvironment = environment?.targets.filter((target) => !target.ok) || [];
-  const missingAiTools = missingEnvironment.filter((target) => target.group === "ai");
+  const missingInstallableTools = missingEnvironment.filter(
+    (target) => target.installable !== false && Boolean(target.installCommand),
+  );
 
   async function updateRuntime(operation: Promise<RuntimeState>) {
     try {
@@ -1558,10 +1586,10 @@ function App() {
           <strong className="bigNumber">{environment ? `${environment.summary.ok}/${environment.summary.total}` : "-"}</strong>
           <span>설치된 도구</span>
           <ProgressBar value={environment ? Math.round((environment.summary.ok / Math.max(1, environment.summary.total)) * 100) : 0} />
-          {missingAiTools.length > 0 ? (
+          {missingInstallableTools.length > 0 ? (
             <>
               <div className="installList">
-                {missingAiTools.slice(0, 3).map((target) => (
+                {missingInstallableTools.slice(0, 3).map((target) => (
                   <code key={target.id}>{target.installCommand}</code>
                 ))}
               </div>
@@ -1569,10 +1597,10 @@ function App() {
                 className="button primary"
                 type="button"
                 disabled={installing}
-                title="누락된 AI CLI 도구들을 자동으로 설치합니다 (npm install -g)"
-                onClick={() => void installMissingTools("ai")}
+                title="누락된 필수 환경과 AI CLI 도구들을 자동으로 설치합니다"
+                onClick={() => void installMissingTools("all")}
               >
-                {installing ? "설치 중…" : "누락된 AI CLI 자동 설치"}
+                {installing ? "설치 중…" : "누락 도구 자동 설치"}
               </button>
             </>
           ) : (

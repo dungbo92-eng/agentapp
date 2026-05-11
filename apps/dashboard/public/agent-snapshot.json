@@ -1,5 +1,5 @@
 {
-  "generated_at": "2026-05-11T06:00:16.209Z",
+  "generated_at": "2026-05-11T06:16:41.473Z",
   "repo_root": "D:\\agentApp",
   "progress": {
     "percent": 99,
@@ -376,7 +376,7 @@
     ]
   },
   "next_task": {
-    "generated": "2026-05-11T06:00:16.170Z",
+    "generated": "2026-05-11T06:16:00.390Z",
     "title": "Claude/Gemini CLI 설치 후 실제 authenticated cycle 재검증",
     "source": "roadmap",
     "id": "n/a",
@@ -391,11 +391,11 @@
     }
   ],
   "latest_run": {
-    "at": "2026-05-11T06:00:06.940Z",
+    "at": "2026-05-11T06:15:48.544Z",
     "status": "completed",
-    "summary": "NSIS System.dll crash 진단 후 installer를 custom prompt 없는 표준 NSIS로 재빌드하고 silent 설치/실행 검증까지 완료",
-    "verification": "win-unpacked AgentApp.exe 8초 생존; pnpm desktop:installer; installer UI 경로 6초 생존; installer /S temp 설치 exit 0; 설치된 AgentApp.exe 8초 생존; uninstaller /S exit 0; pnpm validate; pnpm desktop:artifact",
-    "next": "사용자 PC에서 AgentApp-Setup-0.1.0-x64.exe 더블클릭 설치 확인 후 dashboard 환경 패널에서 누락 CLI 자동 설치 실행"
+    "summary": "dashboard now auto-installs missing core tools and AI CLIs on main screen; Windows packaged install resolves cmd/where and common Node/Git/Cursor/npm paths without relying on PATH",
+    "verification": "PATH-empty agent:setup all json; pnpm validate; pnpm dashboard:build; pnpm desktop:installer; silent installer smoke with auto-install disabled; pnpm desktop:artifact",
+    "next": "앱을 일반 실행하면 누락된 Claude/Gemini CLI 자동 설치가 시작됩니다. 설치 후 Claude/Gemini 수동 인증을 완료하고 authenticated cycle-test를 실행하세요."
   },
   "approval_queue": {
     "pending_decisions": [
@@ -528,10 +528,10 @@
       "heading": "NEXT_TASK",
       "status": "roadmap",
       "next": "Claude/Gemini CLI 설치 후 실제 authenticated cycle 재검증",
-      "generated": "2026-05-11T06:00:16.170Z",
+      "generated": "2026-05-11T06:16:00.390Z",
       "decision_count": 0,
       "line_count": 478,
-      "excerpt": "# NEXT_TASK\n\n- Generated: 2026-05-11T06:00:16.170Z\n- Selected task: Claude/Gemini CLI 설치 후 실제 authenticated cycle 재검증\n- Selection source: roadmap\n- Task id: n/a\n- Task priority: n/a\n- Workspace: D:\\agentApp\n- Policy: tools/agent-orchestrator/approval-policy.yaml\n\n## Required Reads\n\n1. AGENTS.md\n2. .claude-sync/memory/project_state.md\n3. .claude-sync/plans/agent-orchestrator-roadmap.md\n4. tools/agent-orchestrator/approval-policy.yaml\n5. docs/usage-budget-model-routing.md\n6. docs/handoff-completion-protocol.md\n7. tools/agent-orchestrator/task-queue.json\n8. tools/agent-orchestrator/workers.example.yaml\n\n## Agent Prompt\n\n위 Required Reads를 먼저 읽고 시작한다.\n\n다음 작업을 진행한다:\n\n> Claude/Gemini CLI 설치 후 실제 authenticated cycle 재검증\n\n## Execution Rules\n\n- `auto_allowed`에 해당하는 로컬 작업은 바로 진행한다.\n- `hold_for_user` 또는 `user_required`에 해당하는 작업은 실행하지 말고 DECISIONS_REQUIRED.md에 남긴다.\n- `deny`에 해당하는 작업은 구현하지 않는다.\n- 비밀값, 계정 정보, 토큰, 쿠키, 운영 인증 정보는 파일/로그/문서에 남기지 않는다.\n- 작업 범위가 섞여 있으면 안전한 로컬 부분만 완료하고 보류 항목을 기록한다.\n- 개발 구현, 문서화, 테스트, 로컬 검증, handoff 갱신, commit/push는 추가 확인 없이 계속 진행한다.\n\n## Completion Checklist\n\n- pnpm validate\n- pnpm agent:doctor\n- pnpm agent:progress\n- pnpm agent:next\n- pnpm agent:sync\n- git status 확인\n- 검증된 변경 commit\n- 승인된 remote가 있으면 push\n\n## Handoff Updates\n\n- tools/agent-orchestrator/handoff/RUN_STATUS.md: 수행 내용과 검증 결과 추가\n- tools/agent-orchestrator/handoff/DECISIONS_REQUIRED.md: 사용자 결정 필요 항목 추가/해결 처리\n- .claude-sync/memory/project_state.md: 의미 있는 진행 반영\n- .claude-sync/plans/agent-orchestrator-roadmap.md: 완료된 roadmap 체크박스 갱신\n\n## Context Snapshot\n\n### Project State\n\n```md\n# Project State\n\nLast updated: 2026-05-11\n\n## 프로젝트 한 줄\n\nAgentApp은 여러 AI 개발 에이전트가 같은 memory/plan/handoff를 공유하며 안전한 작업을 이어받게 하는 멀티 에이전트 개발 오케스트레이터다.\n\n## 현재 상태\n\n- `AGENTS.md`, `CLAUDE.md` 공통 규칙 초안 생성.\n- `.claude-sync` memory/plan 동기화 구조 생성.\n- `scripts/claude-sync.mjs`, `install-hooks.mjs` 생성.\n- `scripts/agent-doctor.mjs`, `agent-next.mjs`, `agent-progress.mjs`, `agent-report.mjs` 생성.\n- `tools/agent-orchestrator` 아래 승인 정책, worker 예시, handoff 초안 생성.\n- `git init`, `pnpm install`, hook 설치 완료.\n- `pnpm validate`, `pnpm agent:doctor`, `pnpm agent:progress`, `pnpm agent:next`, `pnpm agent:status` 검증 완료.\n- 새 PC/새 에이전트 세션에서 `pnpm age..."
+      "excerpt": "# NEXT_TASK\n\n- Generated: 2026-05-11T06:16:00.390Z\n- Selected task: Claude/Gemini CLI 설치 후 실제 authenticated cycle 재검증\n- Selection source: roadmap\n- Task id: n/a\n- Task priority: n/a\n- Workspace: D:\\agentApp\n- Policy: tools/agent-orchestrator/approval-policy.yaml\n\n## Required Reads\n\n1. AGENTS.md\n2. .claude-sync/memory/project_state.md\n3. .claude-sync/plans/agent-orchestrator-roadmap.md\n4. tools/agent-orchestrator/approval-policy.yaml\n5. docs/usage-budget-model-routing.md\n6. docs/handoff-completion-protocol.md\n7. tools/agent-orchestrator/task-queue.json\n8. tools/agent-orchestrator/workers.example.yaml\n\n## Agent Prompt\n\n위 Required Reads를 먼저 읽고 시작한다.\n\n다음 작업을 진행한다:\n\n> Claude/Gemini CLI 설치 후 실제 authenticated cycle 재검증\n\n## Execution Rules\n\n- `auto_allowed`에 해당하는 로컬 작업은 바로 진행한다.\n- `hold_for_user` 또는 `user_required`에 해당하는 작업은 실행하지 말고 DECISIONS_REQUIRED.md에 남긴다.\n- `deny`에 해당하는 작업은 구현하지 않는다.\n- 비밀값, 계정 정보, 토큰, 쿠키, 운영 인증 정보는 파일/로그/문서에 남기지 않는다.\n- 작업 범위가 섞여 있으면 안전한 로컬 부분만 완료하고 보류 항목을 기록한다.\n- 개발 구현, 문서화, 테스트, 로컬 검증, handoff 갱신, commit/push는 추가 확인 없이 계속 진행한다.\n\n## Completion Checklist\n\n- pnpm validate\n- pnpm agent:doctor\n- pnpm agent:progress\n- pnpm agent:next\n- pnpm agent:sync\n- git status 확인\n- 검증된 변경 commit\n- 승인된 remote가 있으면 push\n\n## Handoff Updates\n\n- tools/agent-orchestrator/handoff/RUN_STATUS.md: 수행 내용과 검증 결과 추가\n- tools/agent-orchestrator/handoff/DECISIONS_REQUIRED.md: 사용자 결정 필요 항목 추가/해결 처리\n- .claude-sync/memory/project_state.md: 의미 있는 진행 반영\n- .claude-sync/plans/agent-orchestrator-roadmap.md: 완료된 roadmap 체크박스 갱신\n\n## Context Snapshot\n\n### Project State\n\n```md\n# Project State\n\nLast updated: 2026-05-11\n\n## 프로젝트 한 줄\n\nAgentApp은 여러 AI 개발 에이전트가 같은 memory/plan/handoff를 공유하며 안전한 작업을 이어받게 하는 멀티 에이전트 개발 오케스트레이터다.\n\n## 현재 상태\n\n- `AGENTS.md`, `CLAUDE.md` 공통 규칙 초안 생성.\n- `.claude-sync` memory/plan 동기화 구조 생성.\n- `scripts/claude-sync.mjs`, `install-hooks.mjs` 생성.\n- `scripts/agent-doctor.mjs`, `agent-next.mjs`, `agent-progress.mjs`, `agent-report.mjs` 생성.\n- `tools/agent-orchestrator` 아래 승인 정책, worker 예시, handoff 초안 생성.\n- `git init`, `pnpm install`, hook 설치 완료.\n- `pnpm validate`, `pnpm agent:doctor`, `pnpm agent:progress`, `pnpm agent:next`, `pnpm agent:status` 검증 완료.\n- 새 PC/새 에이전트 세션에서 `pnpm age..."
     },
     {
       "id": "run-status",
@@ -539,11 +539,11 @@
       "path": "tools/agent-orchestrator/handoff/RUN_STATUS.md",
       "heading": "RUN_STATUS",
       "status": "completed",
-      "next": "사용자 PC에서 AgentApp-Setup-0.1.0-x64.exe 더블클릭 설치 확인 후 dashboard 환경 패널에서 누락 CLI 자동 설치 실행",
-      "generated": "2026-05-11T06:00:06.940Z",
+      "next": "앱을 일반 실행하면 누락된 Claude/Gemini CLI 자동 설치가 시작됩니다. 설치 후 Claude/Gemini 수동 인증을 완료하고 authenticated cycle-test를 실행하세요.",
+      "generated": "2026-05-11T06:15:48.544Z",
       "decision_count": 0,
-      "line_count": 357,
-      "excerpt": "...trator/handoff/NEXT_TASK.md\n\n## 2026-05-10T23:02:58.933Z\n\n- Status: completed\n- Summary: Phase 11 Claude Code command-mode adapter profile 추가\n- Verification: pnpm validate; pnpm agent:progress\n- Git: not recorded\n- Decisions: none\n- Next: See tools/agent-orchestrator/handoff/NEXT_TASK.md\n\n## 2026-05-10T23:18:42.248Z\n\n- Status: completed\n- Summary: dashboard 계정 UX 자동화: 폼 collapsible, 세션 자동 감지, plan별 사용량 자동\n- Verification: pnpm validate; pnpm dashboard:build; live API test (add+detect)\n- Git: not recorded\n- Decisions: none\n- Next: See tools/agent-orchestrator/handoff/NEXT_TASK.md\n\n## 2026-05-11T01:01:02.737Z\n\n- Status: completed\n- Summary: Phase 11 완료 (4/4): Gemini adapter, detector 보강, doctor session readiness 진단\n- Verification: pnpm validate; pnpm agent:doctor; pnpm agent:progress=100%\n- Git: not recorded\n- Decisions: none\n- Next: See tools/agent-orchestrator/handoff/NEXT_TASK.md\n\n## 2026-05-11T03:14:25.871Z\n\n- Status: completed\n- Summary: v0.1.0 사용자 환경 설치/점검, dashboard UX polish, cycle test CLI, Windows EXE 재패키징 완료\n- Verification: pnpm validate; pnpm dashboard:build; pnpm agent:setup; pnpm agent:cycle-test; dashboard-server smoke; pnpm desktop:pack; pnpm desktop:artifact\n- Git: not recorded\n- Decisions: none\n- Next: Claude/Gemini CLI 설치 또는 env override 후 authenticated cycle 재검증\n\n## 2026-05-11T04:38:13.960Z\n\n- Status: completed\n- Summary: 사용자/배포 PC 모두에서 누락 AI CLI 를 자동 설치할 수 있도록 dashboard install API + UI 버튼을 추가하고 EXE 를 재패키징했다.\n- Verification: pnpm validate; pnpm dashboard:build; pnpm agent:cycle-test --execute (timeout_stopped); pnpm desktop:pack; pnpm desktop:artifact sha256=bdb25a...\n- Git: not recorded\n- Decisions: none\n- Next: See tools/agent-orchestrator/handoff/NEXT_TASK.md\n\n## 2026-05-11T06:00:06.940Z\n\n- Status: completed\n- Summary: NSIS System.dll crash 진단 후 installer를 custom prompt 없는 표준 NSIS로 재빌드하고 silent 설치/실행 검증까지 완료\n- Verification: win-unpacked AgentApp.exe 8초 생존; pnpm desktop:installer; installer UI 경로 6초 생존; installer /S temp 설치 exit 0; 설치된 AgentApp.exe 8초 생존; uninstaller /S exit 0; pnpm validate; pnpm desktop:artifact\n- Git: not recorded\n- Decisions: none\n- Next: 사용자 PC에서 AgentApp-Setup-0.1.0-x64.exe 더블클릭 설치 확인 후 dashboard 환경 패널에서 누락 CLI 자동 설치 실행"
+      "line_count": 371,
+      "excerpt": "...료\n- Verification: pnpm validate; pnpm dashboard:build; pnpm agent:setup; pnpm agent:cycle-test; dashboard-server smoke; pnpm desktop:pack; pnpm desktop:artifact\n- Git: not recorded\n- Decisions: none\n- Next: Claude/Gemini CLI 설치 또는 env override 후 authenticated cycle 재검증\n\n## 2026-05-11T04:38:13.960Z\n\n- Status: completed\n- Summary: 사용자/배포 PC 모두에서 누락 AI CLI 를 자동 설치할 수 있도록 dashboard install API + UI 버튼을 추가하고 EXE 를 재패키징했다.\n- Verification: pnpm validate; pnpm dashboard:build; pnpm agent:cycle-test --execute (timeout_stopped); pnpm desktop:pack; pnpm desktop:artifact sha256=bdb25a...\n- Git: not recorded\n- Decisions: none\n- Next: See tools/agent-orchestrator/handoff/NEXT_TASK.md\n\n## 2026-05-11T06:00:06.940Z\n\n- Status: completed\n- Summary: NSIS System.dll crash 진단 후 installer를 custom prompt 없는 표준 NSIS로 재빌드하고 silent 설치/실행 검증까지 완료\n- Verification: win-unpacked AgentApp.exe 8초 생존; pnpm desktop:installer; installer UI 경로 6초 생존; installer /S temp 설치 exit 0; 설치된 AgentApp.exe 8초 생존; uninstaller /S exit 0; pnpm validate; pnpm desktop:artifact\n- Git: not recorded\n- Decisions: none\n- Next: 사용자 PC에서 AgentApp-Setup-0.1.0-x64.exe 더블클릭 설치 확인 후 dashboard 환경 패널에서 누락 CLI 자동 설치 실행\n\n## 2026-05-11T06:11:47.980Z\n\n- Status: completed\n- Summary: dashboard AI CLI auto-install now starts on main screen and Windows packaged install uses absolute cmd/where paths\n- Verification: PATH-empty agent:setup ai json; pnpm validate; pnpm dashboard:build; pnpm desktop:installer; silent installer smoke; pnpm desktop:artifact\n- Git: not recorded\n- Decisions: none\n- Next: 사용자 PC에서 앱 실행 후 Claude/Gemini CLI 자동 설치 로그 확인, 이후 수동 인증 후 cycle-test 실행\n\n## 2026-05-11T06:15:48.544Z\n\n- Status: completed\n- Summary: dashboard now auto-installs missing core tools and AI CLIs on main screen; Windows packaged install resolves cmd/where and common Node/Git/Cursor/npm paths without relying on PATH\n- Verification: PATH-empty agent:setup all json; pnpm validate; pnpm dashboard:build; pnpm desktop:installer; silent installer smoke with auto-install disabled; pnpm desktop:artifact\n- Git: not recorded\n- Decisions: none\n- Next: 앱을 일반 실행하면 누락된 Claude/Gemini CLI 자동 설치가 시작됩니다. 설치 후 Claude/Gemini 수동 인증을 완료하고 authenticated cycle-test를 실행하세요."
     },
     {
       "id": "dashboard-run",

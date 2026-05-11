@@ -16,7 +16,7 @@ import {
   startRun,
   stopRun,
 } from "../../scripts/dashboard-runtime.mjs";
-import { inspectEnvironment } from "../../scripts/agent-environment-setup.mjs";
+import { inspectEnvironment, installMissingTargets } from "../../scripts/agent-environment-setup.mjs";
 
 async function readBody(req: import("node:http").IncomingMessage) {
   const chunks: Buffer[] = [];
@@ -51,6 +51,16 @@ export default defineConfig({
             }
             if (req.method === "GET" && url === "/api/agentapp/environment") {
               sendJson(res, 200, await inspectEnvironment());
+              return;
+            }
+            if (req.method === "POST" && url === "/api/agentapp/environment/install") {
+              const body = await readBody(req);
+              const logs: { at: string; level: string; message: string }[] = [];
+              const result = await installMissingTargets({
+                target: body.target || "all",
+                onLog: (entry) => logs.push({ at: new Date().toISOString(), ...entry }),
+              });
+              sendJson(res, 200, { ...result, logs });
               return;
             }
             if (req.method === "POST" && url === "/api/agentapp/accounts") {
