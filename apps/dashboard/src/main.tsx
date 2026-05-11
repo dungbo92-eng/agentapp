@@ -471,6 +471,85 @@ function IconButton({
   );
 }
 
+function useFlashOnChange<T>(value: T): number {
+  const [flashKey, setFlashKey] = React.useState(0);
+  const previousRef = React.useRef<T>(value);
+  React.useEffect(() => {
+    if (previousRef.current !== value) {
+      previousRef.current = value;
+      setFlashKey((current) => current + 1);
+    }
+  }, [value]);
+  return flashKey;
+}
+
+function useNumericHistory(value: number, max = 24): number[] {
+  const [history, setHistory] = React.useState<number[]>(() =>
+    Number.isFinite(value) ? [value] : [],
+  );
+  React.useEffect(() => {
+    if (!Number.isFinite(value)) return;
+    setHistory((previous) => {
+      const last = previous[previous.length - 1];
+      if (last === value && previous.length > 0) return previous;
+      const next = previous.length >= max ? previous.slice(previous.length - max + 1) : previous;
+      return [...next, value];
+    });
+  }, [value, max]);
+  return history;
+}
+
+function Sparkline({
+  values,
+  width = 96,
+  height = 24,
+  stroke = "currentColor",
+  fill = "rgba(37, 99, 235, 0.12)",
+  ariaLabel,
+}: {
+  values: number[];
+  width?: number;
+  height?: number;
+  stroke?: string;
+  fill?: string;
+  ariaLabel?: string;
+}) {
+  if (!values || values.length < 2) {
+    return <span className="sparkline sparkline-empty" aria-hidden="true" />;
+  }
+  const min = Math.min(...values);
+  const max = Math.max(...values);
+  const range = max - min || 1;
+  const stepX = width / (values.length - 1);
+  const pad = 1.5;
+  const usable = height - pad * 2;
+  const points = values.map((value, index) => {
+    const x = index * stepX;
+    const y = pad + (1 - (value - min) / range) * usable;
+    return `${x.toFixed(2)},${y.toFixed(2)}`;
+  });
+  const polyline = points.join(" ");
+  const area = `0,${height} ${polyline} ${width},${height}`;
+  const lastX = width;
+  const lastValue = values[values.length - 1];
+  const lastY = pad + (1 - (lastValue - min) / range) * usable;
+  return (
+    <svg
+      className="sparkline"
+      width={width}
+      height={height}
+      viewBox={`0 0 ${width} ${height}`}
+      role={ariaLabel ? "img" : undefined}
+      aria-label={ariaLabel}
+      aria-hidden={ariaLabel ? undefined : "true"}
+    >
+      <polygon fill={fill} stroke="none" points={area} />
+      <polyline fill="none" stroke={stroke} strokeWidth="1.4" strokeLinejoin="round" strokeLinecap="round" points={polyline} />
+      <circle cx={lastX} cy={lastY} r="1.8" fill={stroke} />
+    </svg>
+  );
+}
+
 function ProgressBar({ value, live }: { value: number; live?: boolean }) {
   const clamped = Math.min(100, Math.max(0, value));
   const indeterminate = Boolean(live) && clamped === 0;
@@ -485,14 +564,28 @@ function ProgressBar({ value, live }: { value: number; live?: boolean }) {
   );
 }
 
-function Stat({ label, value, icon: Icon }: { label: string; value: string; icon: LucideIcon }) {
+function Stat({
+  label,
+  value,
+  icon: Icon,
+  trend,
+}: {
+  label: string;
+  value: string;
+  icon: LucideIcon;
+  trend?: number[];
+}) {
+  const flashKey = useFlashOnChange(value);
   return (
     <section className="stat">
       <Icon aria-hidden="true" size={17} />
       <div>
         <span>{label}</span>
-        <strong>{value}</strong>
+        <strong key={flashKey} data-flash="changed">
+          {value}
+        </strong>
       </div>
+      {trend && trend.length >= 2 ? <Sparkline values={trend} width={64} height={20} /> : null}
     </section>
   );
 }
@@ -819,6 +912,17 @@ function App() {
     { remaining: 0, weekly: 0 },
   );
   const liveUsagePercent = liveUsage.weekly > 0 ? Math.round((liveUsage.remaining / liveUsage.weekly) * 100) : 0;
+  const usageHistory = useNumericHistory(liveUsage.remaining);
+  const usageFlashKey = useFlashOnChange(liveUsage.remaining);
+  const environmentPercent = environment
+    ? Math.round((environment.summary.ok / Math.max(1, environment.summary.total)) * 100)
+    : 0;
+  const environmentHistory = useNumericHistory(environmentPercent);
+  const environmentFlashKey = useFlashOnChange(environmentPercent);
+  const roadmapHistory = useNumericHistory(snapshot.progress.percent);
+  const doneHistory = useNumericHistory(snapshot.progress.done);
+  const approvalHistory = useNumericHistory(approvalCount);
+  const accountsHistory = useNumericHistory(accounts.length);
   const missingEnvironment = environment?.targets.filter((target) => !target.ok) || [];
   const missingInstallableTools = missingEnvironment.filter(
     (target) => target.installable !== false && Boolean(target.installCommand),
@@ -1366,10 +1470,10 @@ function App() {
         </header>
 
         <section className="overview">
-          <Stat label="로드맵" value={`${snapshot.progress.percent}%`} icon={Gauge} />
-          <Stat label="완료" value={`${snapshot.progress.done}/${snapshot.progress.total}`} icon={CheckCircle2} />
-          <Stat label="결정 필요" value={String(approvalCount)} icon={AlertCircle} />
-          <Stat label="계정 수" value={String(accounts.length)} icon={KeyRound} />
+          <Stat label="로드맵" value={`${snapshot.progress.percent}%`} icon={Gauge} trend={roadmapHistory} />
+          <Stat label="완료" value={`${snapshot.progress.done}/${snapshot.progress.total}`} icon={CheckCircle2} trend={doneHistory} />
+          <Stat label="결정 필요" value={String(approvalCount)} icon={AlertCircle} trend={approvalHistory} />
+          <Stat label="계정 수" value={String(accounts.length)} icon={KeyRound} trend={accountsHistory} />
         </section>
 
         <section className="runSurface" id="run">
@@ -1712,9 +1816,14 @@ function App() {
               <RefreshCcw aria-hidden="true" size={15} />
             </button>
           </div>
-          <strong className="bigNumber">{numberFormatter.format(liveUsage.remaining)}</strong>
+          <div className="bigNumberRow">
+            <strong className="bigNumber" key={`usage-${usageFlashKey}`} data-flash="changed">
+              {numberFormatter.format(liveUsage.remaining)}
+            </strong>
+            <Sparkline values={usageHistory} ariaLabel="최근 사용량 추이" />
+          </div>
           <span>남은 전체 사용량</span>
-          <ProgressBar value={liveUsagePercent} />
+          <ProgressBar value={liveUsagePercent} live={Boolean(runtime.activeRun)} />
           <small>주간 예산 {numberFormatter.format(liveUsage.weekly)} / 동기화 {lastRuntimeSyncAt || "대기"}</small>
         </section>
 
@@ -1725,9 +1834,14 @@ function App() {
               <RefreshCcw aria-hidden="true" size={15} />
             </button>
           </div>
-          <strong className="bigNumber">{environment ? `${environment.summary.ok}/${environment.summary.total}` : "-"}</strong>
+          <div className="bigNumberRow">
+            <strong className="bigNumber" key={`env-${environmentFlashKey}`} data-flash="changed">
+              {environment ? `${environment.summary.ok}/${environment.summary.total}` : "-"}
+            </strong>
+            <Sparkline values={environmentHistory} ariaLabel="설치된 도구 추이" />
+          </div>
           <span>설치된 도구</span>
-          <ProgressBar value={environment ? Math.round((environment.summary.ok / Math.max(1, environment.summary.total)) * 100) : 0} />
+          <ProgressBar value={environmentPercent} />
           {missingInstallableTools.length > 0 ? (
             <>
               <div className="installList">

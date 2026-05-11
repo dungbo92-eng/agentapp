@@ -1397,6 +1397,50 @@ label {
   }
 }
 
+/* Sparkline (inline mini line chart) */
+.sparkline {
+  color: #1f6feb;
+  vertical-align: middle;
+  flex-shrink: 0;
+}
+
+.sparkline-empty {
+  display: inline-block;
+  min-width: 64px;
+  height: 18px;
+}
+
+.bigNumberRow {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  min-width: 0;
+}
+
+.bigNumberRow .bigNumber {
+  flex: 1 1 auto;
+  min-width: 0;
+}
+
+.stat {
+  position: relative;
+}
+
+.stat .sparkline {
+  position: absolute;
+  top: 8px;
+  right: 8px;
+  color: rgba(31, 111, 235, 0.7);
+}
+
+@media (max-width: 720px) {
+  .stat .sparkline {
+    position: static;
+    margin-top: 4px;
+  }
+}
+
 /* Indeterminate progress bar shimmer when status is "starting" / "in
    progress" with no concrete percent yet. */
 .progressTrack.indeterminate {
