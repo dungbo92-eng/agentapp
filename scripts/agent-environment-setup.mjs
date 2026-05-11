@@ -288,7 +288,7 @@ async function run(command, args, options = {}) {
   const invocation = commandInvocation(command, args, execOptions.shell);
   try {
     const result = await execFileAsync(invocation.command, invocation.args, {
-      cwd: REPO_ROOT,
+      cwd: safeSpawnCwd(),
       windowsHide: true,
       timeout: options.timeoutMs || 15000,
       ...execOptions,
