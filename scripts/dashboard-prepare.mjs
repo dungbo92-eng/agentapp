@@ -35,7 +35,8 @@ const FILES = {
   runStatus: path.join(REPO_ROOT, "tools", "agent-orchestrator", "handoff", "RUN_STATUS.md"),
   dashboardRun: path.join(REPO_ROOT, "tools", "agent-orchestrator", "handoff", "DASHBOARD_RUN.md"),
   taskQueue: path.join(REPO_ROOT, "tools", "agent-orchestrator", "task-queue.json"),
-  usageBudget: path.join(REPO_ROOT, "tools", "agent-orchestrator", "usage-budget.example.json"),
+  usageBudget: path.join(REPO_ROOT, "tools", "agent-orchestrator", "usage-budget.json"),
+  usageBudgetFallback: path.join(REPO_ROOT, "tools", "agent-orchestrator", "usage-budget.empty.json"),
   workers: path.join(REPO_ROOT, "tools", "agent-orchestrator", "workers.example.yaml"),
   workerRunStateExample: path.join(REPO_ROOT, "tools", "agent-orchestrator", "worker-run-state.example.json"),
   workerRunStatesDir: path.join(REPO_ROOT, "tools", "agent-orchestrator", "handoff", "run-states"),
@@ -432,7 +433,7 @@ const [
   readText(FILES.runStatus),
   readText(FILES.dashboardRun),
   readJson(FILES.taskQueue),
-  readJson(FILES.usageBudget),
+  readJson(FILES.usageBudget).then((data) => data || readJson(FILES.usageBudgetFallback)),
   readText(FILES.workers),
   readRunStates(),
 ]);

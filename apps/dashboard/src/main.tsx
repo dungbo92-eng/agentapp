@@ -482,6 +482,8 @@ function App() {
   });
   const [accountFormOpen, setAccountFormOpen] = React.useState(false);
   const [projectForm, setProjectForm] = React.useState({ name: "", path: "" });
+  const [editingBudgetId, setEditingBudgetId] = React.useState<string | null>(null);
+  const [budgetDraft, setBudgetDraft] = React.useState<{ remaining: string; weekly: string }>({ remaining: "", weekly: "" });
 
   React.useEffect(() => {
     fetch("/agent-snapshot.json", { cache: "no-store" })
@@ -674,9 +676,6 @@ function App() {
   function toggleAccount(account: ManagedAccount) {
     void updateRuntime(runtimeRequest("accounts/enabled", { ...account, enabled: !account.enabled }));
   }
-
-  const [editingBudgetId, setEditingBudgetId] = React.useState<string | null>(null);
-  const [budgetDraft, setBudgetDraft] = React.useState<{ remaining: string; weekly: string }>({ remaining: "", weekly: "" });
 
   function openBudgetEditor(account: ManagedAccount) {
     setEditingBudgetId(account.id);

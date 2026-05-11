@@ -10,6 +10,7 @@ const JSON_FILES = [
   "tools/agent-orchestrator/usage-budget.schema.json",
   "tools/agent-orchestrator/usage-budget.example.json",
   "tools/agent-orchestrator/usage-budget.low.example.json",
+  "tools/agent-orchestrator/usage-budget.empty.json",
   "tools/agent-orchestrator/worker-run-state.schema.json",
   "tools/agent-orchestrator/worker-run-state.example.json"
 ];

@@ -45,3 +45,6 @@ worktrees/
 # Local app data
 data/
 storage/
+
+# Per-PC usage budget (real account data). Examples and empty fallback stay in repo.
+tools/agent-orchestrator/usage-budget.json

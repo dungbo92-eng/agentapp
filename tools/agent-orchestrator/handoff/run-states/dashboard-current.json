@@ -1,6 +1,6 @@
 {
   "version": 1,
-  "run_id": "run-1778458829404",
+  "run_id": "run-1778459689031",
   "worker_id": "codex",
   "worker_kind": "codex",
   "workspace": "D:\\agentApp",
@@ -9,11 +9,11 @@
     "title": "대시보드 시작 요청",
     "source": "dashboard"
   },
-  "status": "interrupted",
-  "reason": "user_stopped",
+  "status": "running",
+  "reason": "in_progress",
   "timestamps": {
-    "started_at": "2026-05-11T00:20:29.404Z",
-    "updated_at": "2026-05-11T00:21:30.135Z"
+    "started_at": "2026-05-11T00:34:49.031Z",
+    "updated_at": "2026-05-11T00:34:49.031Z"
   },
   "usage": {
     "provider": "codex",
@@ -30,20 +30,20 @@
     "commands": [
       "pnpm validate"
     ],
-    "result": "passed",
-    "summary": "사전 검증 통과",
-    "log_path": "data/worker-launches/run-1778458829404/validate.log"
+    "result": "not_run",
+    "summary": "사전 검증 대기 중",
+    "log_path": ""
   },
   "adapter": {
-    "mode": "command",
-    "status": "stopped",
-    "prompt_path": "data/worker-launches/run-1778458829404/launch-prompt.md",
-    "log_path": "data/worker-launches/run-1778458829404/worker.log",
-    "session_dir": "data/session-profiles/codex/codex-dungbo92-gmail.com"
+    "mode": "pending",
+    "status": "queued",
+    "prompt_path": "",
+    "log_path": "",
+    "session_dir": ""
   },
   "handoff": {
-    "summary": "대시보드가 codex 작업의 상태를 interrupted 로 기록했습니다. 프롬프트 본문은 data/dashboard-runtime.json 에만 저장됩니다.",
-    "next_step": "로컬 실행 기록을 확인하고 NEXT_TASK.md 에서 이어가거나 새 작업을 시작하세요.",
+    "summary": "대시보드가 codex 작업을 dungbo92-gmail.com / gpt-5.4 조합으로 시작했습니다. 어댑터 pending 상태는 queued 입니다. 프롬프트 본문은 data/dashboard-runtime.json 에만 저장됩니다.",
+    "next_step": "대시보드에서 실행 상태, 검증 결과, 어댑터 로그를 확인하세요. 인수인계가 필요하면 여기서 중지하면 됩니다.",
     "files": [
       "data/dashboard-runtime.json",
       "tools/agent-orchestrator/handoff/DASHBOARD_RUN.md",

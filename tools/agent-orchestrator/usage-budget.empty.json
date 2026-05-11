@@ -1,0 +1,16 @@
+{
+  "version": 1,
+  "timezone": "Asia/Seoul",
+  "week_start_day": "monday",
+  "weekend_reserve": {
+    "enabled": true,
+    "days": ["saturday", "sunday"],
+    "minimum_units": 35
+  },
+  "accounts": [],
+  "routing": {
+    "quality_first": true,
+    "allow_downgrade_for": ["routine"],
+    "require_confirmation_for": ["critical", "external_write", "deployment", "billing", "secrets"]
+  }
+}
