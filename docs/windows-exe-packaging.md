@@ -14,20 +14,23 @@ pnpm desktop:artifact     # 산출물 크기/SHA256 기록
 
 - `desktop:dev`: dashboard 를 빌드한 뒤 Electron 창으로 실행한다.
 - `desktop:pack`: dashboard 를 빌드한 뒤 현재 `package.json` 버전의 portable 실행 파일을 만든다. 예: `dist-desktop/AgentApp-0.1.0-x64.exe`. 사용자가 더블클릭 → 임시 폴더에 압축 해제 → 즉시 실행되는 단일 EXE.
-- `desktop:installer`: 표준 Windows 설치 마법사(NSIS) EXE 를 만든다. 예: `dist-desktop/AgentApp-Setup-0.1.0-x64.exe`. 설치 경로 선택, 바탕화면/시작 메뉴 바로가기 생성, "프로그램 추가/제거" 등록, 그리고 설치 마지막 단계에서 **필수 환경(Node.js + AI CLI) 자동 설치** 옵션을 묻는다.
+- `desktop:installer`: 표준 Windows 설치 마법사(NSIS) EXE 를 만든다. 예: `dist-desktop/AgentApp-Setup-0.1.0-x64.exe`. 설치 경로 선택, 바탕화면/시작 메뉴 바로가기 생성, "프로그램 추가/제거" 등록을 제공한다.
 - `desktop:all`: portable 과 NSIS 두 산출물을 한 번에 빌드한다.
 - `desktop:artifact`: 마지막에 생성된 portable EXE 의 크기와 SHA256 을 `tools/agent-orchestrator/handoff/RELEASE_ARTIFACTS.md` 에 기록한다.
 
-## 환경 자동 설치 (NSIS installer)
+## 환경 자동 설치
 
-`build/installer.nsh` 와 `build/setup-tools.cmd` 가 NSIS installer 의 마지막 단계에 묶여 있다.
+환경 설치는 NSIS post-install prompt가 아니라 설치 후 dashboard 환경 패널에서 실행한다. NSIS 커스텀 prompt는 일부 Windows 11 환경에서 임시 `System.dll` crash를 유발할 수 있어 기본 installer 경로에서 제외했다.
 
-1. installer 가 메인 파일을 모두 복사한 뒤 사용자에게 "필수 환경 자동 설치할까요?" 를 묻는다.
-2. **예** 선택 시 `setup-tools.cmd` 가 새 콘솔 창에서 실행된다.
-   - `node` 가 PATH 에 없으면 `winget install OpenJS.NodeJS.LTS` 로 설치한다.
-   - `npm install -g @openai/codex @anthropic-ai/claude-code @google/gemini-cli` 로 4종 AI CLI 를 설치한다.
-   - Cursor 도 winget 으로 설치 시도 (실패해도 무시).
-3. **아니오** 선택 시 dashboard 의 환경 패널에서 [누락 AI CLI 자동 설치] 버튼으로 동일 흐름을 트리거할 수 있다.
+1. 사용자가 `AgentApp-Setup-0.1.0-x64.exe` 를 설치한다.
+2. AgentApp 실행 후 dashboard 오른쪽 환경 패널에서 누락 CLI를 확인한다.
+3. [누락 AI CLI 자동 설치] 버튼이 `/api/agentapp/environment/install` 을 호출한다.
+   - Node.js/Git/pnpm은 `pnpm agent:setup` 기준으로 진단한다.
+   - Codex, Claude Code, Gemini CLI는 `npm install -g` 로 설치한다.
+   - Cursor는 Windows에서 `winget install Anysphere.Cursor` 로 설치 시도한다.
+4. 로그인, MFA, CAPTCHA, 승인창은 자동 처리하지 않는다. 설치 뒤 각 공식 도구에서 사용자가 직접 인증하고 dashboard에서 [재감지]를 누른다.
+
+`build/setup-tools.cmd` 는 수동 복구용 bootstrapper로 유지한다. installer 내부 자동 실행에는 연결하지 않는다.
 
 NSIS 설정은 `package.json` 의 `build.nsis` 블록에서 조정한다. 주요 옵션:
 
@@ -35,8 +38,8 @@ NSIS 설정은 `package.json` 의 `build.nsis` 블록에서 조정한다. 주요
 - `perMachine: false` — 사용자 계정에 설치 (관리자 권한 불필요)
 - `allowToChangeInstallationDirectory: true` — 설치 경로 변경 허용
 - `createDesktopShortcut`/`createStartMenuShortcut: true` — 바로가기 자동 생성
-- `include: build/installer.nsh` — 커스텀 NSIS 스크립트 (환경 자동 설치 prompt)
 - `extraResources` — `setup-tools.cmd` 를 `resources/` 디렉터리에 함께 포함
+- `include: build/installer.nsh` 는 사용하지 않는다. NSIS `System.dll` crash 재발을 피하기 위해 post-install custom prompt는 dashboard 쪽으로 옮겼다.
 
 ## 런타임 구조
 
@@ -60,6 +63,6 @@ NSIS 설정은 `package.json` 의 `build.nsis` 블록에서 조정한다. 주요
 | 파일 | 용도 |
 |---|---|
 | `AgentApp-0.1.0-x64.exe` | Portable. 더블클릭만 하면 실행. 설치 흔적 없음 |
-| `AgentApp-Setup-0.1.0-x64.exe` | NSIS installer. 경로 선택/바로가기/제거 등록 + 환경 자동 설치 옵션 |
+| `AgentApp-Setup-0.1.0-x64.exe` | NSIS installer. 경로 선택/바로가기/제거 등록. 환경 설치는 설치 후 dashboard에서 실행 |
 
-공유 전에는 `pnpm desktop:artifact` 를 실행해 파일 크기와 SHA256 을 남긴다. NSIS installer 의 해시는 PowerShell `Get-FileHash` 또는 `sha256sum` 으로 별도 기록한다.
+공유 전에는 `pnpm desktop:artifact` 를 실행해 portable과 installer의 파일 크기와 SHA256 을 남긴다.

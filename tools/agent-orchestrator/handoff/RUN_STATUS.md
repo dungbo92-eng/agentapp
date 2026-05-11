@@ -456,3 +456,12 @@ NEXT_TASK.md 템플릿 확정: agent-next 생성물을 Required Reads, Execution
 - Git: not recorded
 - Decisions: none
 - Next: See tools/agent-orchestrator/handoff/NEXT_TASK.md
+
+## 2026-05-11T06:00:06.940Z
+
+- Status: completed
+- Summary: NSIS System.dll crash 진단 후 installer를 custom prompt 없는 표준 NSIS로 재빌드하고 silent 설치/실행 검증까지 완료
+- Verification: win-unpacked AgentApp.exe 8초 생존; pnpm desktop:installer; installer UI 경로 6초 생존; installer /S temp 설치 exit 0; 설치된 AgentApp.exe 8초 생존; uninstaller /S exit 0; pnpm validate; pnpm desktop:artifact
+- Git: not recorded
+- Decisions: none
+- Next: 사용자 PC에서 AgentApp-Setup-0.1.0-x64.exe 더블클릭 설치 확인 후 dashboard 환경 패널에서 누락 CLI 자동 설치 실행

@@ -20,6 +20,7 @@
 - dashboard dev server와 desktop server의 runtime API를 맞춰 예산 수정, 로그인 시작, 세션 재감지가 개발/패키지 환경 모두에서 동작한다.
 - dashboard UX에 빈 상태 안내, nav active 표시, 폼 validation, live 사용량 동기화를 추가했다.
 - Windows portable EXE 산출물 이름과 artifact 기록이 `package.json` 버전을 따라가도록 변경했다.
+- NSIS installer 안정화를 위해 post-install custom prompt를 제거하고, 환경 설치는 설치 후 dashboard 환경 패널에서 실행하도록 정리했다.
 
 ### Verified
 

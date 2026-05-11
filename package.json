@@ -82,7 +82,8 @@
       "shortcutName": "AgentApp",
       "uninstallDisplayName": "AgentApp ${version}",
       "artifactName": "${productName}-Setup-${version}-${arch}.${ext}",
-      "include": "build/installer.nsh"
+      "deleteAppDataOnUninstall": false,
+      "runAfterFinish": true
     }
   },
   "devDependencies": {
