@@ -19,6 +19,7 @@ import {
   setAccountSession,
   startRun,
   stopRun,
+  quickHandoff,
 } from "./dashboard-runtime.mjs";
 import { inspectEnvironment, installMissingTargets } from "./agent-environment-setup.mjs";
 
@@ -127,6 +128,10 @@ async function handleApi(req, res, url) {
   }
   if (req.method === "POST" && url === "/api/agentapp/runs/stop") {
     sendJson(res, 200, await stopRun());
+    return true;
+  }
+  if (req.method === "POST" && url === "/api/agentapp/handoff/quickswitch") {
+    sendJson(res, 200, await quickHandoff(await readBody(req)));
     return true;
   }
   return false;

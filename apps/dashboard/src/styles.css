@@ -1126,3 +1126,87 @@ label {
     white-space: normal;
   }
 }
+
+.accountItem.usage-warning {
+  border-left: 3px solid #d49a00;
+  background: rgba(255, 224, 138, 0.18);
+}
+
+.accountItem.usage-critical {
+  border-left: 3px solid #d83b30;
+  background: rgba(255, 153, 145, 0.22);
+  animation: usagePulse 2.4s ease-in-out infinite;
+}
+
+@keyframes usagePulse {
+  0%, 100% { box-shadow: 0 0 0 0 rgba(216, 59, 48, 0); }
+  50% { box-shadow: 0 0 0 4px rgba(216, 59, 48, 0.18); }
+}
+
+.badge.alertCritical {
+  background: #d83b30;
+  color: #fff;
+  font-weight: 600;
+}
+
+.badge.alertWarning {
+  background: #d49a00;
+  color: #fff;
+}
+
+.quickSwitchRow {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin-top: 6px;
+  padding-top: 6px;
+  border-top: 1px dashed #d4dce4;
+}
+
+.quickSwitchBtn {
+  background: #1f6feb;
+  color: #fff;
+  border: 0;
+  padding: 6px 12px;
+  border-radius: 6px;
+  cursor: pointer;
+  font-size: 13px;
+}
+
+.quickSwitchBtn:hover { background: #1856b6; }
+
+.quickSwitchTarget {
+  background: #fff;
+  border: 1px solid #c8d2dc;
+  padding: 5px 10px;
+  border-radius: 6px;
+  cursor: pointer;
+  font-size: 12px;
+  color: #1f6feb;
+}
+
+.quickSwitchTarget:hover { background: #eaf2fc; }
+
+.pendingList {
+  margin-top: 12px;
+  padding: 10px;
+  background: #fff8e1;
+  border: 1px solid #f0d878;
+  border-radius: 6px;
+}
+
+.pendingList h3 {
+  font-size: 13px;
+  margin: 0 0 4px;
+  color: #7a5a00;
+}
+
+.pendingItem {
+  display: grid;
+  grid-template-columns: auto 1fr;
+  gap: 8px;
+  padding: 6px 0;
+  border-top: 1px dashed #e2cf78;
+}
+
+.pendingItem:first-of-type { border-top: 0; }

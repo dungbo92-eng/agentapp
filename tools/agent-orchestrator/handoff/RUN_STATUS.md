@@ -510,3 +510,12 @@ NEXT_TASK.md 템플릿 확정: agent-next 생성물을 Required Reads, Execution
 - Git: not recorded
 - Decisions: none
 - Next: See tools/agent-orchestrator/handoff/NEXT_TASK.md
+
+## 2026-05-11T12:35:00.000Z
+
+- Status: completed
+- Summary: 컨텍스트 자동화 4종 한꺼번에 구현. (1) 계정 한도 임박 시 dashboard 펄스 강조 + 1분 throttle 비프음, (2) 현재 실행을 다른 준비된 계정으로 한 번에 인계하는 quickHandoff API/UI(빠른 계정 후보 단축버튼 포함), (3) Ready 전환 시 같은 provider의 pendingRuns 첫 항목 자동 dispatch, (4) selectRoute에 lastUsedAt 기반 load balance bonus. ToS 준수: 자동 로그인/강제 계정 전환/CAPTCHA·MFA 우회는 구현하지 않음.
+- Verification: pnpm validate 통과; pnpm dashboard:build 통과(237 KB, css 14.5 KB)
+- Git: committed
+- Decisions: none
+- Next: 패키징 EXE 재빌드는 사용자 시간대에 진행 예정

@@ -21,6 +21,12 @@ const DEFAULT_RUNTIME = {
   projects: [],
   activeRun: null,
   runHistory: [],
+  pendingRuns: [],
+};
+
+const USAGE_ALERT_THRESHOLDS = {
+  critical: 0.1,
+  warning: 0.3,
 };
 
 const ESTIMATED_UNITS = {
@@ -168,7 +174,22 @@ function normalizeAccount(input) {
     source: "local",
     modelProfiles: input.modelProfiles || input.model_profiles || defaultProfiles(provider),
     sessionDetectionReason: input.sessionDetectionReason || input.session_detection_reason || "",
+    lastUsedAt: input.lastUsedAt || input.last_used_at || "",
+    usageAlert: usageAlertLevel({
+      remainingUnits: Math.max(0, remainingUnits),
+      weeklyUnits: Math.max(1, weeklyUnits),
+    }),
   };
+}
+
+export function usageAlertLevel(account) {
+  const weekly = Number(account.weeklyUnits || account.weekly_units || 0);
+  const remaining = Number(account.remainingUnits || account.remaining_units || 0);
+  if (weekly <= 0) return "ok";
+  const ratio = remaining / weekly;
+  if (ratio <= USAGE_ALERT_THRESHOLDS.critical) return "critical";
+  if (ratio <= USAGE_ALERT_THRESHOLDS.warning) return "warning";
+  return "ok";
 }
 
 function normalizeProject(input) {
@@ -195,6 +216,7 @@ function normalizeRuntime(input) {
     projects: Array.isArray(runtime.projects) ? runtime.projects.map(normalizeProject) : [],
     activeRun: runtime.activeRun || null,
     runHistory: Array.isArray(runtime.runHistory) ? runtime.runHistory.slice(0, 20) : [],
+    pendingRuns: Array.isArray(runtime.pendingRuns) ? runtime.pendingRuns.slice(0, 20) : [],
   };
 }
 
@@ -448,7 +470,12 @@ export async function detectAndUpdateAccount(accountId) {
         }
       : item,
   );
-  return writeRuntime(runtime);
+  const saved = await writeRuntime(runtime);
+  if (detection.sessionStatus === "ready") {
+    const dispatched = await dispatchPendingForAccount(id);
+    if (dispatched.dispatched > 0) return dispatched.runtime;
+  }
+  return saved;
 }
 
 export async function setAccountSession(input) {
@@ -463,7 +490,12 @@ export async function setAccountSession(input) {
     ? runtime.accounts.map((account) => (account.id === id ? { ...account, sessionStatus, lastVerifiedAt } : account))
     : uniqueById([...runtime.accounts, nextAccount]);
 
-  return writeRuntime(runtime);
+  const saved = await writeRuntime(runtime);
+  if (sessionStatus === "ready") {
+    const dispatched = await dispatchPendingForAccount(id);
+    if (dispatched.dispatched > 0) return dispatched.runtime;
+  }
+  return saved;
 }
 
 export async function applyFourAccountPreset() {
@@ -488,10 +520,13 @@ function routeScore(candidate, complexity) {
   const modelRank = MODEL_RANK[profile.model] || 1;
   const remaining = Number(account.remainingUnits || 0);
   const estimated = Number(profile.estimatedUnits || ESTIMATED_UNITS[complexity] || 8);
+  const lastUsed = account.lastUsedAt ? Date.parse(account.lastUsedAt) : 0;
+  const idleMinutes = lastUsed > 0 ? Math.max(0, (Date.now() - lastUsed) / 60000) : 60 * 24;
+  const loadBonus = Math.min(idleMinutes, 120) / 120;
 
-  if (complexity === "routine") return remaining * 2 - estimated * 10 - modelRank;
-  if (complexity === "standard") return modelRank * 20 + remaining - estimated * 2;
-  return modelRank * 100 + remaining - estimated;
+  if (complexity === "routine") return remaining * 2 - estimated * 10 - modelRank + loadBonus * 3;
+  if (complexity === "standard") return modelRank * 20 + remaining - estimated * 2 + loadBonus * 5;
+  return modelRank * 100 + remaining - estimated + loadBonus * 8;
 }
 
 export function selectRoute(accounts, request) {
@@ -778,6 +813,104 @@ export async function finishRunRecord(runId, patch, handoff = null) {
   );
 }
 
+function buildPendingRecord(input, routing) {
+  return {
+    id: `pending-${Date.now()}`,
+    queuedAt: nowIso(),
+    workerId: String(input.workerId || "codex"),
+    projectId: String(input.projectId || "current"),
+    prompt: String(input.prompt || "").trim(),
+    complexity: String(input.complexity || "standard"),
+    modelOverride: String(input.modelOverride || "auto"),
+    provider: providerForWorker(input.workerId) || "",
+    blockedReason: routing?.reason || "준비된 계정이 없습니다.",
+  };
+}
+
+function pendingMatchesAccount(pending, account) {
+  if (!pending || !account) return false;
+  const provider = pending.provider || providerForWorker(pending.workerId);
+  return provider === account.provider;
+}
+
+export async function dispatchPendingForAccount(accountId) {
+  const runtime = await readRuntime();
+  const account = runtime.accounts.find((item) => item.id === accountId);
+  if (!account || account.enabled === false || account.sessionStatus !== "ready") {
+    return { runtime, dispatched: 0 };
+  }
+  const pending = (runtime.pendingRuns || []).filter((item) => pendingMatchesAccount(item, account));
+  if (pending.length === 0) return { runtime, dispatched: 0 };
+
+  const next = pending[0];
+  await writeRuntime({
+    ...runtime,
+    pendingRuns: runtime.pendingRuns.filter((item) => item.id !== next.id),
+  });
+  const after = await startRun({
+    workerId: next.workerId,
+    projectId: next.projectId,
+    prompt: next.prompt,
+    complexity: next.complexity,
+    modelOverride: next.modelOverride,
+    autoDispatched: true,
+    pendingId: next.id,
+  });
+  return { runtime: after, dispatched: 1 };
+}
+
+export async function quickHandoff(input = {}) {
+  const runtime = await readRuntime();
+  const active = runtime.activeRun;
+  const fallbackPrompt = String(input.prompt || active?.prompt || "이전 작업 인계").trim();
+  const complexity = String(input.complexity || active?.complexity || "standard");
+  const targetId = normalizeId(input.targetAccountId || input.target_account_id || "");
+
+  let targetAccount = null;
+  if (targetId) {
+    targetAccount = runtime.accounts.find((item) => item.id === targetId) || null;
+  } else {
+    const fromId = normalizeId(input.fromAccountId || active?.routing?.accountId || "");
+    const candidates = runtime.accounts
+      .filter((account) => account.enabled !== false && account.sessionStatus === "ready" && account.id !== fromId)
+      .sort((left, right) => Number(right.remainingUnits || 0) - Number(left.remainingUnits || 0));
+    targetAccount = candidates[0] || null;
+  }
+
+  if (!targetAccount) {
+    return {
+      ...runtime,
+      handoff: {
+        status: "blocked",
+        reason: "이어받을 준비된 계정이 없습니다. 다른 계정을 로그인 후 [재감지]로 준비 상태로 만드세요.",
+      },
+    };
+  }
+
+  if (active) {
+    await stopRun();
+  }
+
+  const workerId = String(input.workerId || `${targetAccount.provider}-${targetAccount.loginLabel || "default"}`);
+  const after = await startRun({
+    workerId,
+    projectId: input.projectId || active?.projectId || "current",
+    prompt: fallbackPrompt,
+    complexity,
+    modelOverride: input.modelOverride || "auto",
+    handoffFrom: active?.routing?.accountId || "",
+  });
+
+  return {
+    ...after,
+    handoff: {
+      status: "started",
+      targetAccountId: targetAccount.id,
+      reason: `'${targetAccount.displayName || targetAccount.id}' 계정으로 작업을 이어받았습니다.`,
+    },
+  };
+}
+
 export async function startRun(input) {
   const runtime = await readRuntime();
   const routing = selectRoute(runtime.accounts, input);
@@ -823,6 +956,23 @@ export async function startRun(input) {
 
   runtime.activeRun = run.status === "running" ? run : null;
   runtime.runHistory = [run, ...runtime.runHistory.filter((item) => item.id !== id)].slice(0, 20);
+
+  if (run.status !== "running" && routing.status === "blocked") {
+    const pending = buildPendingRecord(input, routing);
+    runtime.pendingRuns = [
+      pending,
+      ...(runtime.pendingRuns || []).filter((item) => item.id !== input.pendingId),
+    ].slice(0, 20);
+  } else if (input.pendingId) {
+    runtime.pendingRuns = (runtime.pendingRuns || []).filter((item) => item.id !== input.pendingId);
+  }
+
+  if (run.status === "running" && routing.accountId) {
+    runtime.accounts = runtime.accounts.map((account) =>
+      account.id === routing.accountId ? { ...account, lastUsedAt: nowIso() } : account,
+    );
+  }
+
   const saved = await writeRuntime(runtime);
 
   if (run.status !== "running") {

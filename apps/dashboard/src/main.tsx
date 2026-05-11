@@ -166,6 +166,20 @@ type ManagedAccount = {
   resetDay: string;
   source: "config" | "local";
   modelProfiles?: Record<string, { model: string; reasoningEffort: string; estimatedUnits: number }>;
+  lastUsedAt?: string;
+  usageAlert?: "ok" | "warning" | "critical";
+};
+
+type PendingRun = {
+  id: string;
+  queuedAt: string;
+  workerId: string;
+  projectId: string;
+  prompt: string;
+  complexity: string;
+  modelOverride?: string;
+  provider: string;
+  blockedReason: string;
 };
 
 type ManagedProject = {
@@ -228,6 +242,8 @@ type RuntimeState = {
   projects: ManagedProject[];
   activeRun: RunRecord | null;
   runHistory: RunRecord[];
+  pendingRuns?: PendingRun[];
+  handoff?: { status: string; targetAccountId?: string; reason: string };
 };
 
 type EnvironmentTarget = {
@@ -264,7 +280,41 @@ type EnvironmentState = {
 };
 
 const numberFormatter = new Intl.NumberFormat("ko-KR");
-const emptyRuntime: RuntimeState = { accounts: [], projects: [], activeRun: null, runHistory: [] };
+const emptyRuntime: RuntimeState = { accounts: [], projects: [], activeRun: null, runHistory: [], pendingRuns: [] };
+
+function usageAlertLevel(account: { remainingUnits: number; weeklyUnits: number; usageAlert?: string }): "ok" | "warning" | "critical" {
+  if (account.usageAlert === "warning" || account.usageAlert === "critical") return account.usageAlert;
+  const weekly = Number(account.weeklyUnits || 0);
+  const remaining = Number(account.remainingUnits || 0);
+  if (weekly <= 0) return "ok";
+  const ratio = remaining / weekly;
+  if (ratio <= 0.1) return "critical";
+  if (ratio <= 0.3) return "warning";
+  return "ok";
+}
+
+let lastCriticalBeepAt = 0;
+function playCriticalBeep() {
+  const now = Date.now();
+  if (now - lastCriticalBeepAt < 60000) return;
+  lastCriticalBeepAt = now;
+  try {
+    const AudioCtx = (window as unknown as { AudioContext?: typeof AudioContext; webkitAudioContext?: typeof AudioContext }).AudioContext
+      || (window as unknown as { webkitAudioContext?: typeof AudioContext }).webkitAudioContext;
+    if (!AudioCtx) return;
+    const ctx = new AudioCtx();
+    const osc = ctx.createOscillator();
+    const gain = ctx.createGain();
+    osc.frequency.value = 880;
+    osc.type = "sine";
+    gain.gain.value = 0.06;
+    osc.connect(gain).connect(ctx.destination);
+    osc.start();
+    setTimeout(() => { osc.stop(); ctx.close().catch(() => {}); }, 220);
+  } catch {
+    // audio not allowed; ignore
+  }
+}
 
 const STATUS_LABELS: Record<string, string> = {
   ready: "준비됨",
@@ -682,6 +732,13 @@ function App() {
     return () => window.clearTimeout(timer);
   }, [toast]);
 
+  React.useEffect(() => {
+    const critical = runtime.accounts.find(
+      (account) => account.enabled !== false && usageAlertLevel(account) === "critical",
+    );
+    if (critical) playCriticalBeep();
+  }, [runtime.accounts]);
+
   if (error) {
     return (
       <main className="shell">
@@ -868,6 +925,27 @@ function App() {
     void updateRuntime(runtimeRequest("runs/stop", {}));
   }
 
+  async function quickSwitchAccount(targetAccountId?: string) {
+    try {
+      const next = (await runtimeRequest("handoff/quickswitch", {
+        targetAccountId,
+        prompt: prompt.trim() || activeRun?.prompt,
+        complexity,
+        modelOverride,
+      })) as RuntimeState & { handoff?: { status: string; reason: string } };
+      setRuntime(next);
+      setLastRuntimeSyncAt(new Date().toLocaleTimeString("ko-KR"));
+      if (next.handoff) {
+        setToast({
+          kind: next.handoff.status === "started" ? "success" : "warn",
+          message: next.handoff.reason,
+        });
+      }
+    } catch (caught) {
+      setToast({ kind: "warn", message: caught instanceof Error ? caught.message : "계정 인계에 실패했습니다" });
+    }
+  }
+
   function toggleAccount(account: ManagedAccount) {
     void updateRuntime(runtimeRequest("accounts/enabled", { ...account, enabled: !account.enabled }));
   }
@@ -1039,13 +1117,19 @@ function App() {
             ) : null}
             {accounts.map((account) => {
               const percent = account.weeklyUnits > 0 ? Math.round((account.remainingUnits / account.weeklyUnits) * 100) : 0;
+              const alertLevel = usageAlertLevel(account);
               return (
-                <article className={`accountItem ${account.enabled === false ? "disabled" : ""}`} key={account.id}>
+                <article className={`accountItem usage-${alertLevel} ${account.enabled === false ? "disabled" : ""}`} key={account.id}>
                   <header>
                     <div className="accountNameRow">
                       <strong>{account.displayName || account.id}</strong>
                       {account.source === "config" ? (
                         <span className="badge example" title="usage-budget.example.json 의 예시 데이터입니다. 실제 본인 계정으로 사용하려면 사이드바에서 새 계정을 추가하세요.">예시</span>
+                      ) : null}
+                      {alertLevel === "critical" ? (
+                        <span className="badge alertCritical" title="남은 사용량이 10% 이하입니다. 다른 계정으로 인계하거나 사용량 reset 까지 대기를 검토하세요.">⚠ 한도 임박</span>
+                      ) : alertLevel === "warning" ? (
+                        <span className="badge alertWarning" title="남은 사용량이 30% 이하입니다. 복잡 작업은 다른 계정 사용을 고려하세요.">주의</span>
                       ) : null}
                     </div>
                     <label className="enableToggle">
@@ -1443,6 +1527,30 @@ function App() {
                 {activeRun.adapter?.logPath ? <small>{activeRun.adapter.logPath}</small> : null}
                 {activeRun.handoffPath ? <small>{activeRun.handoffPath}</small> : null}
                 <small>{activeRun.startedAt}</small>
+                <div className="quickSwitchRow">
+                  <button
+                    type="button"
+                    className="quickSwitchBtn"
+                    title="현재 실행을 멈추고 남은 사용량이 많은 다른 준비된 계정으로 같은 작업을 이어갑니다 (자동 로그인은 하지 않습니다)"
+                    onClick={() => void quickSwitchAccount()}
+                  >
+                    🔄 다른 계정으로 이어가기
+                  </button>
+                  {readyLocalAccounts
+                    .filter((account) => account.id !== activeRun.routing?.accountId)
+                    .slice(0, 3)
+                    .map((account) => (
+                      <button
+                        key={account.id}
+                        type="button"
+                        className="quickSwitchTarget"
+                        title={`'${account.displayName || account.id}' 계정으로 이어가기 (남은 ${account.remainingUnits}/${account.weeklyUnits})`}
+                        onClick={() => void quickSwitchAccount(account.id)}
+                      >
+                        → {account.displayName || account.id}
+                      </button>
+                    ))}
+                </div>
                 <div className="eventLog">
                   {(activeRun.events || []).map((event) => (
                     <div className={`eventLine ${event.level}`} key={`${event.at}-${event.message}`}>
@@ -1456,6 +1564,23 @@ function App() {
             })() : (
               <p className="empty">실행 중인 작업이 없습니다.</p>
             )}
+            {(runtime.pendingRuns || []).length > 0 ? (
+              <div className="pendingList">
+                <h3>준비 대기 중인 작업</h3>
+                <p className="emptyState">계정이 준비 상태로 바뀌면 같은 도구의 첫 작업이 자동으로 시작됩니다.</p>
+                {(runtime.pendingRuns || []).map((pending) => (
+                  <article key={pending.id} className="pendingItem">
+                    <StatusPill status="queued" />
+                    <div>
+                      <strong>{pending.prompt || "(빈 프롬프트)"}</strong>
+                      <span>
+                        {pending.workerId} / {complexityLabel(pending.complexity)} / {pending.blockedReason}
+                      </span>
+                    </div>
+                  </article>
+                ))}
+              </div>
+            ) : null}
             <div className="historyList">
               {runtime.runHistory.length === 0 ? <p className="emptyState">아직 실행 기록이 없습니다.</p> : null}
               {runtime.runHistory.slice(0, 4).map((run) => (
