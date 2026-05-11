@@ -352,7 +352,15 @@ async function probeCommand(command) {
 async function hasSessionArtifacts(provider, sessionProfile) {
   const config = PROVIDER_CLI[provider];
   if (!config) return false;
-  const profileDir = path.join(DATA_DIR, config.configSubdir.replace("/", path.sep), sanitizeSegment(sessionProfile));
+  // Touch buildSessionProfileDir indirectly so legacy data is migrated on the first detect call.
+  const { sharedSessionProfilesRoot, resolveLoginAdapter } = await import("./worker-launch-adapter.mjs");
+  try {
+    await resolveLoginAdapter(provider, sessionProfile);
+  } catch {
+    // resolveLoginAdapter has side-effects only; failures here are fine.
+  }
+  const subdir = config.configSubdir.replace(/^session-profiles\//, "");
+  const profileDir = path.join(sharedSessionProfilesRoot(), subdir, sanitizeSegment(sessionProfile));
   try {
     const entries = await readdir(profileDir);
     return entries.some((entry) => !entry.startsWith("."));

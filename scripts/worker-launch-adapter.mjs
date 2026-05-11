@@ -1,6 +1,8 @@
 #!/usr/bin/env node
 
-import { appendFile, mkdir, readFile, writeFile } from "node:fs/promises";
+import { appendFile, mkdir, readFile, writeFile, readdir, cp } from "node:fs/promises";
+import { existsSync } from "node:fs";
+import { homedir } from "node:os";
 import path from "node:path";
 import { spawn } from "node:child_process";
 import { fileURLToPath } from "node:url";
@@ -226,8 +228,52 @@ async function commandPathFor(command) {
   });
 }
 
+export function sharedSessionProfilesRoot() {
+  if (process.env.AGENTAPP_SESSION_PROFILES_DIR) {
+    return path.resolve(process.env.AGENTAPP_SESSION_PROFILES_DIR);
+  }
+  if (process.platform === "win32") {
+    const appData = process.env.APPDATA || path.join(homedir(), "AppData", "Roaming");
+    return path.join(appData, "AgentApp", "session-profiles");
+  }
+  if (process.platform === "darwin") {
+    return path.join(homedir(), "Library", "Application Support", "AgentApp", "session-profiles");
+  }
+  return path.join(homedir(), ".local", "share", "AgentApp", "session-profiles");
+}
+
+const LEGACY_SESSION_DIR = path.join(REPO_ROOT, "data", "session-profiles");
+let legacyMigrationDone = false;
+
+async function migrateLegacySessionProfiles() {
+  if (legacyMigrationDone) return;
+  legacyMigrationDone = true;
+  if (!existsSync(LEGACY_SESSION_DIR)) return;
+  const sharedRoot = sharedSessionProfilesRoot();
+  if (path.resolve(LEGACY_SESSION_DIR) === path.resolve(sharedRoot)) return;
+  try {
+    const providers = await readdir(LEGACY_SESSION_DIR);
+    for (const provider of providers) {
+      const legacyProvider = path.join(LEGACY_SESSION_DIR, provider);
+      const sharedProvider = path.join(sharedRoot, provider);
+      const profiles = await readdir(legacyProvider).catch(() => []);
+      for (const profile of profiles) {
+        const src = path.join(legacyProvider, profile);
+        const dst = path.join(sharedProvider, profile);
+        if (existsSync(dst)) continue;
+        await mkdir(path.dirname(dst), { recursive: true });
+        await cp(src, dst, { recursive: true, force: false, errorOnExist: false });
+      }
+    }
+  } catch {
+    // best-effort; legacy migration failure is non-fatal
+  }
+}
+
 function buildSessionProfileDir(provider, sessionProfile) {
-  return path.join(DATA_DIR, "session-profiles", sanitizeSegment(provider), sanitizeSegment(sessionProfile));
+  // fire and forget; first call ensures legacy data is copied to the shared root
+  void migrateLegacySessionProfiles();
+  return path.join(sharedSessionProfilesRoot(), sanitizeSegment(provider), sanitizeSegment(sessionProfile));
 }
 
 const CLAUDE_MODEL_ALIASES = {
