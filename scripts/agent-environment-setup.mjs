@@ -4,12 +4,20 @@ import { execFile, spawn } from "node:child_process";
 import { existsSync } from "node:fs";
 import { readFile } from "node:fs/promises";
 import { promisify } from "node:util";
-import { platform } from "node:os";
+import { platform, tmpdir } from "node:os";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 
 const execFileAsync = promisify(execFile);
 const REPO_ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
+
+function safeSpawnCwd() {
+  if (REPO_ROOT.includes(`${path.sep}app.asar${path.sep}`) || REPO_ROOT.endsWith(`${path.sep}app.asar`)) {
+    return tmpdir();
+  }
+  if (!existsSync(REPO_ROOT)) return tmpdir();
+  return REPO_ROOT;
+}
 const PACKAGE_FILE = path.join(REPO_ROOT, "package.json");
 const PNPM_VERSION = "10.33.2";
 
@@ -429,7 +437,7 @@ export async function installMissingTargets(options = {}) {
     try {
       await new Promise((resolve, reject) => {
         const child = spawn(command, args, {
-          cwd: REPO_ROOT,
+          cwd: safeSpawnCwd(),
           env: installEnv(),
           shell: false,
           windowsHide: true,
@@ -473,7 +481,7 @@ async function executeInstall(targets) {
     await new Promise((resolve, reject) => {
       const shell = shellCommand(target.installCommand);
       const child = spawn(shell.command, shell.args, {
-        cwd: REPO_ROOT,
+        cwd: safeSpawnCwd(),
         env: installEnv(),
         stdio: "inherit",
         shell: false,

@@ -7,6 +7,7 @@ AgentApp 공용 memory index.
 - `project_state.md`: 현재 프로젝트 상태, 진행률, 다음 작업 후보
 - `user_profile.md`: 사용자 선호와 작업 방식
 - `archive.md`: 완료/폐기된 세부 로그
+- [작업 후 commit/push 필수](feedback_commit_push.md) — 의미 있는 작업 끝에 검증→commit→push까지 묻지 않고 진행
 
 ## 운영 규칙
 
