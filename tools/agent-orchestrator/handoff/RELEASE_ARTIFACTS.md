@@ -16,8 +16,8 @@ Get-FileHash -Algorithm SHA256 dist-desktop/AgentApp-0.1.0-x64.exe
 ## NSIS Installer (표준 설치 마법사 + 환경 자동 설치)
 
 - Artifact: `dist-desktop/AgentApp-Setup-0.1.0-x64.exe`
-- Size bytes: 92236801
-- SHA256: `8f44343e784b4ae8d24bfc5f298c4ed47484ac3abdf76f570c70a927f39a8517`
+- Size bytes: 100944585
+- SHA256: `7299eb82d4ddcb4b5d2a922df48456fd03cc06dde34496b7ec8ecce443160b0a`
 
 흐름:
 
