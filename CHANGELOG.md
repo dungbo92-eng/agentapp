@@ -11,6 +11,9 @@
 - dashboard 환경 패널: AI CLI 누락 상태와 설치 명령 표시, **[누락 AI CLI 자동 설치] 버튼과 실시간 설치 로그**.
 - `POST /api/agentapp/environment/install` runtime API: dev/desktop 양쪽에서 누락 CLI 를 npm install -g 로 자동 설치하고 stdout/stderr 를 로그로 반환.
 - `installMissingTargets` runtime export: Electron 패키지 안에서도 콘솔 없이 stdout/stderr 캡처가 가능하도록 분리.
+- **NSIS installer 빌드 추가** (`pnpm desktop:installer` / `pnpm desktop:all`): 표준 Windows 설치 마법사(경로 선택, 바탕화면/시작 메뉴 바로가기, 제어판 등록) + 설치 마지막 단계에 "필수 환경(Node.js + AI CLI) 자동 설치" 동의 prompt.
+- `build/installer.nsh`, `build/setup-tools.cmd`: NSIS 커스터마이즈 + winget/npm 기반 환경 자동 설치 스크립트.
+- 세션 프로필 경로 PC-전역화 (`%APPDATA%\AgentApp\session-profiles\`) — portable EXE, NSIS installer, dev server 가 동일 인증을 공유. 옛 `repo/data/session-profiles/` 는 첫 실행 시 자동 마이그레이션.
 
 ### Changed
 

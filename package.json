@@ -35,6 +35,8 @@
     "desktop:serve": "pnpm dashboard:build && node scripts/dashboard-server.mjs",
     "desktop:dev": "pnpm dashboard:build && electron apps/desktop/main.mjs",
     "desktop:pack": "pnpm dashboard:build && electron-builder --win portable --x64",
+    "desktop:installer": "pnpm dashboard:build && electron-builder --win nsis --x64",
+    "desktop:all": "pnpm dashboard:build && electron-builder --win portable nsis --x64",
     "desktop:artifact": "node scripts/desktop-artifact-info.mjs",
     "claude:pull": "node scripts/claude-sync.mjs --pull --verbose",
     "claude:push": "node scripts/claude-sync.mjs --push --verbose",
@@ -64,9 +66,23 @@
       "tools/agent-orchestrator/**/*",
       ".claude-sync/**/*"
     ],
+    "extraResources": [
+      { "from": "build/setup-tools.cmd", "to": "setup-tools.cmd" }
+    ],
     "win": {
       "target": ["portable"],
       "artifactName": "${productName}-${version}-${arch}.${ext}"
+    },
+    "nsis": {
+      "oneClick": false,
+      "perMachine": false,
+      "allowToChangeInstallationDirectory": true,
+      "createDesktopShortcut": true,
+      "createStartMenuShortcut": true,
+      "shortcutName": "AgentApp",
+      "uninstallDisplayName": "AgentApp ${version}",
+      "artifactName": "${productName}-Setup-${version}-${arch}.${ext}",
+      "include": "build/installer.nsh"
     }
   },
   "devDependencies": {
