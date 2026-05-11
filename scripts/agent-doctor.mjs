@@ -189,6 +189,54 @@ async function checkGitRemote() {
   }
 }
 
+const WORKER_CLIS = [
+  { name: "codex", commandEnv: "AGENTAPP_CODEX_COMMAND" },
+  { name: "claude", commandEnv: "AGENTAPP_CLAUDE_COMMAND" },
+  { name: "cursor", commandEnv: "AGENTAPP_CURSOR_COMMAND" },
+  { name: "gemini", commandEnv: "AGENTAPP_GEMINI_COMMAND" },
+];
+
+async function findInPath(name) {
+  const probe = platform() === "win32" ? "where.exe" : "which";
+  const result = await command(probe, [name]);
+  if (!result.ok) return "";
+  return result.stdout.split(/\r?\n/).map((line) => line.trim()).find(Boolean) || "";
+}
+
+async function checkWorkerClis() {
+  for (const worker of WORKER_CLIS) {
+    const envPath = process.env[worker.commandEnv] || "";
+    const found = envPath || (await findInPath(worker.name));
+    if (found) {
+      note("ok", `worker cli ${worker.name}`, found);
+    } else {
+      note("warn", `worker cli ${worker.name}`, `not found in PATH (set ${worker.commandEnv} or install ${worker.name})`);
+    }
+  }
+}
+
+async function checkSessionProfiles() {
+  try {
+    const { readRuntime, detectAccountSession } = await import("./dashboard-runtime.mjs");
+    const runtime = await readRuntime();
+    if (runtime.accounts.length === 0) {
+      note("warn", "session profiles", "no local accounts registered (add one in the dashboard)");
+      return;
+    }
+    for (const account of runtime.accounts) {
+      const detection = await detectAccountSession(account);
+      const label = `session ${account.provider}/${account.id}`;
+      if (detection.sessionStatus === "ready") {
+        note("ok", label, detection.reason);
+      } else {
+        note("warn", label, detection.reason);
+      }
+    }
+  } catch (error) {
+    note("warn", "session profiles", error.message);
+  }
+}
+
 async function checkGitWorkingTree() {
   const result = await command("git", ["status", "--short"]);
   if (!result.ok) {
@@ -229,6 +277,8 @@ await checkGitConfig("i18n.logOutputEncoding", "utf-8");
 await checkSyncStatus();
 await checkGitRemote();
 await checkGitWorkingTree();
+await checkWorkerClis();
+await checkSessionProfiles();
 
 if (failures > 0) {
   console.log(`[agent-doctor] failed: ${failures} failure(s), ${warnings} warning(s)`);

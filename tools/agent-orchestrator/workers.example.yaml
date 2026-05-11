@@ -218,11 +218,11 @@ workers:
     workspace: "E:\\agentApp"
     status: "available"
     launch:
-      mode: "manual"
+      mode: "adapter"
       instructions:
-        - "Open a terminal in E:\\agentApp."
-        - "Start Gemini CLI with the repository as context."
-        - "Paste the Agent Prompt from tools/agent-orchestrator/handoff/NEXT_TASK.md."
+        - "Dashboard adapter runs `gemini -p` with a session-profile-specific GEMINI_CONFIG_DIR."
+        - "Prompt is piped to stdin; stdout is captured as last-message.txt."
+        - "If the session profile is not authenticated yet, run `gemini auth login` in that profile and mark the account Ready again."
     capabilities:
       auto_allowed:
         - local_file_edits

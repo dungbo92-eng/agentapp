@@ -461,20 +461,20 @@
       "title": "Gemini CLI command-mode adapter profile",
       "phase": "phase-11",
       "priority": 31,
-      "status": "todo",
+      "status": "done",
       "depends_on": ["worker-session-profile-launch-adapters"],
       "blocked_by": [],
-      "reason": "현재 Gemini CLI는 machine-specific command profile이 없어 manual fallback이다. 설치된 CLI와 세션 홈 경계를 확인한 뒤 command mode를 추가한다."
+      "reason": "gemini -p 를 session-profile별 GEMINI_CONFIG_DIR 로 실행하는 command-mode adapter 를 추가했다. AGENTAPP_GEMINI_COMMAND 로 CLI 경로를 override 할 수 있고 stdout 은 last-message 파일로 저장한다."
     },
     {
       "id": "session-profile-readiness-doctor",
       "title": "doctor에 session profile readiness 진단 추가",
       "phase": "phase-11",
       "priority": 30,
-      "status": "todo",
+      "status": "done",
       "depends_on": ["session-expiry-needs-login-handoff"],
       "blocked_by": [],
-      "reason": "다음 단계는 각 session profile 디렉터리와 worker command availability를 doctor 출력에서 함께 확인하는 것이다."
+      "reason": "agent-doctor 에 worker CLI 위치 확인과 등록된 계정별 session profile 인증 흔적 자동 점검을 추가했다. provider별 CLI 가 PATH 에 있는지, 각 계정의 session 디렉터리가 ready/needs-login 인지 doctor 출력으로 확인할 수 있다."
     }
   ]
 }

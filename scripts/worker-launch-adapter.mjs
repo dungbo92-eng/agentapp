@@ -19,21 +19,86 @@ import {
 const SCRIPT_FILE = fileURLToPath(import.meta.url);
 const WORKER_PROMPTS_DIR = path.join(REPO_ROOT, "tools", "agent-orchestrator", "handoff", "worker-prompts");
 const RUNS_DIR = path.join(DATA_DIR, "worker-launches");
-const LOGIN_REQUIRED_PATTERNS = [
-  /not logged in/i,
-  /log in/i,
-  /login required/i,
-  /sign in/i,
-  /session expired/i,
-  /reauth/i,
-  /authentication/i,
-  /openai_api_key/i,
-  /api key/i,
-  /missing credential/i,
+const LOGIN_PATTERNS_BY_PROVIDER = {
+  default: [
+    /\bnot logged in\b/i,
+    /\bplease log ?in\b/i,
+    /\blogin required\b/i,
+    /\bsign in\b/i,
+    /\bsession expired\b/i,
+    /\breauth(?:enticate)?\b/i,
+    /\bauthentication (?:failed|required|error)\b/i,
+    /\bunauthori[sz]ed\b/i,
+    /\bmissing credential/i,
+  ],
+  claude: [
+    /please run\s+`?claude\s+login/i,
+    /not logged in to claude/i,
+    /claude\.ai\/login/i,
+    /anthropic api key/i,
+  ],
+  codex: [
+    /openai_api_key/i,
+    /openai api key/i,
+    /please run\s+`?codex\s+login/i,
+    /chatgpt account/i,
+  ],
+  gemini: [
+    /please run\s+`?gemini\s+auth/i,
+    /google_application_credentials/i,
+    /google cloud project/i,
+    /not authori[sz]ed/i,
+  ],
+  cursor: [
+    /cursor\.com\/(?:login|signin)/i,
+    /cursor pro/i,
+  ],
+};
+
+const QUOTA_PATTERNS = [
+  /rate ?limit(?:ed)?/i,
+  /quota (?:exceeded|reached)/i,
+  /usage (?:limit|exceeded)/i,
+  /you have reached your/i,
+  /too many requests/i,
+  /429/,
+  /weekly limit/i,
+  /monthly limit/i,
 ];
 
 const IDLE_WARN_MS = 30000;
 const IDLE_KILL_MS = 120000;
+
+function providerKeyFor(workerId) {
+  const id = String(workerId || "").toLowerCase();
+  if (id.includes("claude")) return "claude";
+  if (id.includes("codex")) return "codex";
+  if (id.includes("gemini")) return "gemini";
+  if (id.includes("cursor")) return "cursor";
+  return "";
+}
+
+function detectInterruption(workerId, output) {
+  if (!output) return { kind: "", reason: "" };
+  const provider = providerKeyFor(workerId);
+  const loginPatterns = [
+    ...LOGIN_PATTERNS_BY_PROVIDER.default,
+    ...(LOGIN_PATTERNS_BY_PROVIDER[provider] || []),
+  ];
+  for (const pattern of loginPatterns) {
+    const match = output.match(pattern);
+    if (match) {
+      return { kind: "needs-login", reason: `${provider || "도구"} 가 로그인이 필요하다고 보고했습니다: "${match[0]}"` };
+    }
+  }
+  for (const pattern of QUOTA_PATTERNS) {
+    const match = output.match(pattern);
+    if (match) {
+      return { kind: "quota", reason: `${provider || "도구"} 가 사용량 한도를 보고했습니다: "${match[0]}"` };
+    }
+  }
+  return { kind: "", reason: "" };
+}
 
 const HELP = `Usage:
   node scripts/worker-launch-adapter.mjs --execute-run <run-id>
@@ -180,6 +245,15 @@ function mapClaudeModel(modelInput) {
   return key.startsWith("claude-") || key.includes("opus") || key.includes("sonnet") || key.includes("haiku") ? key : "";
 }
 
+function mapGeminiModel(modelInput) {
+  if (!modelInput) return "";
+  const key = String(modelInput).toLowerCase();
+  if (key === "auto") return "";
+  if (key === "best_available") return "gemini-2.5-pro";
+  if (key.startsWith("gemini-")) return key;
+  return "";
+}
+
 async function resolveAdapter(run, files) {
   const sessionProfile = run.routing?.sessionProfile || `${run.workerId}-${run.routing?.accountId || "default"}`;
   const workspace = REPO_ROOT;
@@ -296,10 +370,35 @@ async function resolveAdapter(run, files) {
   }
 
   if (run.workerId === "gemini-cli") {
+    const command = process.env.AGENTAPP_GEMINI_COMMAND || (await commandPathFor("gemini"));
+    if (!command) {
+      return {
+        status: "blocked",
+        mode: "command",
+        summary: "이 PC에서 Gemini CLI 를 찾지 못했습니다.",
+      };
+    }
+
+    const sessionDir = buildSessionProfileDir("gemini-cli", sessionProfile);
+    await mkdir(sessionDir, { recursive: true });
+    const geminiModel = mapGeminiModel(run.routing?.model || run.modelOverride);
     return {
-      status: "manual",
-      mode: "manual",
-      summary: "이 PC에서는 Gemini CLI 자동 실행이 설정되지 않았습니다. 로그인된 터미널 세션에서 worker 프롬프트를 수동으로 열어 주세요.",
+      status: "ready",
+      mode: "command",
+      command,
+      args: [
+        "-p",
+        ...(geminiModel ? ["--model", geminiModel] : []),
+      ],
+      env: {
+        GEMINI_CONFIG_DIR: sessionDir,
+        AGENTAPP_SESSION_PROFILE: sessionProfile,
+        AGENTAPP_ACCOUNT_ID: run.routing?.accountId || "",
+        AGENTAPP_MODEL: geminiModel || "auto",
+      },
+      sessionDir,
+      summary: "Gemini CLI -p 어댑터 준비 완료",
+      writeLastMessageFromStdout: true,
     };
   }
 
@@ -451,9 +550,7 @@ async function streamProcess(command, args, options = {}) {
   });
 }
 
-function loginRequired(output) {
-  return LOGIN_REQUIRED_PATTERNS.some((pattern) => pattern.test(output || ""));
-}
+// detectInterruption replaces the legacy loginRequired check.
 
 async function runPreflight(run, files) {
   await patchRunRecord(run.id, {
@@ -607,7 +704,7 @@ async function launchCommandWorker(run, files, adapter, promptText) {
       },
       {
         handoffStatus: "needs_user",
-        handoffReason: "idle_timeout",
+        handoffReason: "session_timeout",
       },
     );
     return;
@@ -644,12 +741,10 @@ async function launchCommandWorker(run, files, adapter, promptText) {
     return;
   }
 
-  if (loginRequired(result.combinedOutput)) {
+  const detection = detectInterruption(run.workerId, result.combinedOutput);
+  if (detection.kind === "needs-login") {
     await updateAccountSession(run.routing?.accountId || "", "needs-login");
-    await appendRunEvent(run.id, {
-      level: "warn",
-      message: "작업 도구가 로그인 또는 세션 문제를 보고했습니다. 이 세션 프로필을 로그인 필요 상태로 바꿨습니다.",
-    });
+    await appendRunEvent(run.id, { level: "warn", message: detection.reason });
     await finishRunRecord(
       run.id,
       {
@@ -667,6 +762,29 @@ async function launchCommandWorker(run, files, adapter, promptText) {
       {
         handoffStatus: "needs_user",
         handoffReason: "missing_credentials",
+      },
+    );
+    return;
+  }
+  if (detection.kind === "quota") {
+    await appendRunEvent(run.id, { level: "warn", message: detection.reason });
+    await finishRunRecord(
+      run.id,
+      {
+        status: "quota_limited",
+        adapter: {
+          status: "quota-exhausted",
+          mode: adapter.mode,
+          pid: result.pid,
+          exitCode: result.code,
+          logPath: relativePath(files.launchLogPath),
+          promptPath: relativePath(files.promptPath),
+          sessionDir: relativePath(adapter.sessionDir),
+        },
+      },
+      {
+        handoffStatus: "quota_limited",
+        handoffReason: "quota_exhausted",
       },
     );
     return;

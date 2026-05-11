@@ -1,9 +1,9 @@
 {
-  "generated_at": "2026-05-11T00:50:20.047Z",
+  "generated_at": "2026-05-11T01:01:27.388Z",
   "repo_root": "D:\\agentApp",
   "progress": {
-    "percent": 94,
-    "done": 59,
+    "percent": 100,
+    "done": 63,
     "total": 63,
     "phases": [
       {
@@ -321,24 +321,24 @@
       },
       {
         "title": "Phase 11 — Tool별 확장",
-        "done": 0,
+        "done": 4,
         "total": 4,
         "items": [
           {
             "title": "Claude Code command-mode adapter profile",
-            "done": false
+            "done": true
           },
           {
             "title": "Gemini CLI command-mode adapter profile",
-            "done": false
+            "done": true
           },
           {
             "title": "tool별 login/session-expired detector 보강",
-            "done": false
+            "done": true
           },
           {
             "title": "doctor에 session profile readiness 진단 추가",
-            "done": false
+            "done": true
           }
         ]
       }
@@ -360,10 +360,10 @@
     }
   ],
   "latest_run": {
-    "at": "2026-05-10T23:18:42.248Z",
+    "at": "2026-05-11T01:01:02.737Z",
     "status": "completed",
-    "summary": "dashboard 계정 UX 자동화: 폼 collapsible, 세션 자동 감지, plan별 사용량 자동",
-    "verification": "pnpm validate; pnpm dashboard:build; live API test (add+detect)",
+    "summary": "Phase 11 완료 (4/4): Gemini adapter, detector 보강, doctor session readiness 진단",
+    "verification": "pnpm validate; pnpm agent:doctor; pnpm agent:progress=100%",
     "next": "See tools/agent-orchestrator/handoff/NEXT_TASK.md"
   },
   "approval_queue": {
@@ -497,10 +497,10 @@
       "heading": "RUN_STATUS",
       "status": "completed",
       "next": "See tools/agent-orchestrator/handoff/NEXT_TASK.md",
-      "generated": "2026-05-10T23:18:42.248Z",
+      "generated": "2026-05-11T01:01:02.737Z",
       "decision_count": 0,
-      "line_count": 329,
-      "excerpt": "...esktop:artifact -- --json 통과\n- Git: not recorded\n- Decisions: none\n- Next: none\n\n## 2026-05-10T13:59:56.452Z\n\n- Status: completed\n- Summary: dashboard 계정 설정을 고정 조합에서 동적 Add account 흐름으로 전면 교체했다. provider/login method/email/session profile/password/API key 입력을 지원하고, secret은 Windows DPAPI local vault에 암호화 저장하며 runtime에는 credential reference만 남긴다. Start 화면에는 모델 override와 active run line log를 추가했다.\n- Verification: pnpm validate 통과; pnpm dashboard:build 통과; vault-runtime-test 통과; in-app browser에서 Add account/AI tool/Google/Model/GPT-5.5/Prompt/Start 표시 확인\n- Git: not recorded\n- Decisions: none\n- Next: worker별 session profile launch adapter\n\n## 2026-05-10T14:17:20.025Z\n\n- Status: completed\n- Summary: worker launch adapter를 추가해 Start가 실제 launch request를 처리하도록 연결했다. Codex는 session-profile별 CODEX_HOME으로 codex exec를 실행하고, Cursor는 session-profile별 user-data-dir로 창을 연다. launch 전 pnpm validate preflight를 실행해 결과를 active run에 반영하고, login/session expired 패턴이 보이면 계정을 needs-login으로 되돌리며 needs_user handoff를 남긴다.\n- Verification: pnpm validate 통과; pnpm dashboard:build 통과; worker-launch-adapter-test 통과; in-app browser에서 Projects/Accounts/Prompt/Workers/Connection policy 표시 확인\n- Git: not recorded\n- Decisions: none\n- Next: Claude Code command-mode adapter profile\n\n## 2026-05-10T14:35:02.421Z\n\n- Status: completed\n- Summary: 대시보드 UI를 한글로 통일하고 계정 삭제 버튼, 입력/버튼 툴팁, 남은 사용량/주간 예산 설명을 추가했다. 계정 삭제 API를 붙이고 삭제 시 로컬 credential vault 정리까지 반영했다.\n- Verification: pnpm validate; pnpm dashboard:build; Edge headless DOM/screenshot; temp account delete API verified\n- Git: not recorded\n- Decisions: none\n- Next: See tools/agent-orchestrator/handoff/NEXT_TASK.md\n\n## 2026-05-10T23:02:58.933Z\n\n- Status: completed\n- Summary: Phase 11 Claude Code command-mode adapter profile 추가\n- Verification: pnpm validate; pnpm agent:progress\n- Git: not recorded\n- Decisions: none\n- Next: See tools/agent-orchestrator/handoff/NEXT_TASK.md\n\n## 2026-05-10T23:18:42.248Z\n\n- Status: completed\n- Summary: dashboard 계정 UX 자동화: 폼 collapsible, 세션 자동 감지, plan별 사용량 자동\n- Verification: pnpm validate; pnpm dashboard:build; live API test (add+detect)\n- Git: not recorded\n- Decisions: none\n- Next: See tools/agent-orchestrator/handoff/NEXT_TASK.md"
+      "line_count": 336,
+      "excerpt": "...며 runtime에는 credential reference만 남긴다. Start 화면에는 모델 override와 active run line log를 추가했다.\n- Verification: pnpm validate 통과; pnpm dashboard:build 통과; vault-runtime-test 통과; in-app browser에서 Add account/AI tool/Google/Model/GPT-5.5/Prompt/Start 표시 확인\n- Git: not recorded\n- Decisions: none\n- Next: worker별 session profile launch adapter\n\n## 2026-05-10T14:17:20.025Z\n\n- Status: completed\n- Summary: worker launch adapter를 추가해 Start가 실제 launch request를 처리하도록 연결했다. Codex는 session-profile별 CODEX_HOME으로 codex exec를 실행하고, Cursor는 session-profile별 user-data-dir로 창을 연다. launch 전 pnpm validate preflight를 실행해 결과를 active run에 반영하고, login/session expired 패턴이 보이면 계정을 needs-login으로 되돌리며 needs_user handoff를 남긴다.\n- Verification: pnpm validate 통과; pnpm dashboard:build 통과; worker-launch-adapter-test 통과; in-app browser에서 Projects/Accounts/Prompt/Workers/Connection policy 표시 확인\n- Git: not recorded\n- Decisions: none\n- Next: Claude Code command-mode adapter profile\n\n## 2026-05-10T14:35:02.421Z\n\n- Status: completed\n- Summary: 대시보드 UI를 한글로 통일하고 계정 삭제 버튼, 입력/버튼 툴팁, 남은 사용량/주간 예산 설명을 추가했다. 계정 삭제 API를 붙이고 삭제 시 로컬 credential vault 정리까지 반영했다.\n- Verification: pnpm validate; pnpm dashboard:build; Edge headless DOM/screenshot; temp account delete API verified\n- Git: not recorded\n- Decisions: none\n- Next: See tools/agent-orchestrator/handoff/NEXT_TASK.md\n\n## 2026-05-10T23:02:58.933Z\n\n- Status: completed\n- Summary: Phase 11 Claude Code command-mode adapter profile 추가\n- Verification: pnpm validate; pnpm agent:progress\n- Git: not recorded\n- Decisions: none\n- Next: See tools/agent-orchestrator/handoff/NEXT_TASK.md\n\n## 2026-05-10T23:18:42.248Z\n\n- Status: completed\n- Summary: dashboard 계정 UX 자동화: 폼 collapsible, 세션 자동 감지, plan별 사용량 자동\n- Verification: pnpm validate; pnpm dashboard:build; live API test (add+detect)\n- Git: not recorded\n- Decisions: none\n- Next: See tools/agent-orchestrator/handoff/NEXT_TASK.md\n\n## 2026-05-11T01:01:02.737Z\n\n- Status: completed\n- Summary: Phase 11 완료 (4/4): Gemini adapter, detector 보강, doctor session readiness 진단\n- Verification: pnpm validate; pnpm agent:doctor; pnpm agent:progress=100%\n- Git: not recorded\n- Decisions: none\n- Next: See tools/agent-orchestrator/handoff/NEXT_TASK.md"
     },
     {
       "id": "dashboard-run",
@@ -512,7 +512,7 @@
       "generated": "",
       "decision_count": 0,
       "line_count": 14,
-      "excerpt": "# DASHBOARD_RUN\n\n- 생성 시각: 2026-05-11T00:43:53.993Z\n- 실행 상태 파일: tools/agent-orchestrator/handoff/run-states/dashboard-current.json\n- 작업 도구: codex\n- 상태: interrupted\n- 사유: user_stopped\n- 계정: dungbo92-gmail.com\n- 모델: gpt-5.4\n- 프롬프트 본문: data/dashboard-runtime.json 에만 저장\n- 비밀 포함 여부: false\n\n## 요약\n\n대시보드가 codex 작업의 상태를 interrupted 로 기록했습니다. 프롬프트 본문은 data/dashboard-runtime.json 에만 저장됩니다.\n\n## 다음 단계\n\n로컬 실행 기록을 확인하고 NEXT_TASK.md 에서 이어가거나 새 작업을 시작하세요."
+      "excerpt": "# DASHBOARD_RUN\n\n- 생성 시각: 2026-05-11T00:53:29.316Z\n- 실행 상태 파일: tools/agent-orchestrator/handoff/run-states/dashboard-current.json\n- 작업 도구: codex\n- 상태: interrupted\n- 사유: user_stopped\n- 계정: dungbo92-gmail.com\n- 모델: gpt-5.4\n- 프롬프트 본문: data/dashboard-runtime.json 에만 저장\n- 비밀 포함 여부: false\n\n## 요약\n\n대시보드가 codex 작업의 상태를 interrupted 로 기록했습니다. 프롬프트 본문은 data/dashboard-runtime.json 에만 저장됩니다.\n\n## 다음 단계\n\n로컬 실행 기록을 확인하고 NEXT_TASK.md 에서 이어가거나 새 작업을 시작하세요."
     },
     {
       "id": "decisions",
@@ -530,8 +530,7 @@
   "task_queue": {
     "total": 47,
     "statuses": {
-      "done": 45,
-      "todo": 2
+      "done": 47
     },
     "next": []
   },
@@ -583,7 +582,7 @@
       "latest_status": "interrupted",
       "latest_reason": "user_stopped",
       "latest_task": "대시보드 시작 요청",
-      "latest_updated_at": "2026-05-11T00:43:53.993Z",
+      "latest_updated_at": "2026-05-11T00:53:29.316Z",
       "handoff_summary": "대시보드가 codex 작업의 상태를 interrupted 로 기록했습니다. 프롬프트 본문은 data/dashboard-runtime.json 에만 저장됩니다."
     },
     {
@@ -620,5 +619,5 @@
       "handoff_summary": ""
     }
   ],
-  "project_state_excerpt": "# Project State\n\nLast updated: 2026-05-10\n\n## 프로젝트 한 줄\n\nAgentApp은 여러 AI 개발 에이전트가 같은 memory/plan/handoff를 공유하며 안전한 작업을 이어받게 하는 멀티 에이전트 개발 오케스트레이터다.\n\n## 현재 상태\n\n- `AGENTS.md`, `CLAUDE.md` 공통 규칙 초안 생성.\n- `.claude-sync` memory/plan 동기화 구조 생성.\n- `scripts/claude-sync.mjs`, `install-hooks.mjs` 생성.\n- `scripts/agent-doctor.mjs`, `agent-next.mjs`, `agent-progress.mjs`, `agent-report.mjs` 생성.\n- `tools/agent-orchestrator` 아래 승인 정책, worker 예시, handoff 초안 생성.\n- `git init`, `pnpm install`, hook 설치 완료.\n- `pnpm validate`, `pnpm agent:doctor`, `pnpm agent:progress`, `pnpm agent:next`, `pnpm agent:status` 검증 완료.\n- 새 PC/새 에이전트 세션에서 `pnpm agent:doctor`로 Node/pnpm/git, hooks, `.claude-sync`, 로컬 `~/.claude`, git UTF-8 설정, sync 상태를 점검한다.\n- `approval-policy.yaml`을 allow/hold/deny 구조로 확정하고 로컬 commit/remote push 기준을 명시했다.\n- git remote `origin`은 `git@github.com:dungbo92-eng/agentapp.git`, 기본 브랜치는 `main`으로 설정했다.\n- `workers.example.yaml`을 Codex, Claude Code, Cursor, Gemini CLI용 registry 예시로 확정했다.\n- `pnpm agent:next`가 생성하는 `NEXT_TASK.md` 템플릿을 Required Reads, 실행 규칙, 완료 체크리스트, handoff 갱신 목록, context snapshot 구조로 확정했다.\n- `pnpm agent:report`가 `RUN_STATUS.md`에 Status, Summary, Verification, Git, Decisions, Next 필드를 가진"
+  "project_state_excerpt": "# Project State\n\nLast updated: 2026-05-11\n\n## 프로젝트 한 줄\n\nAgentApp은 여러 AI 개발 에이전트가 같은 memory/plan/handoff를 공유하며 안전한 작업을 이어받게 하는 멀티 에이전트 개발 오케스트레이터다.\n\n## 현재 상태\n\n- `AGENTS.md`, `CLAUDE.md` 공통 규칙 초안 생성.\n- `.claude-sync` memory/plan 동기화 구조 생성.\n- `scripts/claude-sync.mjs`, `install-hooks.mjs` 생성.\n- `scripts/agent-doctor.mjs`, `agent-next.mjs`, `agent-progress.mjs`, `agent-report.mjs` 생성.\n- `tools/agent-orchestrator` 아래 승인 정책, worker 예시, handoff 초안 생성.\n- `git init`, `pnpm install`, hook 설치 완료.\n- `pnpm validate`, `pnpm agent:doctor`, `pnpm agent:progress`, `pnpm agent:next`, `pnpm agent:status` 검증 완료.\n- 새 PC/새 에이전트 세션에서 `pnpm agent:doctor`로 Node/pnpm/git, hooks, `.claude-sync`, 로컬 `~/.claude`, git UTF-8 설정, sync 상태를 점검한다.\n- `approval-policy.yaml`을 allow/hold/deny 구조로 확정하고 로컬 commit/remote push 기준을 명시했다.\n- git remote `origin`은 `git@github.com:dungbo92-eng/agentapp.git`, 기본 브랜치는 `main`으로 설정했다.\n- `workers.example.yaml`을 Codex, Claude Code, Cursor, Gemini CLI용 registry 예시로 확정했다.\n- `pnpm agent:next`가 생성하는 `NEXT_TASK.md` 템플릿을 Required Reads, 실행 규칙, 완료 체크리스트, handoff 갱신 목록, context snapshot 구조로 확정했다.\n- `pnpm agent:report`가 `RUN_STATUS.md`에 Status, Summary, Verification, Git, Decisions, Next 필드를 가진"
 }
