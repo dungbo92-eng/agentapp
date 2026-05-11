@@ -412,14 +412,20 @@ export async function runAccountLogin(accountId) {
     return writeRuntime(runtime);
   }
 
-  launchLoginProcess(adapter);
+  const launched = await launchLoginProcess(adapter);
 
   runtime.accounts = runtime.accounts.map((item) =>
     item.id === id
       ? {
           ...item,
           sessionStatus: "paused",
-          sessionDetectionReason: "로그인 창을 띄웠습니다. 브라우저/콘솔에서 인증을 완료한 뒤 '재감지'를 눌러 주세요.",
+          sessionDetectionReason: launched.error
+            ? `로그인 실행 실패: ${launched.error}`
+            : launched.browserOpened
+              ? "인증 페이지를 브라우저로 열었습니다. 인증 완료 후 '재감지'를 눌러 주세요."
+              : "로그인 프로세스를 백그라운드에서 시작했습니다. 브라우저가 자동으로 열리지 않으면 해당 CLI에서 수동 로그인 후 '재감지'를 눌러 주세요.",
+          loginProcessPid: launched.pid || 0,
+          loginUrlOpenedAt: launched.browserOpened ? nowIso() : item.loginUrlOpenedAt || "",
         }
       : item,
   );

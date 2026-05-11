@@ -492,3 +492,21 @@ NEXT_TASK.md 템플릿 확정: agent-next 생성물을 Required Reads, Execution
 - Git: not recorded
 - Decisions: none
 - Next: Complete the opened Codex/Claude/Gemini login flows manually, then click 재감지 or rerun node scripts/user-environment-cycle-test.mjs --worker <worker> --execute.
+
+## 2026-05-11T08:35:50.111Z
+
+- Status: completed
+- Summary: 로그인/계정 확인 흐름을 콘솔 창 대신 백그라운드 실행 + 인증 URL 자동 브라우저 오픈 방식으로 변경했고 Windows installer/portable을 재패키징했습니다.
+- Verification: pnpm validate; node scripts\\agent-environment-setup.mjs --target all --json; node scripts\\agent-doctor.mjs; pnpm dashboard:build; pnpm desktop:installer; pnpm desktop:pack; silent installer install/uninstall smoke
+- Git: not recorded
+- Decisions: none
+- Next: See tools/agent-orchestrator/handoff/NEXT_TASK.md
+
+## 2026-05-11T08:50:00.101Z
+
+- Status: completed
+- Summary: 로그인/계정 확인 흐름을 콘솔 창 없이 백그라운드에서 실행하고, CLI 출력 인증 URL을 기본 브라우저로 자동 오픈하도록 변경했습니다. Windows .cmd shim은 숨김 cmd 래퍼로 실행해 cmd.exe ENOENT와 콘솔 창 노출을 줄였고 installer/portable을 최종 재패키징했습니다.
+- Verification: pnpm validate; node scripts\\agent-environment-setup.mjs --target all --json; node scripts\\agent-doctor.mjs; pnpm desktop:installer; pnpm desktop:pack; silent installer install/uninstall smoke; pnpm desktop:artifact
+- Git: not recorded
+- Decisions: none
+- Next: See tools/agent-orchestrator/handoff/NEXT_TASK.md

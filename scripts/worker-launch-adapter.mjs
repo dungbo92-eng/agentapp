@@ -225,6 +225,19 @@ function needsWindowsShell(command) {
   return isWindows() && /\.(cmd|bat)$/i.test(command);
 }
 
+function spawnInvocation(command, args, shellOverride) {
+  if (shellOverride !== undefined) return { command, args, shell: shellOverride };
+  if (!needsWindowsShell(command)) return { command, args, shell: false };
+  return {
+    command: windowsShell(),
+    args: ["/d", "/s", "/c", "call", command, ...args],
+    shell: false,
+  };
+}
+
+const URL_PATTERN = /\bhttps?:\/\/[^\s"'<>]+/gi;
+const LOGIN_URL_CAPTURE_MS = 5000;
+
 function executableFromPathProbe(stdout) {
   const lines = stdout
     .split(/\r?\n/)
@@ -241,6 +254,40 @@ function executableFromPathProbe(stdout) {
     }
   }
   return lines[0] || "";
+}
+
+function sanitizeUrl(rawUrl) {
+  return String(rawUrl || "").replace(/[)\].,;]+$/g, "");
+}
+
+function uniqueUrls(text) {
+  return Array.from(new Set((String(text || "").match(URL_PATTERN) || []).map(sanitizeUrl).filter(Boolean)));
+}
+
+function openUrl(url) {
+  if (!url) return;
+  const target = sanitizeUrl(url);
+  let command;
+  let args;
+  if (isWindows()) {
+    command = windowsSystemCommand("rundll32.exe");
+    args = ["url.dll,FileProtocolHandler", target];
+  } else if (process.platform === "darwin") {
+    command = "open";
+    args = [target];
+  } else {
+    command = "xdg-open";
+    args = [target];
+  }
+  const child = spawn(command, args, {
+    cwd: REPO_ROOT,
+    detached: true,
+    stdio: "ignore",
+    shell: false,
+    windowsHide: true,
+  });
+  child.on("error", () => {});
+  child.unref();
 }
 
 async function commandPathFor(command) {
@@ -497,7 +544,7 @@ export async function resolveLoginAdapter(provider, sessionProfile) {
     if (!command) return { status: "blocked", reason: "codex CLI 가 PATH 에서 발견되지 않습니다." };
     const sessionDir = buildSessionProfileDir("codex", sessionProfile);
     await mkdir(sessionDir, { recursive: true });
-    return { status: "ready", command, args: ["login"], env: { CODEX_HOME: sessionDir }, sessionDir, interactive: true };
+    return { status: "ready", command, args: ["login", "--device-auth"], env: { CODEX_HOME: sessionDir }, sessionDir, interactive: true };
   }
   if (id === "claude" || id === "claude-code") {
     const command = process.env.AGENTAPP_CLAUDE_COMMAND || (await commandPathFor("claude"));
@@ -522,44 +569,63 @@ export async function resolveLoginAdapter(provider, sessionProfile) {
   return { status: "blocked", reason: `${id} 는 자동 로그인을 지원하지 않습니다.` };
 }
 
-export function launchLoginProcess(adapter) {
+export async function launchLoginProcess(adapter) {
   const env = { ...process.env, ...(adapter.env || {}) };
-  let command;
-  let args;
-  let shellMode;
-  if (adapter.interactive && process.platform === "win32") {
-    // Open a new console window so the user can complete OAuth interactively.
-    // cmd /c start "<title>" cmd /k "<command> <args>"
-    const inner = [adapter.command, ...adapter.args].map((part) => (/\s/.test(part) ? `"${part}"` : part)).join(" ");
-    command = windowsShell();
-    args = ["/c", "start", "AgentApp Login", "cmd.exe", "/k", inner];
-    shellMode = false;
-  } else if (adapter.interactive && process.platform === "darwin") {
-    const inner = [adapter.command, ...adapter.args].map((p) => `'${p.replace(/'/g, "'\\''")}'`).join(" ");
-    command = "osascript";
-    args = ["-e", `tell application "Terminal" to do script "${inner.replace(/"/g, '\\"')}"`];
-    shellMode = false;
-  } else if (adapter.interactive) {
-    // Linux: best-effort xterm
-    command = "xterm";
-    args = ["-e", `${adapter.command} ${adapter.args.join(" ")}`];
-    shellMode = false;
-  } else {
-    command = adapter.command;
-    args = adapter.args;
-    shellMode = process.platform === "win32";
+  const opened = new Set();
+  let child;
+  try {
+    const invocation = spawnInvocation(adapter.command, adapter.args);
+    child = spawn(invocation.command, invocation.args, {
+      cwd: REPO_ROOT,
+      env,
+      detached: true,
+      stdio: ["ignore", "pipe", "pipe"],
+      shell: invocation.shell,
+      windowsHide: true,
+    });
+  } catch (error) {
+    return {
+      pid: 0,
+      openedUrls: [],
+      browserOpened: false,
+      error: error instanceof Error ? error.message : String(error),
+    };
   }
 
-  const child = spawn(command, args, {
-    cwd: REPO_ROOT,
-    env,
-    detached: true,
-    stdio: "ignore",
-    shell: shellMode,
-    windowsHide: false,
-  });
+  let errorMessage = "";
+  const inspect = (chunk) => {
+    for (const url of uniqueUrls(chunk.toString("utf8"))) {
+      if (opened.has(url)) continue;
+      opened.add(url);
+      openUrl(url);
+    }
+  };
+  child.stdout.on("data", inspect);
+  child.stderr.on("data", inspect);
   child.unref();
-  return { pid: child.pid || 0 };
+
+  await new Promise((resolve) => {
+    let settled = false;
+    let timer;
+    const done = () => {
+      if (settled) return;
+      settled = true;
+      clearTimeout(timer);
+      resolve();
+    };
+    timer = setTimeout(done, LOGIN_URL_CAPTURE_MS);
+    child.on("error", (error) => {
+      errorMessage = error instanceof Error ? error.message : String(error);
+      done();
+    });
+    child.on("close", done);
+  });
+
+  child.stdout.off("data", inspect);
+  child.stderr.off("data", inspect);
+  child.stdout.unref?.();
+  child.stderr.unref?.();
+  return { pid: child.pid || 0, openedUrls: Array.from(opened), browserOpened: opened.size > 0, error: errorMessage };
 }
 
 function lineChunks(buffer, chunk) {
@@ -571,11 +637,12 @@ function lineChunks(buffer, chunk) {
 async function streamProcess(command, args, options = {}) {
   await mkdir(path.dirname(options.logPath), { recursive: true });
   return new Promise((resolve, reject) => {
-    const child = spawn(command, args, {
+    const invocation = spawnInvocation(command, args, options.shell);
+    const child = spawn(invocation.command, invocation.args, {
       cwd: options.cwd || REPO_ROOT,
       env: { ...process.env, ...(options.env || {}) },
       windowsHide: options.windowsHide ?? true,
-      shell: options.shell ?? needsWindowsShell(command),
+      shell: invocation.shell,
       detached: options.detached ?? false,
     });
 
@@ -933,8 +1000,7 @@ async function launchWindowWorker(run, files, adapter) {
     cwd: REPO_ROOT,
     env: adapter.env,
     logPath: files.launchLogPath,
-    windowsHide: false,
-    shell: process.platform === "win32",
+    windowsHide: true,
     onSpawn: async (pid) => {
       await patchRunRecord(run.id, {
         adapter: {

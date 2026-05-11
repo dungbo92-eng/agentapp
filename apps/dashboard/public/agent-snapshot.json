@@ -1,5 +1,5 @@
 {
-  "generated_at": "2026-05-11T07:37:41.999Z",
+  "generated_at": "2026-05-11T08:45:48.009Z",
   "repo_root": "D:\\agentApp",
   "progress": {
     "percent": 99,
@@ -376,7 +376,7 @@
     ]
   },
   "next_task": {
-    "generated": "2026-05-11T07:37:15.364Z",
+    "generated": "2026-05-11T08:36:01.807Z",
     "title": "Claude/Gemini CLI 설치 후 실제 authenticated cycle 재검증",
     "source": "roadmap",
     "id": "n/a",
@@ -391,11 +391,11 @@
     }
   ],
   "latest_run": {
-    "at": "2026-05-11T07:37:25.813Z",
-    "status": "blocked",
-    "summary": "Installed Claude/Gemini CLI, fixed Windows npm shim execution for worker adapters, updated Gemini CLI launch syntax, rebuilt installer, and ran cycle tests. Remaining blocker is user authentication: Codex session profile returns 401, Claude/Gemini login profiles are empty, Cursor opens but requires manual UI completion.",
-    "verification": "node scripts/agent-environment-setup.mjs --target all --json: all 7 ok; node scripts/agent-doctor.mjs: CLI ok, auth warnings only; Codex cycle-test reached CLI and logged 401; Cursor cycle opened window with validation passed; pnpm.cmd validate; pnpm.cmd dashboard:build; pnpm.cmd desktop:installer; silent installer smoke; pnpm.cmd desktop:artifact",
-    "next": "Complete the opened Codex/Claude/Gemini login flows manually, then click 재감지 or rerun node scripts/user-environment-cycle-test.mjs --worker <worker> --execute."
+    "at": "2026-05-11T08:35:50.111Z",
+    "status": "completed",
+    "summary": "로그인/계정 확인 흐름을 콘솔 창 대신 백그라운드 실행 + 인증 URL 자동 브라우저 오픈 방식으로 변경했고 Windows installer/portable을 재패키징했습니다.",
+    "verification": "pnpm validate; node scripts\\\\agent-environment-setup.mjs --target all --json; node scripts\\\\agent-doctor.mjs; pnpm dashboard:build; pnpm desktop:installer; pnpm desktop:pack; silent installer install/uninstall smoke",
+    "next": "See tools/agent-orchestrator/handoff/NEXT_TASK.md"
   },
   "approval_queue": {
     "pending_decisions": [
@@ -529,22 +529,22 @@
       "heading": "NEXT_TASK",
       "status": "roadmap",
       "next": "Claude/Gemini CLI 설치 후 실제 authenticated cycle 재검증",
-      "generated": "2026-05-11T07:37:15.364Z",
+      "generated": "2026-05-11T08:36:01.807Z",
       "decision_count": 0,
       "line_count": 489,
-      "excerpt": "# NEXT_TASK\n\n- Generated: 2026-05-11T07:37:15.364Z\n- Selected task: Claude/Gemini CLI 설치 후 실제 authenticated cycle 재검증\n- Selection source: roadmap\n- Task id: n/a\n- Task priority: n/a\n- Workspace: D:\\agentApp\n- Policy: tools/agent-orchestrator/approval-policy.yaml\n\n## Required Reads\n\n1. AGENTS.md\n2. .claude-sync/memory/project_state.md\n3. .claude-sync/plans/agent-orchestrator-roadmap.md\n4. tools/agent-orchestrator/approval-policy.yaml\n5. docs/usage-budget-model-routing.md\n6. docs/handoff-completion-protocol.md\n7. tools/agent-orchestrator/task-queue.json\n8. tools/agent-orchestrator/workers.example.yaml\n\n## Agent Prompt\n\n위 Required Reads를 먼저 읽고 시작한다.\n\n다음 작업을 진행한다:\n\n> Claude/Gemini CLI 설치 후 실제 authenticated cycle 재검증\n\n## Execution Rules\n\n- `auto_allowed`에 해당하는 로컬 작업은 바로 진행한다.\n- `hold_for_user` 또는 `user_required`에 해당하는 작업은 실행하지 말고 DECISIONS_REQUIRED.md에 남긴다.\n- `deny`에 해당하는 작업은 구현하지 않는다.\n- 비밀값, 계정 정보, 토큰, 쿠키, 운영 인증 정보는 파일/로그/문서에 남기지 않는다.\n- 작업 범위가 섞여 있으면 안전한 로컬 부분만 완료하고 보류 항목을 기록한다.\n- 개발 구현, 문서화, 테스트, 로컬 검증, handoff 갱신, commit/push는 추가 확인 없이 계속 진행한다.\n\n## Completion Checklist\n\n- pnpm validate\n- pnpm agent:doctor\n- pnpm agent:progress\n- pnpm agent:next\n- pnpm agent:sync\n- git status 확인\n- 검증된 변경 commit\n- 승인된 remote가 있으면 push\n\n## Handoff Updates\n\n- tools/agent-orchestrator/handoff/RUN_STATUS.md: 수행 내용과 검증 결과 추가\n- tools/agent-orchestrator/handoff/DECISIONS_REQUIRED.md: 사용자 결정 필요 항목 추가/해결 처리\n- .claude-sync/memory/project_state.md: 의미 있는 진행 반영\n- .claude-sync/plans/agent-orchestrator-roadmap.md: 완료된 roadmap 체크박스 갱신\n\n## Context Snapshot\n\n### Project State\n\n```md\n# Project State\n\nLast updated: 2026-05-11\n\n## 프로젝트 한 줄\n\nAgentApp은 여러 AI 개발 에이전트가 같은 memory/plan/handoff를 공유하며 안전한 작업을 이어받게 하는 멀티 에이전트 개발 오케스트레이터다.\n\n## 현재 상태\n\n- `AGENTS.md`, `CLAUDE.md` 공통 규칙 초안 생성.\n- `.claude-sync` memory/plan 동기화 구조 생성.\n- `scripts/claude-sync.mjs`, `install-hooks.mjs` 생성.\n- `scripts/agent-doctor.mjs`, `agent-next.mjs`, `agent-progress.mjs`, `agent-report.mjs` 생성.\n- `tools/agent-orchestrator` 아래 승인 정책, worker 예시, handoff 초안 생성.\n- `git init`, `pnpm install`, hook 설치 완료.\n- `pnpm validate`, `pnpm agent:doctor`, `pnpm agent:progress`, `pnpm agent:next`, `pnpm agent:status` 검증 완료.\n- 새 PC/새 에이전트 세션에서 `pnpm age..."
+      "excerpt": "# NEXT_TASK\n\n- Generated: 2026-05-11T08:36:01.807Z\n- Selected task: Claude/Gemini CLI 설치 후 실제 authenticated cycle 재검증\n- Selection source: roadmap\n- Task id: n/a\n- Task priority: n/a\n- Workspace: D:\\agentApp\n- Policy: tools/agent-orchestrator/approval-policy.yaml\n\n## Required Reads\n\n1. AGENTS.md\n2. .claude-sync/memory/project_state.md\n3. .claude-sync/plans/agent-orchestrator-roadmap.md\n4. tools/agent-orchestrator/approval-policy.yaml\n5. docs/usage-budget-model-routing.md\n6. docs/handoff-completion-protocol.md\n7. tools/agent-orchestrator/task-queue.json\n8. tools/agent-orchestrator/workers.example.yaml\n\n## Agent Prompt\n\n위 Required Reads를 먼저 읽고 시작한다.\n\n다음 작업을 진행한다:\n\n> Claude/Gemini CLI 설치 후 실제 authenticated cycle 재검증\n\n## Execution Rules\n\n- `auto_allowed`에 해당하는 로컬 작업은 바로 진행한다.\n- `hold_for_user` 또는 `user_required`에 해당하는 작업은 실행하지 말고 DECISIONS_REQUIRED.md에 남긴다.\n- `deny`에 해당하는 작업은 구현하지 않는다.\n- 비밀값, 계정 정보, 토큰, 쿠키, 운영 인증 정보는 파일/로그/문서에 남기지 않는다.\n- 작업 범위가 섞여 있으면 안전한 로컬 부분만 완료하고 보류 항목을 기록한다.\n- 개발 구현, 문서화, 테스트, 로컬 검증, handoff 갱신, commit/push는 추가 확인 없이 계속 진행한다.\n\n## Completion Checklist\n\n- pnpm validate\n- pnpm agent:doctor\n- pnpm agent:progress\n- pnpm agent:next\n- pnpm agent:sync\n- git status 확인\n- 검증된 변경 commit\n- 승인된 remote가 있으면 push\n\n## Handoff Updates\n\n- tools/agent-orchestrator/handoff/RUN_STATUS.md: 수행 내용과 검증 결과 추가\n- tools/agent-orchestrator/handoff/DECISIONS_REQUIRED.md: 사용자 결정 필요 항목 추가/해결 처리\n- .claude-sync/memory/project_state.md: 의미 있는 진행 반영\n- .claude-sync/plans/agent-orchestrator-roadmap.md: 완료된 roadmap 체크박스 갱신\n\n## Context Snapshot\n\n### Project State\n\n```md\n# Project State\n\nLast updated: 2026-05-11\n\n## 프로젝트 한 줄\n\nAgentApp은 여러 AI 개발 에이전트가 같은 memory/plan/handoff를 공유하며 안전한 작업을 이어받게 하는 멀티 에이전트 개발 오케스트레이터다.\n\n## 현재 상태\n\n- `AGENTS.md`, `CLAUDE.md` 공통 규칙 초안 생성.\n- `.claude-sync` memory/plan 동기화 구조 생성.\n- `scripts/claude-sync.mjs`, `install-hooks.mjs` 생성.\n- `scripts/agent-doctor.mjs`, `agent-next.mjs`, `agent-progress.mjs`, `agent-report.mjs` 생성.\n- `tools/agent-orchestrator` 아래 승인 정책, worker 예시, handoff 초안 생성.\n- `git init`, `pnpm install`, hook 설치 완료.\n- `pnpm validate`, `pnpm agent:doctor`, `pnpm agent:progress`, `pnpm agent:next`, `pnpm agent:status` 검증 완료.\n- 새 PC/새 에이전트 세션에서 `pnpm age..."
     },
     {
       "id": "run-status",
       "title": "RUN_STATUS.md",
       "path": "tools/agent-orchestrator/handoff/RUN_STATUS.md",
       "heading": "RUN_STATUS",
-      "status": "blocked",
-      "next": "Complete the opened Codex/Claude/Gemini login flows manually, then click 재감지 or rerun node scripts/user-environment-cycle-test.mjs --worker <worker> --execute.",
-      "generated": "2026-05-11T07:37:25.813Z",
+      "status": "completed",
+      "next": "See tools/agent-orchestrator/handoff/NEXT_TASK.md",
+      "generated": "2026-05-11T08:35:50.111Z",
       "decision_count": 0,
-      "line_count": 378,
-      "excerpt": "...0; 설치된 AgentApp.exe 8초 생존; uninstaller /S exit 0; pnpm validate; pnpm desktop:artifact\n- Git: not recorded\n- Decisions: none\n- Next: 사용자 PC에서 AgentApp-Setup-0.1.0-x64.exe 더블클릭 설치 확인 후 dashboard 환경 패널에서 누락 CLI 자동 설치 실행\n\n## 2026-05-11T06:11:47.980Z\n\n- Status: completed\n- Summary: dashboard AI CLI auto-install now starts on main screen and Windows packaged install uses absolute cmd/where paths\n- Verification: PATH-empty agent:setup ai json; pnpm validate; pnpm dashboard:build; pnpm desktop:installer; silent installer smoke; pnpm desktop:artifact\n- Git: not recorded\n- Decisions: none\n- Next: 사용자 PC에서 앱 실행 후 Claude/Gemini CLI 자동 설치 로그 확인, 이후 수동 인증 후 cycle-test 실행\n\n## 2026-05-11T06:15:48.544Z\n\n- Status: completed\n- Summary: dashboard now auto-installs missing core tools and AI CLIs on main screen; Windows packaged install resolves cmd/where and common Node/Git/Cursor/npm paths without relying on PATH\n- Verification: PATH-empty agent:setup all json; pnpm validate; pnpm dashboard:build; pnpm desktop:installer; silent installer smoke with auto-install disabled; pnpm desktop:artifact\n- Git: not recorded\n- Decisions: none\n- Next: 앱을 일반 실행하면 누락된 Claude/Gemini CLI 자동 설치가 시작됩니다. 설치 후 Claude/Gemini 수동 인증을 완료하고 authenticated cycle-test를 실행하세요.\n\n## 2026-05-11T07:37:25.813Z\n\n- Status: blocked\n- Summary: Installed Claude/Gemini CLI, fixed Windows npm shim execution for worker adapters, updated Gemini CLI launch syntax, rebuilt installer, and ran cycle tests. Remaining blocker is user authentication: Codex session profile returns 401, Claude/Gemini login profiles are empty, Cursor opens but requires manual UI completion.\n- Verification: node scripts/agent-environment-setup.mjs --target all --json: all 7 ok; node scripts/agent-doctor.mjs: CLI ok, auth warnings only; Codex cycle-test reached CLI and logged 401; Cursor cycle opened window with validation passed; pnpm.cmd validate; pnpm.cmd dashboard:build; pnpm.cmd desktop:installer; silent installer smoke; pnpm.cmd desktop:artifact\n- Git: not recorded\n- Decisions: none\n- Next: Complete the opened Codex/Claude/Gemini login flows manually, then click 재감지 or rerun node scripts/user-environment-cycle-test.mjs --worker <worker> --execute."
+      "line_count": 385,
+      "excerpt": "...top:installer; silent installer smoke; pnpm desktop:artifact\n- Git: not recorded\n- Decisions: none\n- Next: 사용자 PC에서 앱 실행 후 Claude/Gemini CLI 자동 설치 로그 확인, 이후 수동 인증 후 cycle-test 실행\n\n## 2026-05-11T06:15:48.544Z\n\n- Status: completed\n- Summary: dashboard now auto-installs missing core tools and AI CLIs on main screen; Windows packaged install resolves cmd/where and common Node/Git/Cursor/npm paths without relying on PATH\n- Verification: PATH-empty agent:setup all json; pnpm validate; pnpm dashboard:build; pnpm desktop:installer; silent installer smoke with auto-install disabled; pnpm desktop:artifact\n- Git: not recorded\n- Decisions: none\n- Next: 앱을 일반 실행하면 누락된 Claude/Gemini CLI 자동 설치가 시작됩니다. 설치 후 Claude/Gemini 수동 인증을 완료하고 authenticated cycle-test를 실행하세요.\n\n## 2026-05-11T07:37:25.813Z\n\n- Status: blocked\n- Summary: Installed Claude/Gemini CLI, fixed Windows npm shim execution for worker adapters, updated Gemini CLI launch syntax, rebuilt installer, and ran cycle tests. Remaining blocker is user authentication: Codex session profile returns 401, Claude/Gemini login profiles are empty, Cursor opens but requires manual UI completion.\n- Verification: node scripts/agent-environment-setup.mjs --target all --json: all 7 ok; node scripts/agent-doctor.mjs: CLI ok, auth warnings only; Codex cycle-test reached CLI and logged 401; Cursor cycle opened window with validation passed; pnpm.cmd validate; pnpm.cmd dashboard:build; pnpm.cmd desktop:installer; silent installer smoke; pnpm.cmd desktop:artifact\n- Git: not recorded\n- Decisions: none\n- Next: Complete the opened Codex/Claude/Gemini login flows manually, then click 재감지 or rerun node scripts/user-environment-cycle-test.mjs --worker <worker> --execute.\n\n## 2026-05-11T08:35:50.111Z\n\n- Status: completed\n- Summary: 로그인/계정 확인 흐름을 콘솔 창 대신 백그라운드 실행 + 인증 URL 자동 브라우저 오픈 방식으로 변경했고 Windows installer/portable을 재패키징했습니다.\n- Verification: pnpm validate; node scripts\\\\agent-environment-setup.mjs --target all --json; node scripts\\\\agent-doctor.mjs; pnpm dashboard:build; pnpm desktop:installer; pnpm desktop:pack; silent installer install/uninstall smoke\n- Git: not recorded\n- Decisions: none\n- Next: See tools/agent-orchestrator/handoff/NEXT_TASK.md"
     },
     {
       "id": "dashboard-run",

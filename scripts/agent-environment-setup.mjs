@@ -99,6 +99,16 @@ function needsWindowsShell(command) {
   return isWindows() && /\.(cmd|bat)$/i.test(command);
 }
 
+function commandInvocation(command, args, shellOverride) {
+  if (shellOverride !== undefined) return { command, args, shell: shellOverride };
+  if (!needsWindowsShell(command)) return { command, args, shell: false };
+  return {
+    command: windowsShell(),
+    args: ["/d", "/s", "/c", "call", command, ...args],
+    shell: false,
+  };
+}
+
 function executableFromPathProbe(stdout) {
   const lines = stdout
     .split(/\r?\n/)
@@ -267,14 +277,15 @@ async function packageVersion() {
 
 async function run(command, args, options = {}) {
   const execOptions = options.execOptions || {};
+  const invocation = commandInvocation(command, args, execOptions.shell);
   try {
-    const result = await execFileAsync(command, args, {
+    const result = await execFileAsync(invocation.command, invocation.args, {
       cwd: REPO_ROOT,
       windowsHide: true,
       timeout: options.timeoutMs || 15000,
       ...execOptions,
       env: installEnv(execOptions.env || process.env),
-      shell: execOptions.shell ?? needsWindowsShell(command),
+      shell: invocation.shell,
     });
     return { ok: true, stdout: result.stdout.trim(), stderr: result.stderr.trim() };
   } catch (error) {
@@ -327,11 +338,12 @@ async function checkTarget(target) {
   const versionResult = target.shellProbe
     ? await runShell(`${target.command} ${(target.args || []).join(" ")}`.trim())
     : await run(commandPath, target.args || ["--version"], { timeoutMs: 8000 });
+  const versionOutput = [versionResult.stdout, versionResult.stderr].filter(Boolean).join("\n").trim();
   return {
     ...target,
     status: "ok",
     ok: true,
-    detail: versionResult.ok ? versionResult.stdout.split(/\r?\n/)[0] || commandPath : commandPath,
+    detail: versionResult.ok ? versionOutput.split(/\r?\n/)[0] || commandPath : commandPath,
     reason: override ? `${target.envOverride} 환경변수로 지정됨` : commandPath,
   };
 }
