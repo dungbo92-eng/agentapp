@@ -220,6 +220,8 @@ type RunRecord = {
     sessionDir?: string;
     sessionProfile?: string;
     lastMessagePath?: string;
+    lastMessageText?: string;
+    launchLogTail?: string;
     exitCode?: number;
   };
   routing?: {
@@ -1663,6 +1665,24 @@ function App() {
                       </button>
                     ))}
                 </div>
+                {activeRun.adapter?.command ? (
+                  <div className="runCommand">
+                    <span className="runCommandLabel">실행 명령</span>
+                    <code>{activeRun.adapter.command}</code>
+                  </div>
+                ) : null}
+                {activeRun.adapter?.lastMessageText ? (
+                  <details className="runResponse" open>
+                    <summary>최근 응답 ({activeRun.adapter.lastMessageText.length.toLocaleString()} 자)</summary>
+                    <pre>{activeRun.adapter.lastMessageText}</pre>
+                  </details>
+                ) : null}
+                {activeRun.adapter?.launchLogTail ? (
+                  <details className="runResponse">
+                    <summary>실행 로그 tail ({activeRun.adapter.launchLogTail.length.toLocaleString()} 자)</summary>
+                    <pre>{activeRun.adapter.launchLogTail}</pre>
+                  </details>
+                ) : null}
                 <div className="eventLog">
                   {(activeRun.events || []).map((event) => (
                     <div className={`eventLine ${event.level}`} key={`${event.at}-${event.message}`}>
@@ -1704,6 +1724,14 @@ function App() {
                       {run.workerId}
                       {run.routing?.accountId ? ` / ${run.routing.accountId} / ${run.routing.model}` : ""}
                     </span>
+                    {run.adapter?.lastMessageText ? (
+                      <details className="runResponse compact">
+                        <summary>응답 보기</summary>
+                        <pre>{run.adapter.lastMessageText}</pre>
+                      </details>
+                    ) : run.routing?.reason && run.status === "blocked" ? (
+                      <small className="blockedReason">{run.routing.reason}</small>
+                    ) : null}
                   </div>
                 </article>
               ))}

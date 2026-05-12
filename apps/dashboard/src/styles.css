@@ -741,11 +741,87 @@ label {
 .eventLog {
   display: grid;
   gap: 5px;
-  max-height: 180px;
+  max-height: 220px;
   overflow: auto;
   margin-top: 5px;
   padding-top: 8px;
   border-top: 1px solid rgba(37, 99, 235, 0.18);
+}
+
+.runCommand {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-top: 8px;
+  flex-wrap: wrap;
+}
+
+.runCommand .runCommandLabel {
+  font-size: 0.72rem;
+  color: #475569;
+  font-weight: 700;
+}
+
+.runCommand code {
+  padding: 3px 8px;
+  border-radius: 6px;
+  background: #0f172a;
+  color: #e2e8f0;
+  font-family: "Cascadia Mono", "SFMono-Regular", Consolas, monospace;
+  font-size: 0.74rem;
+  overflow-wrap: anywhere;
+  word-break: break-all;
+}
+
+.runResponse {
+  margin-top: 8px;
+  padding: 8px 10px;
+  border: 1px solid #cbd5e1;
+  border-radius: 7px;
+  background: #f8fafc;
+}
+
+.runResponse summary {
+  cursor: pointer;
+  font-size: 0.78rem;
+  font-weight: 700;
+  color: #1d4ed8;
+  user-select: none;
+}
+
+.runResponse summary:hover {
+  color: #1e3a8a;
+}
+
+.runResponse pre {
+  margin: 6px 0 0;
+  padding: 8px;
+  max-height: 320px;
+  overflow: auto;
+  border-radius: 6px;
+  background: #0f172a;
+  color: #e2e8f0;
+  font-family: "Cascadia Mono", "SFMono-Regular", Consolas, monospace;
+  font-size: 0.76rem;
+  line-height: 1.5;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+
+.runResponse.compact pre {
+  max-height: 220px;
+  font-size: 0.72rem;
+}
+
+.blockedReason {
+  display: block;
+  margin-top: 4px;
+  padding: 4px 8px;
+  border-left: 3px solid #d83b30;
+  background: rgba(216, 59, 48, 0.08);
+  color: #7f1d1d;
+  font-size: 0.72rem;
+  overflow-wrap: anywhere;
 }
 
 .eventLine {

@@ -220,9 +220,54 @@ function normalizeRuntime(input) {
   };
 }
 
+const MAX_INLINE_MESSAGE_BYTES = 8 * 1024;
+
+async function readInlineText(relativeOrAbsolutePath) {
+  if (!relativeOrAbsolutePath) return "";
+  try {
+    const fullPath = path.isAbsolute(relativeOrAbsolutePath)
+      ? relativeOrAbsolutePath
+      : path.join(REPO_ROOT, relativeOrAbsolutePath);
+    const raw = await readFile(fullPath, "utf8");
+    if (raw.length <= MAX_INLINE_MESSAGE_BYTES) return raw;
+    return `${raw.slice(-MAX_INLINE_MESSAGE_BYTES)}\n…(앞부분 생략)`;
+  } catch {
+    return "";
+  }
+}
+
+async function enrichRunRecord(run) {
+  if (!run || !run.adapter) return run;
+  const lastMessageText = await readInlineText(run.adapter.lastMessagePath);
+  const launchLogTail = await readInlineText(run.adapter.logPath);
+  return {
+    ...run,
+    adapter: {
+      ...run.adapter,
+      lastMessageText: lastMessageText.trim(),
+      launchLogTail: launchLogTail.trim(),
+    },
+  };
+}
+
+async function enrichRuntime(runtime) {
+  const next = { ...runtime };
+  if (runtime.activeRun) {
+    next.activeRun = await enrichRunRecord(runtime.activeRun);
+  }
+  if (Array.isArray(runtime.runHistory) && runtime.runHistory.length > 0) {
+    const recent = runtime.runHistory.slice(0, 5);
+    const rest = runtime.runHistory.slice(5);
+    const enriched = await Promise.all(recent.map(enrichRunRecord));
+    next.runHistory = [...enriched, ...rest];
+  }
+  return next;
+}
+
 export async function readRuntime() {
   try {
-    return normalizeRuntime(JSON.parse(await readFile(RUNTIME_FILE, "utf8")));
+    const normalized = normalizeRuntime(JSON.parse(await readFile(RUNTIME_FILE, "utf8")));
+    return await enrichRuntime(normalized);
   } catch {
     return clone(DEFAULT_RUNTIME);
   }

@@ -922,7 +922,7 @@ async function launchCommandWorker(run, files, adapter, promptText) {
 
   const result = await streamProcess(adapter.command, adapter.args, {
     cwd: safeSpawnCwd(),
-    env: adapter.env,
+    env: { ...augmentedSpawnEnv(), ...(adapter.env || {}) },
     logPath: files.launchLogPath,
     stdinText: promptText,
     idleWarnMs: IDLE_WARN_MS,
@@ -1114,7 +1114,7 @@ async function launchWindowWorker(run, files, adapter) {
 
   const result = await streamProcess(adapter.command, adapter.args, {
     cwd: safeSpawnCwd(),
-    env: adapter.env,
+    env: { ...augmentedSpawnEnv(), ...(adapter.env || {}) },
     logPath: files.launchLogPath,
     windowsHide: true,
     onSpawn: async (pid) => {
