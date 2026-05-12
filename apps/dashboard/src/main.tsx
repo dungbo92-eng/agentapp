@@ -696,6 +696,22 @@ function App() {
   const [budgetDraft, setBudgetDraft] = React.useState<{ remaining: string; weekly: string }>({ remaining: "", weekly: "" });
   const [now, setNow] = React.useState<number>(Date.now());
   const [activeSection, setActiveSection] = React.useState("run");
+  const [showMetaPanels, setShowMetaPanels] = React.useState<boolean>(() => {
+    if (typeof window === "undefined") return false;
+    try {
+      return window.localStorage.getItem("agentapp.showMetaPanels") === "1";
+    } catch {
+      return false;
+    }
+  });
+  React.useEffect(() => {
+    if (typeof window === "undefined") return;
+    try {
+      window.localStorage.setItem("agentapp.showMetaPanels", showMetaPanels ? "1" : "0");
+    } catch {
+      // localStorage may be unavailable
+    }
+  }, [showMetaPanels]);
   const hasActiveRun = Boolean(runtime.activeRun);
 
   React.useEffect(() => {
@@ -1578,6 +1594,14 @@ function App() {
           </div>
           <div className="topActions">
             <StatusPill status={activeRun?.status || "ready"} />
+            <button
+              className="metaToggleBtn"
+              type="button"
+              title={showMetaPanels ? "메타데이터 패널 숨기기" : "로드맵·인수인계·계획·명령·작업도구 패널 보이기"}
+              onClick={() => setShowMetaPanels((value) => !value)}
+            >
+              {showMetaPanels ? "메타 숨김" : "메타 보기"}
+            </button>
             <time dateTime={snapshot.generated_at}>{new Date(snapshot.generated_at).toLocaleString("ko-KR")}</time>
           </div>
         </header>
@@ -1877,7 +1901,9 @@ function App() {
               ))}
             </div>
           </section>
-
+        </section>
+        {showMetaPanels ? (
+        <section className="metaPanels">
           <section className="panel">
             <div className="sectionTitle">
               <h2>연결 정책</h2>
@@ -1966,6 +1992,7 @@ function App() {
             </div>
           </section>
         </section>
+        ) : null}
       </section>
 
       <aside className="contextRail">
