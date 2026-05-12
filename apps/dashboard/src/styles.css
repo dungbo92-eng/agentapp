@@ -752,6 +752,236 @@ textarea:focus {
   grid-column: 1 / -1;
 }
 
+.metaPanelsHeader {
+  grid-column: 1 / -1;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  align-items: center;
+  padding: 4px 2px 2px;
+  font-size: 0.74rem;
+  color: #475569;
+}
+
+.metaPanelsHeader strong {
+  color: #1d4ed8;
+}
+
+.metaPanelsHeader em {
+  font-style: normal;
+  color: #b45309;
+}
+
+/* ---------- Chat-style conversation view ---------- */
+
+.chatThread {
+  display: grid;
+  gap: 10px;
+  padding: 4px 2px;
+}
+
+.chatThreadHeader {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+  padding-bottom: 6px;
+  border-bottom: 1px solid #e5e7eb;
+}
+
+.chatThreadHeader .chatMeta {
+  font-size: 0.74rem;
+  color: #475569;
+}
+
+.chatThreadHeader .chatTimer {
+  margin-left: auto;
+  font-size: 0.76rem;
+  color: #1d4ed8;
+  font-variant-numeric: tabular-nums;
+}
+
+.chatThreadHeader .chatIdle {
+  color: #b45309;
+  font-size: 0.74rem;
+}
+
+.chatBubble {
+  display: grid;
+  gap: 4px;
+  padding: 10px 12px;
+  border-radius: 12px;
+  max-width: 92%;
+}
+
+.chatBubble header {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 0.72rem;
+  color: #64748b;
+}
+
+.chatBubble header .chatRole {
+  font-weight: 700;
+  color: #334155;
+}
+
+.chatBubble.user {
+  justify-self: end;
+  background: #2563eb;
+  color: #ffffff;
+  border-bottom-right-radius: 3px;
+}
+
+.chatBubble.user header .chatRole,
+.chatBubble.user header time {
+  color: rgba(255, 255, 255, 0.85);
+}
+
+.chatBubble.user p {
+  margin: 0;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+
+.chatBubble.assistant {
+  justify-self: start;
+  background: #f1f5f9;
+  color: #0f172a;
+  border-bottom-left-radius: 3px;
+}
+
+.chatBubble.assistant pre {
+  margin: 0;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+  font-family: inherit;
+  font-size: 0.86rem;
+  line-height: 1.5;
+}
+
+.chatBubble.assistant.typing {
+  background: #f8fafc;
+  border: 1px dashed #cbd5e1;
+}
+
+.chatTypingDots {
+  display: inline-flex;
+  gap: 3px;
+  margin-left: 6px;
+}
+
+.chatTypingDots span {
+  width: 5px;
+  height: 5px;
+  border-radius: 999px;
+  background: #94a3b8;
+  animation: chatTypingBlink 1.2s infinite ease-in-out;
+}
+
+.chatTypingDots span:nth-child(2) { animation-delay: 0.2s; }
+.chatTypingDots span:nth-child(3) { animation-delay: 0.4s; }
+
+@keyframes chatTypingBlink {
+  0%, 80%, 100% { opacity: 0.25; transform: scale(0.9); }
+  40% { opacity: 1; transform: scale(1); }
+}
+
+.chatBubble.system {
+  justify-self: stretch;
+  max-width: 100%;
+  background: #fef3c7;
+  color: #78350f;
+  border-left: 3px solid #d49a00;
+  border-radius: 8px;
+}
+
+.chatBubble.system.warn {
+  background: #fee2e2;
+  color: #991b1b;
+  border-left-color: #dc2626;
+}
+
+.chatBubble.system p {
+  margin: 0;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+
+.chatTimeline {
+  display: grid;
+  gap: 3px;
+  padding-top: 8px;
+  border-top: 1px dashed #e2e8f0;
+}
+
+.chatTimelineRow {
+  display: grid;
+  grid-template-columns: 56px minmax(0, 1fr);
+  gap: 8px;
+  align-items: start;
+  font-size: 0.74rem;
+  color: #475569;
+}
+
+.chatTimelineRow time {
+  color: #94a3b8;
+  font-variant-numeric: tabular-nums;
+}
+
+.chatTimelineRow.warn span { color: #92400e; }
+.chatTimelineRow.error span { color: #991b1b; }
+.chatTimelineRow.muted { opacity: 0.7; }
+
+.chatTimelineMore summary {
+  cursor: pointer;
+  font-size: 0.72rem;
+  color: #2563eb;
+  user-select: none;
+  margin-top: 4px;
+}
+
+.chatExtras {
+  border: 1px solid #e2e8f0;
+  border-radius: 8px;
+  padding: 6px 10px;
+  background: #fbfdff;
+}
+
+.chatExtras summary {
+  cursor: pointer;
+  font-size: 0.76rem;
+  font-weight: 600;
+  color: #1d4ed8;
+  user-select: none;
+}
+
+.chatExtras pre,
+.chatExtras code {
+  display: block;
+  margin: 6px 0 0;
+  padding: 8px;
+  border-radius: 6px;
+  background: #0f172a;
+  color: #e2e8f0;
+  font-family: "Cascadia Mono", "SFMono-Regular", Consolas, monospace;
+  font-size: 0.74rem;
+  line-height: 1.5;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+  overflow: auto;
+  max-height: 280px;
+}
+
+.chatQuickSwitch {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  padding-top: 6px;
+  border-top: 1px dashed #e5e7eb;
+}
+
 .overview {
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));

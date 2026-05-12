@@ -11,6 +11,7 @@ import {
   runAccountLogin,
   addProject,
   deleteProject,
+  readProjectMeta,
   applyAccountPreset,
   applyFourAccountPreset,
   readRuntime,
@@ -129,6 +130,10 @@ async function handleApi(req, res, url) {
   }
   if (req.method === "POST" && url === "/api/agentapp/projects/browse") {
     sendJson(res, 200, await browseDirectory(await readBody(req)));
+    return true;
+  }
+  if (req.method === "POST" && url === "/api/agentapp/projects/meta") {
+    sendJson(res, 200, await readProjectMeta(await readBody(req)));
     return true;
   }
   if (req.method === "POST" && url === "/api/agentapp/runs/start") {

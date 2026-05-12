@@ -810,6 +810,145 @@ export async function addProject(input) {
   return writeRuntime(runtime);
 }
 
+// ---------------------------------------------------------------------------
+// Per-project meta snapshot — reads handoff/plan/workers from the selected
+// project directory so dashboard panels reflect that project, not AgentApp.
+// ---------------------------------------------------------------------------
+
+const META_EXCERPT_LIMIT = 1600;
+
+async function safeReadText(filePath) {
+  try {
+    return await readFile(filePath, "utf8");
+  } catch {
+    return "";
+  }
+}
+
+async function readHandoffDocs(rootPath) {
+  const handoffDir = path.join(rootPath, "tools", "agent-orchestrator", "handoff");
+  const docs = [];
+  try {
+    const entries = await readdir(handoffDir);
+    for (const entry of entries) {
+      if (!entry.toLowerCase().endsWith(".md")) continue;
+      const full = path.join(handoffDir, entry);
+      const text = await safeReadText(full);
+      if (!text) continue;
+      docs.push({
+        id: entry.toLowerCase().replace(/\.md$/, ""),
+        title: entry,
+        path: path.relative(rootPath, full).replaceAll("\\", "/"),
+        excerpt: text.length > META_EXCERPT_LIMIT ? `${text.slice(0, META_EXCERPT_LIMIT)}…` : text,
+      });
+    }
+  } catch {
+    // handoff dir absent — return empty
+  }
+  return docs;
+}
+
+async function readPlanPhases(rootPath) {
+  const roadmapPath = path.join(rootPath, ".claude-sync", "plans", "agent-orchestrator-roadmap.md");
+  const text = await safeReadText(roadmapPath);
+  if (!text) return [];
+  const phases = [];
+  let currentTitle = "";
+  let currentItems = [];
+  const flush = () => {
+    if (!currentTitle) return;
+    const done = currentItems.filter((item) => item.done).length;
+    phases.push({ title: currentTitle, total: currentItems.length, done, items: currentItems });
+    currentTitle = "";
+    currentItems = [];
+  };
+  for (const rawLine of text.split(/\r?\n/)) {
+    const headerMatch = rawLine.match(/^##\s+(.+?)\s*$/);
+    if (headerMatch) {
+      flush();
+      currentTitle = headerMatch[1].trim();
+      continue;
+    }
+    const taskMatch = rawLine.match(/^\s*-\s*\[(.)\]\s+(.+?)\s*$/);
+    if (taskMatch) {
+      currentItems.push({ done: taskMatch[1].trim() !== "", title: taskMatch[2].trim() });
+    }
+  }
+  flush();
+  return phases;
+}
+
+async function readWorkersList(rootPath) {
+  const candidate = path.join(rootPath, "tools", "agent-orchestrator", "workers.example.yaml");
+  const text = await safeReadText(candidate);
+  if (!text) return [];
+  const workers = [];
+  for (const block of text.split(/^\s*-\s+id:\s*/m)) {
+    const idMatch = block.match(/^([\w-]+)/);
+    if (!idMatch) continue;
+    const kindMatch = block.match(/^\s+kind:\s*"?([\w-]+)/m);
+    workers.push({
+      id: idMatch[1].trim(),
+      display_name: idMatch[1].trim(),
+      kind: kindMatch ? kindMatch[1].trim() : "unknown",
+      latest_status: "available",
+    });
+  }
+  return workers;
+}
+
+async function readNextTaskTitle(rootPath) {
+  const file = path.join(rootPath, "tools", "agent-orchestrator", "handoff", "NEXT_TASK.md");
+  const text = await safeReadText(file);
+  const match = text.match(/^-\s*Selected task:\s*(.+?)\s*$/m);
+  return match ? match[1].trim() : "";
+}
+
+async function computeProgressFromPhases(phases) {
+  const total = phases.reduce((sum, phase) => sum + phase.total, 0);
+  const done = phases.reduce((sum, phase) => sum + phase.done, 0);
+  return {
+    total,
+    done,
+    percent: total > 0 ? Math.round((done / total) * 100) : 0,
+    phases,
+  };
+}
+
+export async function readProjectMeta(input) {
+  const rootPath = String(input?.path || "").trim();
+  if (!rootPath) return { ok: false, reason: "missing_path" };
+  let exists = false;
+  try {
+    const info = await stat(rootPath);
+    exists = info.isDirectory();
+  } catch {
+    exists = false;
+  }
+  if (!exists) return { ok: false, reason: "path_not_found", path: rootPath };
+
+  const [handoffDocs, phases, workers, nextTaskTitle] = await Promise.all([
+    readHandoffDocs(rootPath),
+    readPlanPhases(rootPath),
+    readWorkersList(rootPath),
+    readNextTaskTitle(rootPath),
+  ]);
+
+  const progress = await computeProgressFromPhases(phases);
+  const hasAny = handoffDocs.length > 0 || phases.length > 0 || workers.length > 0;
+
+  return {
+    ok: true,
+    has_metadata: hasAny,
+    generated_at: new Date().toISOString(),
+    path: rootPath,
+    progress,
+    handoff_documents: handoffDocs,
+    workers,
+    next_task: nextTaskTitle ? { title: nextTaskTitle } : null,
+  };
+}
+
 export async function deleteProject(input) {
   const runtime = await readRuntime();
   const id = normalizeId(input.id || input.projectId || input.project_id);

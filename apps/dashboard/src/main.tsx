@@ -544,6 +544,150 @@ function AnimatedNumber({
   return <span className="animatedNumber">{formatted}</span>;
 }
 
+const NOISY_EVENT_RE = /^(실행 프롬프트를|작업 실행 어댑터를|이번 실행을 위해 로컬 예산|메타데이터 .* 기록|준비하는 중|등록했습니다)/;
+
+function summarizeEvent(message: string): string {
+  return message.replace(/\.{3}\s*$/, "");
+}
+
+function ChatConversation({
+  run,
+  now,
+  onQuickSwitch,
+  readyAccounts,
+}: {
+  run: RunRecord;
+  now: number;
+  onQuickSwitch: (targetId?: string) => void;
+  readyAccounts: ManagedAccount[];
+}) {
+  const startMs = new Date(run.startedAt).getTime();
+  const elapsedMs = Math.max(0, now - startMs);
+  const elapsedSec = Math.floor(elapsedMs / 1000);
+  const mm = String(Math.floor(elapsedSec / 60)).padStart(2, "0");
+  const ss = String(elapsedSec % 60).padStart(2, "0");
+  const events = run.events || [];
+  const lastEventMs = events.length > 0 ? new Date(events[events.length - 1].at).getTime() : startMs;
+  const idleMs = Math.max(0, now - lastEventMs);
+  const idleSec = Math.floor(idleMs / 1000);
+  const showIdleWarn = run.status === "running" && idleSec >= 20;
+  const noisy = events.filter((event) => NOISY_EVENT_RE.test(event.message));
+  const visibleEvents = events
+    .filter((event) => !NOISY_EVENT_RE.test(event.message))
+    .slice(-12);
+  const isRunning = run.status === "running" || run.adapter?.status === "running";
+  const hasResponse = Boolean(run.adapter?.lastMessageText);
+  const accountLabel = run.routing?.accountId || "계정 대기";
+  const modelLabel = run.routing?.model || run.modelOverride || "auto";
+
+  return (
+    <div className="chatThread">
+      <div className="chatThreadHeader">
+        <StatusPill status={run.status} />
+        <span className="chatMeta">{run.workerId} · {modelLabel} · {accountLabel}</span>
+        <span className="chatTimer">⏱ {mm}:{ss}</span>
+        {showIdleWarn ? <span className="chatIdle">⚠ {idleSec}s 무응답</span> : null}
+      </div>
+
+      <article className="chatBubble user">
+        <header>
+          <span className="chatRole">나</span>
+          <time>{new Date(run.startedAt).toLocaleTimeString("ko-KR")}</time>
+        </header>
+        <p>{run.prompt || "(빈 프롬프트)"}</p>
+      </article>
+
+      {hasResponse ? (
+        <article className="chatBubble assistant">
+          <header>
+            <span className="chatRole">{accountLabel}</span>
+            {run.stoppedAt ? <time>{new Date(run.stoppedAt).toLocaleTimeString("ko-KR")}</time> : null}
+          </header>
+          <pre>{run.adapter?.lastMessageText}</pre>
+        </article>
+      ) : isRunning ? (
+        <article className="chatBubble assistant typing">
+          <header>
+            <span className="chatRole">{accountLabel}</span>
+            <span className="chatTypingDots"><span /><span /><span /></span>
+          </header>
+          <small>응답 대기 중…</small>
+        </article>
+      ) : run.status === "blocked" || run.status === "failed" || run.status === "needs_user" ? (
+        <article className="chatBubble system warn">
+          <header>
+            <span className="chatRole">시스템</span>
+          </header>
+          <p>{run.adapter?.summary || run.routing?.reason || "실행이 차단되었습니다."}</p>
+        </article>
+      ) : null}
+
+      {visibleEvents.length > 0 ? (
+        <div className="chatTimeline">
+          {visibleEvents.map((event) => (
+            <div className={`chatTimelineRow ${event.level}`} key={`${event.at}-${event.message.slice(0, 32)}`}>
+              <time>{new Date(event.at).toLocaleTimeString("ko-KR")}</time>
+              <span>{summarizeEvent(event.message)}</span>
+            </div>
+          ))}
+          {noisy.length > 0 ? (
+            <details className="chatTimelineMore">
+              <summary>내부 이벤트 {noisy.length}건 보기</summary>
+              {noisy.map((event) => (
+                <div className="chatTimelineRow muted" key={`m-${event.at}-${event.message.slice(0, 32)}`}>
+                  <time>{new Date(event.at).toLocaleTimeString("ko-KR")}</time>
+                  <span>{event.message}</span>
+                </div>
+              ))}
+            </details>
+          ) : null}
+        </div>
+      ) : null}
+
+      {run.adapter?.launchLogTail ? (
+        <details className="chatExtras">
+          <summary>실행 로그 tail ({run.adapter.launchLogTail.length.toLocaleString()} 자)</summary>
+          <pre>{run.adapter.launchLogTail}</pre>
+        </details>
+      ) : null}
+
+      {run.adapter?.command ? (
+        <details className="chatExtras">
+          <summary>실행 명령</summary>
+          <code>{run.adapter.command}</code>
+        </details>
+      ) : null}
+
+      {isRunning ? (
+        <div className="chatQuickSwitch">
+          <button
+            type="button"
+            className="quickSwitchBtn"
+            title="다른 준비된 계정으로 같은 작업을 이어갑니다"
+            onClick={() => onQuickSwitch()}
+          >
+            🔄 다른 계정으로 이어가기
+          </button>
+          {readyAccounts
+            .filter((account) => account.id !== run.routing?.accountId)
+            .slice(0, 3)
+            .map((account) => (
+              <button
+                key={account.id}
+                type="button"
+                className="quickSwitchTarget"
+                title={`'${account.displayName || account.id}' 계정으로 이어가기`}
+                onClick={() => onQuickSwitch(account.id)}
+              >
+                → {account.displayName || account.id}
+              </button>
+            ))}
+        </div>
+      ) : null}
+    </div>
+  );
+}
+
 function ProgressBar({ value, live }: { value: number; live?: boolean }) {
   const clamped = Math.min(100, Math.max(0, value));
   const indeterminate = Boolean(live) && clamped === 0;
@@ -676,6 +820,14 @@ function App() {
   const [modelOverride, setModelOverride] = React.useState("auto");
   const [selectedWorker, setSelectedWorker] = React.useState("codex");
   const [selectedProject, setSelectedProject] = React.useState("current");
+  const [projectMeta, setProjectMeta] = React.useState<{
+    path?: string;
+    has_metadata?: boolean;
+    progress?: { total: number; done: number; percent: number; phases: { title: string; total: number; done: number }[] };
+    handoff_documents?: { id: string; title: string; path: string; excerpt: string }[];
+    workers?: { id: string; display_name: string; kind: string; latest_status: string }[];
+    next_task?: { title: string } | null;
+  } | null>(null);
   const [accountForm, setAccountForm] = React.useState({
     displayName: "",
     provider: "claude",
@@ -712,6 +864,40 @@ function App() {
       // localStorage may be unavailable
     }
   }, [showMetaPanels]);
+
+  React.useEffect(() => {
+    if (selectedProject === "current") {
+      setProjectMeta(null);
+      return;
+    }
+    const target = runtime.projects.find((project) => project.id === selectedProject);
+    if (!target || !target.path) {
+      setProjectMeta(null);
+      return;
+    }
+    let cancelled = false;
+    void (async () => {
+      try {
+        const result = (await runtimeRequest("projects/meta", { path: target.path })) as {
+          ok?: boolean;
+          path?: string;
+          has_metadata?: boolean;
+          progress?: { total: number; done: number; percent: number; phases: { title: string; total: number; done: number }[] };
+          handoff_documents?: { id: string; title: string; path: string; excerpt: string }[];
+          workers?: { id: string; display_name: string; kind: string; latest_status: string }[];
+          next_task?: { title: string } | null;
+        };
+        if (cancelled) return;
+        if (result?.ok !== false) setProjectMeta(result);
+        else setProjectMeta(null);
+      } catch {
+        if (!cancelled) setProjectMeta(null);
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [selectedProject, runtime.projects]);
   const hasActiveRun = Boolean(runtime.activeRun);
 
   React.useEffect(() => {
@@ -1750,102 +1936,14 @@ function App() {
               <h2>현재 실행</h2>
               <CircleStop aria-hidden="true" size={17} />
             </div>
-            {activeRun ? (() => {
-              const startMs = new Date(activeRun.startedAt).getTime();
-              const elapsedMs = Math.max(0, now - startMs);
-              const elapsedSec = Math.floor(elapsedMs / 1000);
-              const mm = String(Math.floor(elapsedSec / 60)).padStart(2, "0");
-              const ss = String(elapsedSec % 60).padStart(2, "0");
-              const lastEventMs = (activeRun.events && activeRun.events.length > 0)
-                ? new Date(activeRun.events[activeRun.events.length - 1].at).getTime()
-                : startMs;
-              const idleMs = Math.max(0, now - lastEventMs);
-              const idleSec = Math.floor(idleMs / 1000);
-              const showIdleWarn = activeRun.status === "running" && idleSec >= 20;
-              return (
-              <div className="activeRun">
-                <strong>{activeRun.prompt}</strong>
-                <div className="runMetrics">
-                  <span className="runTimer">⏱ 경과 {mm}:{ss}</span>
-                  {showIdleWarn ? (
-                    <span className="idleWarn">⚠️ 마지막 응답 {idleSec}초 전 — 도구가 응답 중인지 확인 필요</span>
-                  ) : null}
-                </div>
-                <span>
-                  {activeRun.workerId} / {complexityLabel(activeRun.complexity)} / {modelOverrideLabel(activeRun.modelOverride || "auto")}
-                </span>
-                {activeRun.routing ? (
-                  <span>
-                    {activeRun.routing.accountId || "대기 중"} / {activeRun.routing.model || "모델 선택 대기"} / 예상 {activeRun.routing.estimatedUnits || 0} 단위
-                  </span>
-                ) : null}
-                {activeRun.validation ? (
-                  <span>
-                    검증 / {statusLabel(activeRun.validation.status || "not_run")} / {activeRun.validation.summary || "대기 중"}
-                  </span>
-                ) : null}
-                {activeRun.adapter ? (
-                  <span>
-                    어댑터 / {adapterModeLabel(activeRun.adapter.mode)} / {statusLabel(activeRun.adapter.status || "pending")}
-                  </span>
-                ) : null}
-                {activeRun.adapter?.promptPath ? <small>{activeRun.adapter.promptPath}</small> : null}
-                {activeRun.adapter?.logPath ? <small>{activeRun.adapter.logPath}</small> : null}
-                {activeRun.handoffPath ? <small>{activeRun.handoffPath}</small> : null}
-                <small>{activeRun.startedAt}</small>
-                <div className="quickSwitchRow">
-                  <button
-                    type="button"
-                    className="quickSwitchBtn"
-                    title="현재 실행을 멈추고 남은 사용량이 많은 다른 준비된 계정으로 같은 작업을 이어갑니다 (자동 로그인은 하지 않습니다)"
-                    onClick={() => void quickSwitchAccount()}
-                  >
-                    🔄 다른 계정으로 이어가기
-                  </button>
-                  {readyLocalAccounts
-                    .filter((account) => account.id !== activeRun.routing?.accountId)
-                    .slice(0, 3)
-                    .map((account) => (
-                      <button
-                        key={account.id}
-                        type="button"
-                        className="quickSwitchTarget"
-                        title={`'${account.displayName || account.id}' 계정으로 이어가기 (남은 ${account.remainingUnits}/${account.weeklyUnits})`}
-                        onClick={() => void quickSwitchAccount(account.id)}
-                      >
-                        → {account.displayName || account.id}
-                      </button>
-                    ))}
-                </div>
-                {activeRun.adapter?.command ? (
-                  <div className="runCommand">
-                    <span className="runCommandLabel">실행 명령</span>
-                    <code>{activeRun.adapter.command}</code>
-                  </div>
-                ) : null}
-                {activeRun.adapter?.lastMessageText ? (
-                  <details className="runResponse" open>
-                    <summary>최근 응답 ({activeRun.adapter.lastMessageText.length.toLocaleString()} 자)</summary>
-                    <pre>{activeRun.adapter.lastMessageText}</pre>
-                  </details>
-                ) : null}
-                {activeRun.adapter?.launchLogTail ? (
-                  <details className="runResponse">
-                    <summary>실행 로그 tail ({activeRun.adapter.launchLogTail.length.toLocaleString()} 자)</summary>
-                    <pre>{activeRun.adapter.launchLogTail}</pre>
-                  </details>
-                ) : null}
-                <div className="eventLog">
-                  {(activeRun.events || []).map((event) => (
-                    <div className={`eventLine ${event.level}`} key={`${event.at}-${event.message}`}>
-                      <time>{new Date(event.at).toLocaleTimeString("ko-KR")}</time>
-                      <span>{event.message}</span>
-                    </div>
-                  ))}
-                </div>
-              </div>
-              );
-            })() : (
+            {activeRun ? (
+              <ChatConversation
+                run={activeRun}
+                now={now}
+                onQuickSwitch={(targetId) => void quickSwitchAccount(targetId)}
+                readyAccounts={readyLocalAccounts}
+              />
+            ) : (
               <p className="empty">실행 중인 작업이 없습니다.</p>
             )}
             {(runtime.pendingRuns || []).length > 0 ? (
@@ -1902,8 +2000,25 @@ function App() {
             </div>
           </section>
         </section>
-        {showMetaPanels ? (
+        {showMetaPanels ? (() => {
+          const isExternal = selectedProjectRecord.id !== "current";
+          const sourceLabel = isExternal ? `프로젝트 ${selectedProjectRecord.name}` : "AgentApp 자체";
+          const handoffDocs = isExternal && projectMeta?.handoff_documents
+            ? projectMeta.handoff_documents
+            : snapshot.handoff_documents;
+          const planPhases = isExternal && projectMeta?.progress?.phases
+            ? projectMeta.progress.phases
+            : snapshot.progress.phases;
+          const metaWorkers = isExternal && projectMeta?.workers ? projectMeta.workers : snapshot.workers;
+          const noMetaForProject = isExternal && projectMeta && !projectMeta.has_metadata;
+          return (
         <section className="metaPanels">
+          <div className="metaPanelsHeader">
+            <strong>메타 기준:</strong> <span>{sourceLabel}</span>
+            {noMetaForProject ? (
+              <em>· 이 프로젝트엔 .claude-sync/handoff 구조가 없어 빈 상태로 표시됩니다.</em>
+            ) : null}
+          </div>
           <section className="panel">
             <div className="sectionTitle">
               <h2>연결 정책</h2>
@@ -1922,8 +2037,8 @@ function App() {
               <ClipboardList aria-hidden="true" size={17} />
             </div>
             <div className="handoffGrid">
-              {snapshot.handoff_documents.length === 0 ? <p className="emptyState">인수인계 문서가 없습니다.</p> : null}
-              {snapshot.handoff_documents.map((document) => (
+              {handoffDocs.length === 0 ? <p className="emptyState">인수인계 문서가 없습니다.</p> : null}
+              {handoffDocs.map((document) => (
                 <article className="handoffDoc" key={document.id}>
                   <header>
                     <strong>{document.title}</strong>
@@ -1941,7 +2056,8 @@ function App() {
               <GitBranch aria-hidden="true" size={17} />
             </div>
             <div className="phaseList">
-              {snapshot.progress.phases.map((phase) => {
+              {planPhases.length === 0 ? <p className="emptyState">계획 정보가 없습니다.</p> : null}
+              {planPhases.map((phase) => {
                 const percent = phase.total > 0 ? Math.round((phase.done / phase.total) * 100) : 0;
                 return (
                   <article className="phaseRow" key={phase.title}>
@@ -1978,8 +2094,8 @@ function App() {
               <Settings aria-hidden="true" size={17} />
             </div>
             <div className="workerList">
-              {snapshot.workers.length === 0 ? <p className="emptyState">등록된 작업 도구가 없습니다.</p> : null}
-              {snapshot.workers.map((worker) => (
+              {metaWorkers.length === 0 ? <p className="emptyState">등록된 작업 도구가 없습니다.</p> : null}
+              {metaWorkers.map((worker) => (
                 <article key={worker.id}>
                   <Bot aria-hidden="true" size={16} />
                   <div>
@@ -1992,7 +2108,8 @@ function App() {
             </div>
           </section>
         </section>
-        ) : null}
+          );
+        })() : null}
       </section>
 
       <aside className="contextRail">
