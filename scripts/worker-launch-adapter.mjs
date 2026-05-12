@@ -843,7 +843,31 @@ async function streamProcess(command, args, options = {}) {
 
 // detectInterruption replaces the legacy loginRequired check.
 
+function isPackagedRuntime() {
+  if (process.env.AGENTAPP_SKIP_PREFLIGHT === "1") return true;
+  if (REPO_ROOT.includes(`${path.sep}app.asar${path.sep}`) || REPO_ROOT.endsWith(`${path.sep}app.asar`)) {
+    return true;
+  }
+  if (!existsSync(path.join(REPO_ROOT, "package.json"))) return true;
+  return false;
+}
+
 async function runPreflight(run, files) {
+  if (isPackagedRuntime()) {
+    await patchRunRecord(run.id, {
+      validation: {
+        status: "skipped",
+        command: "pnpm validate",
+        summary: "패키징 환경에서는 사전 검증을 건너뜁니다.",
+      },
+    });
+    await appendRunEvent(run.id, {
+      level: "info",
+      message: "패키징된 실행 환경에서는 pnpm validate 사전 검증을 건너뜁니다.",
+    });
+    return true;
+  }
+
   await patchRunRecord(run.id, {
     validation: {
       status: "running",
@@ -890,6 +914,8 @@ async function runPreflight(run, files) {
       adapter: {
         status: "blocked",
         mode: "preflight",
+        summary: `사전 검증(pnpm validate) 실패. validate.log 확인 필요. exit=${result.code ?? "n/a"}`,
+        logPath: relativePath(files.validationLogPath),
       },
       events: [
         ...(run.events || []),
