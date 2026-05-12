@@ -689,11 +689,14 @@ function App() {
   const [budgetDraft, setBudgetDraft] = React.useState<{ remaining: string; weekly: string }>({ remaining: "", weekly: "" });
   const [now, setNow] = React.useState<number>(Date.now());
   const [activeSection, setActiveSection] = React.useState("run");
+  const hasActiveRun = Boolean(runtime.activeRun);
 
   React.useEffect(() => {
+    if (!hasActiveRun) return undefined;
+    setNow(Date.now());
     const interval = window.setInterval(() => setNow(Date.now()), 1000);
     return () => window.clearInterval(interval);
-  }, []);
+  }, [hasActiveRun]);
 
   React.useEffect(() => {
     const sections = ["run", "projects", "accounts", "handoff"]
