@@ -294,18 +294,28 @@ export async function readRuntime() {
   try {
     raw = await readFile(RUNTIME_FILE, "utf8");
   } catch {
-    return clone(DEFAULT_RUNTIME);
+    // primary missing; try backup
+    try {
+      raw = await readFile(`${RUNTIME_FILE}.bak`, "utf8");
+      process.stderr.write(`[runtime] primary file missing, restored from backup.\n`);
+    } catch {
+      return clone(DEFAULT_RUNTIME);
+    }
   }
 
   let parsed;
   try {
     parsed = JSON.parse(raw);
   } catch (error) {
-    // Don't blow away saved accounts on a transient JSON parse hiccup.
-    // Keep the original file (next write will overwrite cleanly) and
-    // surface an empty default this read only.
     process.stderr.write(`[runtime] JSON parse failed: ${error instanceof Error ? error.message : String(error)}\n`);
-    return clone(DEFAULT_RUNTIME);
+    // try backup before giving up
+    try {
+      const backup = await readFile(`${RUNTIME_FILE}.bak`, "utf8");
+      parsed = JSON.parse(backup);
+      process.stderr.write(`[runtime] using backup after parse failure.\n`);
+    } catch {
+      return clone(DEFAULT_RUNTIME);
+    }
   }
 
   let normalized;
@@ -331,9 +341,47 @@ export async function readRuntime() {
   }
 }
 
+async function readDiskRuntimeRaw() {
+  try {
+    const raw = await readFile(RUNTIME_FILE, "utf8");
+    return JSON.parse(raw);
+  } catch {
+    return null;
+  }
+}
+
 export async function writeRuntime(runtime) {
   const normalized = normalizeRuntime(runtime);
+
+  // Safety net: never blow away the persisted accounts list. If somewhere
+  // upstream produced a payload with 0 accounts (transient bug, partial
+  // mutation, etc.) while the disk has 1+, restore from disk and log so
+  // the issue is visible without losing user data.
+  const onDisk = await readDiskRuntimeRaw();
+  if (
+    onDisk
+    && Array.isArray(onDisk.accounts)
+    && onDisk.accounts.length > 0
+    && normalized.accounts.length === 0
+  ) {
+    process.stderr.write(
+      `[runtime] writeRuntime would have wiped ${onDisk.accounts.length} accounts; restoring from disk.\n`,
+    );
+    normalized.accounts = onDisk.accounts.map(normalizeAccount);
+  }
+
   await mkdir(DATA_DIR, { recursive: true });
+
+  // Best-effort backup of the prior file so we can recover if something
+  // does corrupt the live file mid-write.
+  if (onDisk) {
+    try {
+      await writeFile(`${RUNTIME_FILE}.bak`, `${JSON.stringify(onDisk, null, 2)}\n`, "utf8");
+    } catch {
+      // backup is opportunistic; never block real writes on it
+    }
+  }
+
   await writeFile(RUNTIME_FILE, `${JSON.stringify(normalized, null, 2)}\n`, "utf8");
   return normalized;
 }
