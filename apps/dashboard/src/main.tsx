@@ -1085,6 +1085,23 @@ function App() {
     return () => window.clearInterval(interval);
   }, [hasActiveRun]);
 
+  // Keep selectedProject in sync with the actual project list. EXE mode hides
+  // the self-project card, so a stale "current" selection auto-snaps to the
+  // first registered external project (or "none" when the list is empty).
+  React.useEffect(() => {
+    if (!snapshot) return;
+    const ids: string[] = [];
+    if (snapshot.repo_root) ids.push("current");
+    for (const p of runtime.projects) ids.push(p.id);
+    if (ids.length === 0) {
+      if (selectedProject !== "none") setSelectedProject("none");
+      return;
+    }
+    if (!ids.includes(selectedProject)) {
+      setSelectedProject(ids[0]);
+    }
+  }, [snapshot, runtime.projects, selectedProject]);
+
   React.useEffect(() => {
     const sections = ["run", "projects", "accounts", "handoff"]
       .map((id) => document.getElementById(id))
@@ -1310,14 +1327,22 @@ function App() {
     );
   }
 
-  const currentProject: ManagedProject = {
-    id: "current",
-    name: "AgentApp",
-    path: snapshot.repo_root,
-    status: "active",
-    progress: snapshot.progress.percent,
-  };
-  const projects = uniqById([currentProject, ...runtime.projects]);
+  // EXE/installed mode sends an empty repo_root (it's just AgentApp's own
+  // userData folder, not a workspace). Skip the self-project card in that
+  // case — the sidebar shows registered external projects only.
+  const currentProject: ManagedProject | null = snapshot.repo_root
+    ? {
+        id: "current",
+        name: "AgentApp",
+        path: snapshot.repo_root,
+        status: "active",
+        progress: snapshot.progress.percent,
+      }
+    : null;
+  const projects = uniqById([
+    ...(currentProject ? [currentProject] : []),
+    ...runtime.projects,
+  ]);
   const configuredAccounts: ManagedAccount[] = snapshot.usage_budget.accounts.map((account) => ({
     id: account.id,
     displayName: account.id,
@@ -1339,7 +1364,18 @@ function App() {
   const localAccounts = runtime.accounts;
   const readyLocalAccounts = localAccounts.filter((account) => account.enabled !== false && account.sessionStatus === "ready");
   const localRecommendation = recommendLocalRoute(accounts, complexity, selectedWorker);
-  const selectedProjectRecord = projects.find((project) => project.id === selectedProject) || currentProject;
+  const placeholderProject: ManagedProject = {
+    id: "none",
+    name: "프로젝트 추가",
+    path: "",
+    status: "registered",
+    progress: 0,
+  };
+  const selectedProjectRecord: ManagedProject =
+    projects.find((project) => project.id === selectedProject) ||
+    currentProject ||
+    projects[0] ||
+    placeholderProject;
   const activeRun = runtime.activeRun;
   const approvalCount = snapshot.approval_queue.pending_decisions.length + snapshot.approval_queue.held_tasks.length;
   // 선택된 프로젝트가 외부 프로젝트면 그 프로젝트의 NEXT_TASK 만 사용.
@@ -1460,7 +1496,10 @@ function App() {
     if (project.id === "current") return;
     if (!window.confirm(`'${project.name}' 프로젝트를 목록에서 제거할까요? (실제 폴더는 삭제되지 않습니다)`)) return;
     void updateRuntime(runtimeRequest("projects/delete", { id: project.id }));
-    if (selectedProject === project.id) setSelectedProject("current");
+    if (selectedProject === project.id) {
+      const next = (currentProject?.id) || runtime.projects.find((p) => p.id !== project.id)?.id || "none";
+      setSelectedProject(next);
+    }
   }
 
   function addProject(event: React.FormEvent<HTMLFormElement>) {

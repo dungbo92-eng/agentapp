@@ -185,7 +185,21 @@ async function browseDirectory(options = {}) {
 
 function runtimeWorkspaceRoot() {
   if (process.env.AGENTAPP_WORKSPACE) return process.env.AGENTAPP_WORKSPACE;
-  if (process.env.AGENTAPP_DATA_DIR) return path.dirname(process.env.AGENTAPP_DATA_DIR);
+  // Packaged EXE: AGENTAPP_DATA_DIR points at Electron userData (e.g.
+  // %APPDATA%\agent-app\data). That folder is the app's private cache, not a
+  // workspace the user codes in — return "" so the dashboard hides the self
+  // project card instead of showing an irrelevant path as the first project.
+  if (process.env.AGENTAPP_DATA_DIR) {
+    const dataDir = process.env.AGENTAPP_DATA_DIR.toLowerCase();
+    if (
+      dataDir.includes(`${path.sep}appdata${path.sep}`) ||
+      dataDir.includes(`${path.sep}library${path.sep}application support${path.sep}`) ||
+      dataDir.includes(`${path.sep}.config${path.sep}`)
+    ) {
+      return "";
+    }
+    return path.dirname(process.env.AGENTAPP_DATA_DIR);
+  }
   if (REPO_ROOT.includes(`${path.sep}app.asar${path.sep}`) || REPO_ROOT.endsWith(`${path.sep}app.asar`)) {
     return process.cwd();
   }
@@ -195,10 +209,22 @@ function runtimeWorkspaceRoot() {
 function rewriteSnapshotPaths(buffer) {
   let text = buffer.toString("utf8");
   const workspace = runtimeWorkspaceRoot();
-  // Replace any baked-in dev-time absolute paths so the user PC sees its
-  // own workspace instead of D:\agentApp or E:\agentApp.
-  text = text.replace(/[A-Za-z]:\\\\agentApp/g, workspace.replace(/\\/g, "\\\\"));
-  text = text.replace(/[A-Za-z]:\\agentApp/g, workspace);
+  if (workspace) {
+    // Replace any baked-in dev-time absolute paths so the user PC sees its
+    // own workspace instead of D:\agentApp or E:\agentApp.
+    text = text.replace(/[A-Za-z]:\\\\agentApp/g, workspace.replace(/\\/g, "\\\\"));
+    text = text.replace(/[A-Za-z]:\\agentApp/g, workspace);
+  } else {
+    // Packaged EXE without a real user workspace: clear repo_root so the UI
+    // hides the self-project card and shows registered external projects only.
+    try {
+      const parsed = JSON.parse(text);
+      parsed.repo_root = "";
+      text = JSON.stringify(parsed, null, 2);
+    } catch {
+      // Snapshot is not JSON; leave as-is.
+    }
+  }
   return Buffer.from(text, "utf8");
 }
 
