@@ -77,8 +77,20 @@ const QUOTA_PATTERNS = [
   /monthly limit/i,
 ];
 
-const IDLE_WARN_MS = 30000;
-const IDLE_KILL_MS = 120000;
+// Idle 임계값을 환경 변수로 오버라이드 가능. 기본값은 autonomous run 에
+// 충분히 긴 시간으로 설정 — Claude/Codex 가 큰 컨텍스트를 추론할 때 출력
+// 없이 수십 초~수 분 지연될 수 있으므로 너무 짧으면 진짜로 일하고 있는데
+// 중단된다. 사용자가 자율 진행을 원하면 길게 잡고, 정말 멈춰 있을 때만
+// 안전망으로 끊는다. AGENTAPP_IDLE_KILL_MS=0 으로 두면 자동 종료 비활성.
+function parseIdleMs(envKey, fallbackMs) {
+  const raw = process.env[envKey];
+  if (raw == null || raw === "") return fallbackMs;
+  const n = Number(raw);
+  if (!Number.isFinite(n)) return fallbackMs;
+  return Math.max(0, n);
+}
+const IDLE_WARN_MS = parseIdleMs("AGENTAPP_IDLE_WARN_MS", 90 * 1000);
+const IDLE_KILL_MS = parseIdleMs("AGENTAPP_IDLE_KILL_MS", 30 * 60 * 1000);
 
 function providerKeyFor(workerId) {
   const id = String(workerId || "").toLowerCase();

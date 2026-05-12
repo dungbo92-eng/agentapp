@@ -1254,10 +1254,16 @@ function App() {
   const selectedProjectRecord = projects.find((project) => project.id === selectedProject) || currentProject;
   const activeRun = runtime.activeRun;
   const approvalCount = snapshot.approval_queue.pending_decisions.length + snapshot.approval_queue.held_tasks.length;
-  // 선택된 프로젝트가 외부 프로젝트면 그 프로젝트의 NEXT_TASK 를 우선 사용.
-  const externalNextTask = selectedProject !== "current" ? projectMeta?.next_task?.title || "" : "";
-  const snapshotNextTask = snapshot.next_task.title === "none" ? "" : snapshot.next_task.title;
-  const nextTaskTitle = externalNextTask || snapshotNextTask || "다음 계획 작성";
+  // 선택된 프로젝트가 외부 프로젝트면 그 프로젝트의 NEXT_TASK 만 사용.
+  // (없으면 chip 자체를 숨기기 위해 빈 문자열 유지 — AgentApp 자체 NEXT_TASK 로 폴백하면
+  // 사용자가 외부 프로젝트 컨텍스트에서 엉뚱한 작업 제안을 보게 됨.)
+  const isExternalProject = selectedProject !== "current";
+  const rawNextTask = isExternalProject
+    ? projectMeta?.next_task?.title || ""
+    : snapshot.next_task.title === "none"
+      ? ""
+      : snapshot.next_task.title;
+  const nextTaskTitle = rawNextTask || (isExternalProject ? "" : "다음 계획 작성");
   const liveUsage = accounts.reduce(
     (acc, account) => ({
       remaining: acc.remaining + Number(account.remainingUnits || 0),
