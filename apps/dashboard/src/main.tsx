@@ -696,7 +696,10 @@ function App() {
   React.useEffect(() => {
     if (!hasActiveRun) return undefined;
     setNow(Date.now());
-    const interval = window.setInterval(() => setNow(Date.now()), 1000);
+    const interval = window.setInterval(() => {
+      if (composingRef.current) return;
+      setNow(Date.now());
+    }, 1000);
     return () => window.clearInterval(interval);
   }, [hasActiveRun]);
 
@@ -728,9 +731,55 @@ function App() {
       .catch((caught: unknown) => setError(caught instanceof Error ? caught.message : "snapshot load failed"));
   }, []);
 
+  const composingRef = React.useRef(false);
+  const pendingRuntimeRef = React.useRef<RuntimeState | null>(null);
+  const pendingEnvironmentRef = React.useRef<EnvironmentState | null>(null);
+
+  React.useEffect(() => {
+    const isFormField = (target: EventTarget | null) =>
+      target instanceof HTMLInputElement
+      || target instanceof HTMLTextAreaElement
+      || (target instanceof HTMLElement && target.isContentEditable);
+
+    const onStart = (event: Event) => {
+      if (!isFormField(event.target)) return;
+      composingRef.current = true;
+    };
+
+    const flushPending = () => {
+      if (pendingRuntimeRef.current) {
+        setRuntime(pendingRuntimeRef.current);
+        pendingRuntimeRef.current = null;
+      }
+      if (pendingEnvironmentRef.current) {
+        setEnvironment(pendingEnvironmentRef.current);
+        pendingEnvironmentRef.current = null;
+      }
+    };
+
+    const onEnd = () => {
+      composingRef.current = false;
+      // Defer one tick so React commits the input's final composed value
+      // before reapplying any pending polling updates.
+      setTimeout(flushPending, 30);
+    };
+
+    document.addEventListener("compositionstart", onStart, true);
+    document.addEventListener("compositionend", onEnd, true);
+    return () => {
+      document.removeEventListener("compositionstart", onStart, true);
+      document.removeEventListener("compositionend", onEnd, true);
+    };
+  }, []);
+
   const refreshRuntime = React.useCallback(async () => {
     try {
       const next = await runtimeRequest("runtime");
+      if (composingRef.current) {
+        pendingRuntimeRef.current = next;
+        setRuntimeStatus("입력 중 — 동기화 보류");
+        return;
+      }
       setRuntime(next);
       setRuntimeStatus("로컬 설정 동기화 완료");
       setLastRuntimeSyncAt(new Date().toLocaleTimeString("ko-KR"));
@@ -741,7 +790,12 @@ function App() {
 
   const refreshEnvironment = React.useCallback(async () => {
     try {
-      setEnvironment(await environmentRequest());
+      const next = await environmentRequest();
+      if (composingRef.current) {
+        pendingEnvironmentRef.current = next;
+        return;
+      }
+      setEnvironment(next);
     } catch {
       setEnvironment(null);
     }
