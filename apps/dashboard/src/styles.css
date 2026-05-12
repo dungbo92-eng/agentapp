@@ -861,6 +861,76 @@ textarea:focus {
   line-height: 1.5;
 }
 
+/* Rendered markdown inside the assistant bubble */
+.mdBody {
+  display: grid;
+  gap: 8px;
+  font-size: 0.86rem;
+  line-height: 1.55;
+}
+
+.mdBody .mdPara {
+  margin: 0;
+  white-space: normal;
+  overflow-wrap: anywhere;
+}
+
+.mdBody .mdList {
+  margin: 0;
+  padding-left: 18px;
+  display: grid;
+  gap: 4px;
+}
+
+.mdBody code {
+  padding: 1px 6px;
+  border-radius: 4px;
+  background: rgba(15, 23, 42, 0.07);
+  font-family: "Cascadia Mono", "SFMono-Regular", Consolas, monospace;
+  font-size: 0.82em;
+  color: #0f172a;
+}
+
+.mdBody pre.mdCode {
+  margin: 0;
+  padding: 10px 12px;
+  border-radius: 8px;
+  background: #0f172a;
+  color: #e2e8f0;
+  overflow: auto;
+  max-height: 320px;
+}
+
+.mdBody pre.mdCode code {
+  background: transparent;
+  color: inherit;
+  padding: 0;
+  font-size: 0.78rem;
+}
+
+.mdBody a {
+  color: #1d4ed8;
+  text-decoration: none;
+  border-bottom: 1px dashed rgba(29, 78, 216, 0.5);
+}
+
+.mdBody a:hover {
+  border-bottom-style: solid;
+}
+
+.mdBody strong {
+  font-weight: 700;
+  color: #0f172a;
+}
+
+.historyResponse {
+  margin-top: 6px;
+  padding: 8px 10px;
+  border-radius: 8px;
+  background: #f8fafc;
+  border: 1px solid #e2e8f0;
+}
+
 .chatBubble.assistant.typing {
   background: #f8fafc;
   border: 1px dashed #cbd5e1;

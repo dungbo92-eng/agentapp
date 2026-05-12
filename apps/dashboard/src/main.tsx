@@ -550,6 +550,93 @@ function summarizeEvent(message: string): string {
   return message.replace(/\.{3}\s*$/, "");
 }
 
+// Lightweight inline markdown renderer for the chat assistant bubble.
+// Handles: paragraph breaks, dash/asterisk bullet lists, fenced ``` blocks,
+// inline `code`, **bold**, *italic*, and [text](url) links. No external dep.
+function renderInlineMarkdown(text: string, keyPrefix: string): React.ReactNode[] {
+  const nodes: React.ReactNode[] = [];
+  const pattern = /(\*\*[^*\n]+\*\*|`[^`\n]+`|\[[^\]\n]+\]\([^)\n]+\)|\*[^*\n]+\*)/g;
+  let lastIndex = 0;
+  let counter = 0;
+  let match: RegExpExecArray | null;
+  while ((match = pattern.exec(text)) !== null) {
+    if (match.index > lastIndex) {
+      nodes.push(text.slice(lastIndex, match.index));
+    }
+    const token = match[0];
+    const key = `${keyPrefix}-${counter++}`;
+    if (token.startsWith("`") && token.endsWith("`")) {
+      nodes.push(<code key={key}>{token.slice(1, -1)}</code>);
+    } else if (token.startsWith("**") && token.endsWith("**")) {
+      nodes.push(<strong key={key}>{token.slice(2, -2)}</strong>);
+    } else if (token.startsWith("[")) {
+      const m = token.match(/^\[([^\]]+)\]\(([^)]+)\)$/);
+      if (m) {
+        const href = m[2];
+        const isHttp = /^https?:\/\//i.test(href);
+        nodes.push(
+          <a key={key} href={isHttp ? href : `#${encodeURIComponent(href)}`} target={isHttp ? "_blank" : undefined} rel={isHttp ? "noreferrer" : undefined}>
+            {m[1]}
+          </a>,
+        );
+      } else {
+        nodes.push(token);
+      }
+    } else if (token.startsWith("*") && token.endsWith("*")) {
+      nodes.push(<em key={key}>{token.slice(1, -1)}</em>);
+    } else {
+      nodes.push(token);
+    }
+    lastIndex = match.index + token.length;
+  }
+  if (lastIndex < text.length) nodes.push(text.slice(lastIndex));
+  return nodes;
+}
+
+function MarkdownText({ source }: { source: string }) {
+  if (!source) return null;
+  const blocks: React.ReactNode[] = [];
+  const parts = source.split(/\n{2,}/);
+  parts.forEach((block, blockIndex) => {
+    if (!block.trim()) return;
+    // Fenced code block
+    const fenced = block.match(/^```(\w*)\n([\s\S]*?)\n```$/);
+    if (fenced) {
+      blocks.push(
+        <pre key={`code-${blockIndex}`} className="mdCode">
+          <code>{fenced[2]}</code>
+        </pre>,
+      );
+      return;
+    }
+    // Bullet list
+    const lines = block.split("\n");
+    const isList = lines.every((line) => /^\s*[-*]\s+/.test(line));
+    if (isList && lines.length > 0) {
+      blocks.push(
+        <ul key={`ul-${blockIndex}`} className="mdList">
+          {lines.map((line, i) => {
+            const content = line.replace(/^\s*[-*]\s+/, "");
+            return <li key={i}>{renderInlineMarkdown(content, `li-${blockIndex}-${i}`)}</li>;
+          })}
+        </ul>,
+      );
+      return;
+    }
+    blocks.push(
+      <p key={`p-${blockIndex}`} className="mdPara">
+        {lines.map((line, i) => (
+          <React.Fragment key={i}>
+            {i > 0 ? <br /> : null}
+            {renderInlineMarkdown(line, `p-${blockIndex}-${i}`)}
+          </React.Fragment>
+        ))}
+      </p>,
+    );
+  });
+  return <div className="mdBody">{blocks}</div>;
+}
+
 function ChatConversation({
   run,
   now,
@@ -603,7 +690,7 @@ function ChatConversation({
             <span className="chatRole">{accountLabel}</span>
             {run.stoppedAt ? <time>{new Date(run.stoppedAt).toLocaleTimeString("ko-KR")}</time> : null}
           </header>
-          <pre>{run.adapter?.lastMessageText}</pre>
+          <MarkdownText source={run.adapter?.lastMessageText || ""} />
         </article>
       ) : isRunning ? (
         <article className="chatBubble assistant typing">
@@ -1167,7 +1254,10 @@ function App() {
   const selectedProjectRecord = projects.find((project) => project.id === selectedProject) || currentProject;
   const activeRun = runtime.activeRun;
   const approvalCount = snapshot.approval_queue.pending_decisions.length + snapshot.approval_queue.held_tasks.length;
-  const nextTaskTitle = snapshot.next_task.title === "none" ? "다음 계획 작성" : snapshot.next_task.title;
+  // 선택된 프로젝트가 외부 프로젝트면 그 프로젝트의 NEXT_TASK 를 우선 사용.
+  const externalNextTask = selectedProject !== "current" ? projectMeta?.next_task?.title || "" : "";
+  const snapshotNextTask = snapshot.next_task.title === "none" ? "" : snapshot.next_task.title;
+  const nextTaskTitle = externalNextTask || snapshotNextTask || "다음 계획 작성";
   const liveUsage = accounts.reduce(
     (acc, account) => ({
       remaining: acc.remaining + Number(account.remainingUnits || 0),
@@ -1975,10 +2065,9 @@ function App() {
                       {run.routing?.accountId ? ` / ${run.routing.accountId} / ${run.routing.model}` : ""}
                     </span>
                     {run.adapter?.lastMessageText ? (
-                      <details className="runResponse compact">
-                        <summary>응답 보기</summary>
-                        <pre>{run.adapter.lastMessageText}</pre>
-                      </details>
+                      <div className="historyResponse">
+                        <MarkdownText source={run.adapter.lastMessageText} />
+                      </div>
                     ) : null}
                     {run.status === "blocked" || run.adapter?.status === "blocked" ? (
                       <small className="blockedReason">
