@@ -597,7 +597,7 @@ textarea:focus {
 
 .overview {
   display: grid;
-  grid-template-columns: repeat(4, minmax(0, 1fr));
+  grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
   gap: 8px;
   margin-bottom: 10px;
 }
@@ -606,8 +606,8 @@ textarea:focus {
   display: flex;
   align-items: center;
   gap: 10px;
-  min-height: 60px;
-  padding: 10px 12px;
+  min-height: 48px;
+  padding: 8px 12px;
 }
 
 .stat svg {
@@ -615,16 +615,26 @@ textarea:focus {
   flex: 0 0 auto;
 }
 
+.stat > div {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+  min-width: 0;
+}
+
 .stat strong {
-  display: block;
-  font-size: 1.15rem;
+  display: inline;
+  font-size: 1.1rem;
   line-height: 1.05;
   font-weight: 700;
+  order: 1;
 }
 
 .stat span {
-  font-size: 0.78rem;
+  font-size: 0.74rem;
   color: #64748b;
+  order: 2;
+  white-space: nowrap;
 }
 
 .runSurface {
@@ -927,18 +937,42 @@ label {
 
 .phaseRow {
   display: grid;
-  gap: 8px;
+  grid-template-columns: minmax(0, 1.4fr) minmax(120px, 1fr) auto;
+  align-items: center;
+  gap: 10px;
+  padding: 4px 0;
+  border-bottom: 1px dashed #e2e8f0;
+}
+
+.phaseRow:last-child {
+  border-bottom: 0;
 }
 
 .phaseRow > div {
   display: flex;
-  justify-content: space-between;
-  gap: 12px;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
 }
 
-.phaseRow strong,
+.phaseRow strong {
+  font-size: 0.82rem;
+  font-weight: 600;
+  overflow-wrap: anywhere;
+}
+
 .phaseRow span {
-  font-size: 0.86rem;
+  font-size: 0.72rem;
+  color: #64748b;
+}
+
+.phaseRow .phasePercent {
+  font-size: 0.78rem;
+  font-weight: 700;
+  color: #1d4ed8;
+  font-variant-numeric: tabular-nums;
+  min-width: 38px;
+  text-align: right;
 }
 
 .commandList code {
@@ -955,15 +989,28 @@ label {
 .progressTrack {
   height: 6px;
   width: 100%;
-  max-width: 360px;
   overflow: hidden;
   border-radius: 999px;
   background: #e2e8f0;
 }
 
-.railPanel .progressTrack,
-.stat .progressTrack {
-  max-width: 100%;
+.progressRow {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 10px;
+}
+
+.progressRow .progressTrack {
+  height: 6px;
+}
+
+.progressRow .progressValue {
+  font-size: 0.74rem;
+  color: #475569;
+  font-variant-numeric: tabular-nums;
+  min-width: 38px;
+  text-align: right;
 }
 
 .progressFill {

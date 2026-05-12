@@ -1854,6 +1854,7 @@ function App() {
                       </span>
                     </div>
                     <ProgressBar value={percent} live={activeRun?.status === "running"} />
+                    <span className="phasePercent">{percent}%</span>
                   </article>
                 );
               })}

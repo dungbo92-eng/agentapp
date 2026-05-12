@@ -265,11 +265,44 @@ async function enrichRuntime(runtime) {
 }
 
 export async function readRuntime() {
+  let raw;
   try {
-    const normalized = normalizeRuntime(JSON.parse(await readFile(RUNTIME_FILE, "utf8")));
-    return await enrichRuntime(normalized);
+    raw = await readFile(RUNTIME_FILE, "utf8");
   } catch {
     return clone(DEFAULT_RUNTIME);
+  }
+
+  let parsed;
+  try {
+    parsed = JSON.parse(raw);
+  } catch (error) {
+    // Don't blow away saved accounts on a transient JSON parse hiccup.
+    // Keep the original file (next write will overwrite cleanly) and
+    // surface an empty default this read only.
+    process.stderr.write(`[runtime] JSON parse failed: ${error instanceof Error ? error.message : String(error)}\n`);
+    return clone(DEFAULT_RUNTIME);
+  }
+
+  let normalized;
+  try {
+    normalized = normalizeRuntime(parsed);
+  } catch (error) {
+    process.stderr.write(`[runtime] normalize failed: ${error instanceof Error ? error.message : String(error)}\n`);
+    normalized = {
+      version: 1,
+      accounts: Array.isArray(parsed?.accounts) ? parsed.accounts : [],
+      projects: Array.isArray(parsed?.projects) ? parsed.projects : [],
+      activeRun: parsed?.activeRun || null,
+      runHistory: Array.isArray(parsed?.runHistory) ? parsed.runHistory : [],
+      pendingRuns: Array.isArray(parsed?.pendingRuns) ? parsed.pendingRuns : [],
+    };
+  }
+
+  try {
+    return await enrichRuntime(normalized);
+  } catch (error) {
+    process.stderr.write(`[runtime] enrich failed: ${error instanceof Error ? error.message : String(error)}\n`);
+    return normalized;
   }
 }
 
