@@ -1,15 +1,15 @@
 # Claude Code Start Prompt
 
-Workspace: E:\\agentApp
+Workspace: D:\\agentApp
 Worker id: claude-code
 Worker kind: claude-code
 Auth: user-managed only
 
 ## Launch
 
-- Open a terminal in E:\\agentApp.
-- Run Claude Code from the repository root.
-- Claude Code reads CLAUDE.md automatically; still check AGENTS.md for shared rules.
+- Dashboard adapter runs `claude --print` with a session-profile-specific CLAUDE_CONFIG_DIR.
+- Permission mode defaults to acceptEdits so local edits do not require interactive approval.
+- If the session profile is not authenticated yet, run `claude` once in that profile and mark the account Ready again.
 
 - Claude Code loads `CLAUDE.md` automatically, but still read `AGENTS.md` for shared policy.
 
@@ -26,16 +26,16 @@ Auth: user-managed only
 
 ## Current Task
 
-- Selected task: worker별 session profile launch adapter
-- Task id: worker-session-profile-launch-adapters
-- Priority: 35
-- Generated: 2026-05-10T14:00:29.124Z
+- Selected task: Claude/Gemini CLI 설치 후 실제 authenticated cycle 재검증
+- Task id: n/a
+- Priority: n/a
+- Generated: 2026-05-11T09:06:45.717Z
 
 위 Required Reads를 먼저 읽고 시작한다.
 
 다음 작업을 진행한다:
 
-> worker별 session profile launch adapter
+> Claude/Gemini CLI 설치 후 실제 authenticated cycle 재검증
 
 ## Claude Code Adapter
 
@@ -49,7 +49,7 @@ Use this prompt when opening Claude Code from a terminal at the repository root.
 - Keep all implementation, docs, tests, validation, handoff updates, commit, and approved push moving without asking.
 - Do not rely on terminal history or unstated local context; read the required files first.
 - Before any unclear operation, run `pnpm agent:dry-run -- --operation "<operation>"`.
-- Use `pnpm agent:route -- --task "worker별 session profile launch adapter" --provider claude` before expensive reasoning work.
+- Use `pnpm agent:route -- --task "Claude/Gemini CLI 설치 후 실제 authenticated cycle 재검증" --provider claude` before expensive reasoning work.
 
 ### Claude Code Completion Output
 
@@ -74,7 +74,7 @@ Quality is first. Use efficient models for routine reading, setup, and simple do
 Before heavy work, run:
 
 ```bash
-pnpm agent:route -- --task "worker별 session profile launch adapter"
+pnpm agent:route -- --task "Claude/Gemini CLI 설치 후 실제 authenticated cycle 재검증"
 ```
 
 ## Safety Rules

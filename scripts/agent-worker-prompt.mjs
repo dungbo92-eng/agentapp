@@ -284,7 +284,7 @@ function buildPrompt(worker, nextTask, options = {}) {
 
   return `# ${worker.display_name || worker.id} Start Prompt
 
-Workspace: ${worker.workspace || "E:\\agentApp"}
+Workspace: ${worker.workspace || REPO_ROOT}
 Worker id: ${worker.id}
 Worker kind: ${worker.kind}
 Auth: user-managed only

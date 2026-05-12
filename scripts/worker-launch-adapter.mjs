@@ -189,29 +189,22 @@ async function readWorkerPrompt(workerId) {
 }
 
 async function writeLaunchPrompt(run, files) {
-  const workerPrompt = await readWorkerPrompt(run.workerId);
-  const prompt = `# Dashboard Launch Request
-
-- Generated: ${nowIso()}
-- Worker: ${run.workerId}
-- Project: ${run.projectId}
-- Account: ${run.routing?.accountId || "none"}
-- Session profile: ${run.routing?.sessionProfile || "none"}
-- Model: ${run.routing?.model || run.modelOverride || "auto"}
-- Reasoning: ${run.routing?.reasoningEffort || "n/a"}
-
-## Worker Prompt
-
-${workerPrompt || "See tools/agent-orchestrator/handoff/worker-prompts for the standard worker prompt."}
-
-## Dashboard User Prompt
-
-${run.prompt || "Continue from tools/agent-orchestrator/handoff/NEXT_TASK.md."}
-`;
+  const userPrompt = String(run.prompt || "").trim();
+  // 사용자가 입력한 프롬프트가 있으면 그것만 그대로 전달 (chat 모드).
+  // 비어 있을 때만 워커 핸드오프 템플릿을 사용 (NEXT_TASK 자동 진행 모드).
+  let body;
+  if (userPrompt) {
+    body = userPrompt;
+  } else {
+    const workerPrompt = await readWorkerPrompt(run.workerId);
+    body = workerPrompt
+      ? workerPrompt
+      : "Continue from tools/agent-orchestrator/handoff/NEXT_TASK.md.";
+  }
 
   await mkdir(files.runDir, { recursive: true });
-  await writeFile(files.promptPath, prompt, "utf8");
-  return prompt;
+  await writeFile(files.promptPath, body, "utf8");
+  return body;
 }
 
 async function appendLog(file, text) {

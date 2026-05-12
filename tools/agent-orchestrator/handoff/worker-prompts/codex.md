@@ -1,6 +1,6 @@
 # Codex Desktop Start Prompt
 
-Workspace: E:\\agentApp
+Workspace: D:\\agentApp
 Worker id: codex
 Worker kind: codex
 Auth: user-managed only
@@ -25,16 +25,16 @@ Auth: user-managed only
 
 ## Current Task
 
-- Selected task: worker별 session profile launch adapter
-- Task id: worker-session-profile-launch-adapters
-- Priority: 35
-- Generated: 2026-05-10T14:00:29.124Z
+- Selected task: Claude/Gemini CLI 설치 후 실제 authenticated cycle 재검증
+- Task id: n/a
+- Priority: n/a
+- Generated: 2026-05-11T09:06:45.717Z
 
 위 Required Reads를 먼저 읽고 시작한다.
 
 다음 작업을 진행한다:
 
-> worker별 session profile launch adapter
+> Claude/Gemini CLI 설치 후 실제 authenticated cycle 재검증
 
 ## Codex Adapter
 
@@ -48,7 +48,7 @@ Use this prompt when opening a fresh Codex Desktop thread for the current task.
 - Continue implementation autonomously for local code, docs, tests, validation, handoff updates, commit, and approved push.
 - Send short progress updates while exploring, editing, validating, and pushing.
 - Before any unclear operation, run `pnpm agent:dry-run -- --operation "<operation>"`.
-- Use `pnpm agent:route -- --task "worker별 session profile launch adapter" --provider codex` before expensive reasoning work.
+- Use `pnpm agent:route -- --task "Claude/Gemini CLI 설치 후 실제 authenticated cycle 재검증" --provider codex` before expensive reasoning work.
 
 ### Codex Completion Output
 
@@ -74,7 +74,7 @@ Quality is first. Use efficient models for routine reading, setup, and simple do
 Before heavy work, run:
 
 ```bash
-pnpm agent:route -- --task "worker별 session profile launch adapter"
+pnpm agent:route -- --task "Claude/Gemini CLI 설치 후 실제 authenticated cycle 재검증"
 ```
 
 ## Safety Rules
