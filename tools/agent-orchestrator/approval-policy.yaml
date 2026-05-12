@@ -19,7 +19,7 @@ auto_allowed:
   - id: local_file_edits
     description: "Edit local source, docs, configs, tests, and scripts inside the repository."
     scope:
-      - "repo files under E:\\agentApp"
+      - "repo files inside the AgentApp workspace"
       - "generated docs, tests, and local tool configs that contain no secrets"
     examples:
       - "update scripts"

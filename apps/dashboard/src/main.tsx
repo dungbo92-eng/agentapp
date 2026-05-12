@@ -1251,7 +1251,7 @@ function App() {
             />
             <input
               aria-label="프로젝트 경로"
-              placeholder="E:\\myProject"
+              placeholder="C:\\path\\to\\your\\project"
               title="로컬 프로젝트 절대 경로를 입력합니다"
               value={projectForm.path}
               onChange={(event) => setProjectForm({ ...projectForm, path: event.target.value })}

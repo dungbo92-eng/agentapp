@@ -1,6 +1,6 @@
 # Gemini CLI Start Prompt
 
-Workspace: D:\\agentApp
+Workspace: D:\agentApp
 Worker id: gemini-cli
 Worker kind: gemini-cli
 Auth: user-managed only
@@ -11,7 +11,7 @@ Auth: user-managed only
 - Prompt is piped to stdin; stdout is captured as last-message.txt.
 - If the session profile is not authenticated yet, run `gemini auth login` in that profile and mark the account Ready again.
 
-- Start Gemini CLI from `E:\agentApp`, then paste this prompt as the working instruction.
+- Start Gemini CLI from `D:\agentApp`, then paste this prompt as the working instruction.
 
 ## Required Reads
 

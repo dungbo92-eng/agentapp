@@ -1,6 +1,6 @@
 # Codex Desktop Start Prompt
 
-Workspace: D:\\agentApp
+Workspace: D:\agentApp
 Worker id: codex
 Worker kind: codex
 Auth: user-managed only
@@ -42,7 +42,7 @@ Use this prompt when opening a fresh Codex Desktop thread for the current task.
 
 ### Codex Run Contract
 
-- Work from the repository root: `E:\agentApp`.
+- Work from the repository root: `D:\agentApp`.
 - Treat `AGENTS.md` as the governing instruction file.
 - Use `tools/agent-orchestrator/handoff/NEXT_TASK.md` as the active handoff.
 - Continue implementation autonomously for local code, docs, tests, validation, handoff updates, commit, and approved push.

@@ -137,6 +137,25 @@ async function handleApi(req, res, url) {
   return false;
 }
 
+function runtimeWorkspaceRoot() {
+  if (process.env.AGENTAPP_WORKSPACE) return process.env.AGENTAPP_WORKSPACE;
+  if (process.env.AGENTAPP_DATA_DIR) return path.dirname(process.env.AGENTAPP_DATA_DIR);
+  if (REPO_ROOT.includes(`${path.sep}app.asar${path.sep}`) || REPO_ROOT.endsWith(`${path.sep}app.asar`)) {
+    return process.cwd();
+  }
+  return REPO_ROOT;
+}
+
+function rewriteSnapshotPaths(buffer) {
+  let text = buffer.toString("utf8");
+  const workspace = runtimeWorkspaceRoot();
+  // Replace any baked-in dev-time absolute paths so the user PC sees its
+  // own workspace instead of D:\agentApp or E:\agentApp.
+  text = text.replace(/[A-Za-z]:\\\\agentApp/g, workspace.replace(/\\/g, "\\\\"));
+  text = text.replace(/[A-Za-z]:\\agentApp/g, workspace);
+  return Buffer.from(text, "utf8");
+}
+
 async function serveStatic(req, res, staticDir, url) {
   const requested = decodeURIComponent(url === "/" ? "/index.html" : url);
   const candidate = path.resolve(staticDir, `.${requested}`);
@@ -155,7 +174,10 @@ async function serveStatic(req, res, staticDir, url) {
   }
 
   try {
-    const body = await readFile(file);
+    let body = await readFile(file);
+    if (path.basename(file) === "agent-snapshot.json") {
+      body = rewriteSnapshotPaths(body);
+    }
     res.statusCode = 200;
     res.setHeader("Content-Type", MIME_TYPES.get(path.extname(file)) || "application/octet-stream");
     res.end(body);

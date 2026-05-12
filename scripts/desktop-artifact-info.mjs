@@ -67,7 +67,7 @@ Get-FileHash -Algorithm SHA256 ${info.installer.artifact}
 
 - win-unpacked/AgentApp.exe 즉시 실행 확인: 8초 뒤에도 프로세스 유지.
 - ${info.installer.artifact} UI 경로 즉시 실행 확인: 6초 뒤에도 프로세스 유지.
-- ${info.installer.artifact} /S /D=D:\\agentApp\\tmp\\AgentAppInstallSmoke exit code 0.
+- ${info.installer.artifact} /S /D=%TEMP%\\AgentAppInstallSmoke exit code 0.
 - silent 설치된 AgentApp.exe 즉시 실행 확인: 8초 뒤에도 프로세스 유지.
 `
     : "";

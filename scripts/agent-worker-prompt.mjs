@@ -171,6 +171,7 @@ function routingSummary(worker) {
 }
 
 function workerSpecificNotes(worker) {
+  const workspace = worker.workspace || REPO_ROOT;
   if (worker.kind === "claude-code") {
     return "- Claude Code loads `CLAUDE.md` automatically, but still read `AGENTS.md` for shared policy.";
   }
@@ -178,22 +179,22 @@ function workerSpecificNotes(worker) {
     return "- Codex should start from `AGENTS.md`, then use `NEXT_TASK.md` as the handoff source.";
   }
   if (worker.kind === "cursor") {
-    return "- Paste this prompt into Cursor with `E:\\agentApp` opened as the workspace.";
+    return `- Paste this prompt into Cursor with \`${workspace}\` opened as the workspace.`;
   }
   if (worker.kind === "gemini-cli") {
-    return "- Start Gemini CLI from `E:\\agentApp`, then paste this prompt as the working instruction.";
+    return `- Start Gemini CLI from \`${workspace}\`, then paste this prompt as the working instruction.`;
   }
   return "- Use the normal user-authenticated session for this worker.";
 }
 
-function codexAdapterSection(nextTask) {
+function codexAdapterSection(nextTask, workspace) {
   return `## Codex Adapter
 
 Use this prompt when opening a fresh Codex Desktop thread for the current task.
 
 ### Codex Run Contract
 
-- Work from the repository root: \`E:\\agentApp\`.
+- Work from the repository root: \`${workspace}\`.
 - Treat \`AGENTS.md\` as the governing instruction file.
 - Use \`tools/agent-orchestrator/handoff/NEXT_TASK.md\` as the active handoff.
 - Continue implementation autonomously for local code, docs, tests, validation, handoff updates, commit, and approved push.
@@ -214,14 +215,14 @@ If staging, committing, or pushing succeeds inside Codex Desktop, include the ap
 `;
 }
 
-function claudeCodeAdapterSection(nextTask) {
+function claudeCodeAdapterSection(nextTask, workspace) {
   return `## Claude Code Adapter
 
 Use this prompt when opening Claude Code from a terminal at the repository root.
 
 ### Claude Code Run Contract
 
-- Start from \`E:\\agentApp\`; Claude Code should naturally load \`CLAUDE.md\`.
+- Start from \`${workspace}\`; Claude Code should naturally load \`CLAUDE.md\`.
 - Still read \`AGENTS.md\` because it is the shared policy for every agent.
 - Use \`tools/agent-orchestrator/handoff/NEXT_TASK.md\` as the active handoff.
 - Keep all implementation, docs, tests, validation, handoff updates, commit, and approved push moving without asking.
@@ -241,14 +242,14 @@ When finished, report:
 `;
 }
 
-function cursorAdapterSection(nextTask) {
+function cursorAdapterSection(nextTask, workspace) {
   return `## Cursor Adapter
 
 Use this prompt when opening the repository in Cursor.
 
 ### Cursor Run Contract
 
-- Open \`E:\\agentApp\` as the workspace before starting.
+- Open \`${workspace}\` as the workspace before starting.
 - Paste this prompt into the Cursor agent/chat tied to the repository.
 - Read \`AGENTS.md\`, \`NEXT_TASK.md\`, project memory, roadmap, and policy before editing.
 - Keep edits tightly scoped and avoid broad IDE refactors unless the task calls for them.
@@ -280,7 +281,8 @@ function buildPrompt(worker, nextTask, options = {}) {
     cursor: cursorAdapterSection,
   };
   const format = options.format === "auto" ? worker.kind : options.format;
-  const adapterSection = adapterSections[format] ? `\n${adapterSections[format](nextTask)}` : "";
+  const workspace = worker.workspace || REPO_ROOT;
+  const adapterSection = adapterSections[format] ? `\n${adapterSections[format](nextTask, workspace)}` : "";
 
   return `# ${worker.display_name || worker.id} Start Prompt
 

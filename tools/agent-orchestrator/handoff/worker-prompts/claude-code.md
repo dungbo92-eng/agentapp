@@ -1,6 +1,6 @@
 # Claude Code Start Prompt
 
-Workspace: D:\\agentApp
+Workspace: D:\agentApp
 Worker id: claude-code
 Worker kind: claude-code
 Auth: user-managed only
@@ -43,7 +43,7 @@ Use this prompt when opening Claude Code from a terminal at the repository root.
 
 ### Claude Code Run Contract
 
-- Start from `E:\agentApp`; Claude Code should naturally load `CLAUDE.md`.
+- Start from `D:\agentApp`; Claude Code should naturally load `CLAUDE.md`.
 - Still read `AGENTS.md` because it is the shared policy for every agent.
 - Use `tools/agent-orchestrator/handoff/NEXT_TASK.md` as the active handoff.
 - Keep all implementation, docs, tests, validation, handoff updates, commit, and approved push moving without asking.

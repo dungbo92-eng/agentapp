@@ -182,10 +182,19 @@ async function resolveRun(runId) {
 
 async function readWorkerPrompt(workerId) {
   try {
-    return await readFile(path.join(WORKER_PROMPTS_DIR, `${workerId}.md`), "utf8");
+    const raw = await readFile(path.join(WORKER_PROMPTS_DIR, `${workerId}.md`), "utf8");
+    return substituteRuntimePaths(raw);
   } catch {
     return "";
   }
+}
+
+function substituteRuntimePaths(text) {
+  if (!text) return text;
+  const replacement = safeSpawnCwd();
+  return text
+    .replace(/[A-Za-z]:\\\\agentApp/g, replacement.replace(/\\/g, "\\\\"))
+    .replace(/[A-Za-z]:\\agentApp/g, replacement);
 }
 
 async function writeLaunchPrompt(run, files) {

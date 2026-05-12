@@ -1,6 +1,6 @@
 # Cursor Start Prompt
 
-Workspace: D:\\agentApp
+Workspace: D:\agentApp
 Worker id: cursor
 Worker kind: cursor
 Auth: user-managed only
@@ -10,7 +10,7 @@ Auth: user-managed only
 - Dashboard adapter opens Cursor with a session-profile-specific --user-data-dir.
 - If the session profile is not authenticated yet, log in inside that Cursor profile and mark the account Ready again.
 
-- Paste this prompt into Cursor with `E:\agentApp` opened as the workspace.
+- Paste this prompt into Cursor with `D:\agentApp` opened as the workspace.
 
 ## Required Reads
 
@@ -42,7 +42,7 @@ Use this prompt when opening the repository in Cursor.
 
 ### Cursor Run Contract
 
-- Open `E:\agentApp` as the workspace before starting.
+- Open `D:\agentApp` as the workspace before starting.
 - Paste this prompt into the Cursor agent/chat tied to the repository.
 - Read `AGENTS.md`, `NEXT_TASK.md`, project memory, roadmap, and policy before editing.
 - Keep edits tightly scoped and avoid broad IDE refactors unless the task calls for them.
