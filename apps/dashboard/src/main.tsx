@@ -1891,8 +1891,20 @@ function App() {
         ) : null}
 
         <section className="overview">
-          <Stat label="로드맵" value={`${snapshot.progress.percent}%`} icon={Gauge} />
-          <Stat label="완료" value={`${snapshot.progress.done}/${snapshot.progress.total}`} icon={CheckCircle2} />
+          <Stat
+            label="로드맵"
+            value={`${selectedProject !== "current" && projectMeta?.progress
+              ? projectMeta.progress.percent
+              : snapshot.progress.percent}%`}
+            icon={Gauge}
+          />
+          <Stat
+            label="완료"
+            value={selectedProject !== "current" && projectMeta?.progress
+              ? `${projectMeta.progress.done}/${projectMeta.progress.total}`
+              : `${snapshot.progress.done}/${snapshot.progress.total}`}
+            icon={CheckCircle2}
+          />
           <Stat label="결정 필요" value={String(approvalCount)} icon={AlertCircle} />
           <Stat label="계정 수" value={String(accounts.length)} icon={KeyRound} />
         </section>
@@ -2169,12 +2181,18 @@ function App() {
               <h2>명령</h2>
               <Terminal aria-hidden="true" size={17} />
             </div>
-            <div className="commandList">
-              <code>pnpm agent:next</code>
-              <code>pnpm agent:prompt -- --all --write</code>
-              <code>pnpm agent:scheduled-check -- --json</code>
-              <code>pnpm dashboard:build</code>
-            </div>
+            {isExternal ? (
+              <p className="emptyState">
+                이 명령들은 AgentApp 자체 (개발 모드) 에서만 의미가 있습니다. 외부 프로젝트엔 적용되지 않습니다.
+              </p>
+            ) : (
+              <div className="commandList">
+                <code>pnpm agent:next</code>
+                <code>pnpm agent:prompt -- --all --write</code>
+                <code>pnpm agent:scheduled-check -- --json</code>
+                <code>pnpm dashboard:build</code>
+              </div>
+            )}
           </section>
 
           <section className="panel">
