@@ -198,6 +198,7 @@ function normalizeAccount(input) {
     source: "local",
     modelProfiles: input.modelProfiles || input.model_profiles || defaultProfiles(provider),
     sessionDetectionReason: input.sessionDetectionReason || input.session_detection_reason || "",
+    actualAuthEmail: String(input.actualAuthEmail || input.actual_auth_email || "").trim().toLowerCase(),
     lastUsedAt: input.lastUsedAt || input.last_used_at || "",
     usageAlert: usageAlertLevel({
       remainingUnits: Math.max(0, remainingUnits),
@@ -388,6 +389,7 @@ export async function addAccount(input) {
   const detection = await detectAccountSession(account);
   account.sessionStatus = detection.sessionStatus;
   account.sessionDetectionReason = detection.reason;
+  account.actualAuthEmail = detection.actualEmail || "";
   if (detection.sessionStatus === "ready") account.lastVerifiedAt = nowIso();
   runtime.accounts = uniqueById([...runtime.accounts, account]);
   return writeRuntime(runtime);
@@ -473,6 +475,68 @@ async function probeCommand(command) {
   });
 }
 
+function decodeJwtPayload(token) {
+  if (!token || typeof token !== "string") return null;
+  const parts = token.split(".");
+  if (parts.length !== 3) return null;
+  try {
+    const base64 = parts[1].replace(/-/g, "+").replace(/_/g, "/").padEnd(parts[1].length + ((4 - (parts[1].length % 4)) % 4), "=");
+    return JSON.parse(Buffer.from(base64, "base64").toString("utf8"));
+  } catch {
+    return null;
+  }
+}
+
+async function readActualIdentity(provider, sessionProfile) {
+  const config = PROVIDER_CLI[provider];
+  if (!config) return "";
+  const { sharedSessionProfilesRoot } = await import("./worker-launch-adapter.mjs");
+  const subdir = config.configSubdir.replace(/^session-profiles\//, "");
+  const profileDir = path.join(sharedSessionProfilesRoot(), subdir, sanitizeSegment(sessionProfile));
+
+  if (provider === "claude") {
+    try {
+      const raw = await readFile(path.join(profileDir, ".claude.json"), "utf8");
+      const parsed = JSON.parse(raw);
+      return String(parsed?.oauthAccount?.emailAddress || "").trim().toLowerCase();
+    } catch {
+      return "";
+    }
+  }
+
+  if (provider === "codex") {
+    try {
+      const raw = await readFile(path.join(profileDir, "auth.json"), "utf8");
+      const parsed = JSON.parse(raw);
+      const idToken = parsed?.tokens?.id_token;
+      const payload = decodeJwtPayload(idToken);
+      return String(payload?.email || "").trim().toLowerCase();
+    } catch {
+      return "";
+    }
+  }
+
+  if (provider === "gemini") {
+    for (const candidate of ["google_account_id", "oauth_creds.json"]) {
+      try {
+        const raw = await readFile(path.join(profileDir, candidate), "utf8");
+        if (candidate === "oauth_creds.json") {
+          const parsed = JSON.parse(raw);
+          const email = parsed?.email || parsed?.account?.email || parsed?.client_email;
+          if (email) return String(email).trim().toLowerCase();
+        } else if (raw.includes("@")) {
+          return raw.trim().toLowerCase();
+        }
+      } catch {
+        // try next
+      }
+    }
+    return "";
+  }
+
+  return "";
+}
+
 async function hasSessionArtifacts(provider, sessionProfile) {
   const config = PROVIDER_CLI[provider];
   if (!config) return false;
@@ -534,7 +598,23 @@ export async function detectAccountSession(account) {
   }
   const sessionProfile = account.sessionProfile || sessionProfileFor(provider, account.email, account.loginLabel);
   if (await hasSessionArtifacts(provider, sessionProfile)) {
-    return { sessionStatus: "ready", reason: "세션 프로필에 유효한 인증 토큰이 있습니다." };
+    const expectedEmail = String(account.email || "").trim().toLowerCase();
+    const actualEmail = await readActualIdentity(provider, sessionProfile);
+    if (expectedEmail && actualEmail && expectedEmail !== actualEmail) {
+      return {
+        sessionStatus: "needs-login",
+        actualEmail,
+        reason:
+          `이 계정에 저장된 토큰은 실제로 '${actualEmail}' 으로 인증돼 있습니다. 설정한 '${expectedEmail}' 과 다릅니다. 격리 창에서 다시 로그인할 때 반드시 ${expectedEmail} 계정을 선택하세요.`,
+      };
+    }
+    return {
+      sessionStatus: "ready",
+      actualEmail,
+      reason: actualEmail
+        ? `세션 프로필에 ${actualEmail} 계정의 유효한 토큰이 있습니다.`
+        : "세션 프로필에 유효한 인증 토큰이 있습니다.",
+    };
   }
   const expected = (PROVIDER_CLI[provider]?.authFiles || []).join(", ");
   const hint = expected
@@ -613,6 +693,7 @@ export async function detectAndUpdateAccount(accountId) {
           sessionStatus: detection.sessionStatus,
           lastVerifiedAt: detection.sessionStatus === "ready" ? nowIso() : item.lastVerifiedAt || "",
           sessionDetectionReason: detection.reason,
+          actualAuthEmail: detection.actualEmail || "",
         }
       : item,
   );
@@ -682,7 +763,16 @@ export function selectRoute(accounts, request) {
   const enabledAccounts = accounts
     .filter((account) => account.enabled !== false)
     .filter((account) => !preferredProvider || account.provider === preferredProvider);
-  const providerAccounts = enabledAccounts.filter((account) => account.sessionStatus === "ready");
+  const providerAccounts = enabledAccounts.filter((account) => {
+    if (account.sessionStatus !== "ready") return false;
+    // Drop accounts whose stored OAuth identity disagrees with the configured
+    // email — running with a mismatched token would silently use the wrong
+    // account on behalf of the user.
+    const expected = String(account.email || "").trim().toLowerCase();
+    const actual = String(account.actualAuthEmail || "").trim().toLowerCase();
+    if (expected && actual && expected !== actual) return false;
+    return true;
+  });
 
   if (enabledAccounts.length === 0) {
     return {

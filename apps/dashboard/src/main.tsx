@@ -161,6 +161,7 @@ type ManagedAccount = {
   sessionStatus: "needs-login" | "ready" | "paused";
   lastVerifiedAt?: string;
   sessionDetectionReason?: string;
+  actualAuthEmail?: string;
   remainingUnits: number;
   weeklyUnits: number;
   resetDay: string;
@@ -1357,6 +1358,13 @@ function App() {
                       </button>
                     </div>
                   </div>
+                  {account.actualAuthEmail && account.email && account.actualAuthEmail !== account.email.toLowerCase() ? (
+                    <small className="identityMismatch" role="alert">
+                      ⚠ 실제 인증된 계정: <strong>{account.actualAuthEmail}</strong> — 설정한 {account.email} 과 다릅니다. 다시 로그인하세요.
+                    </small>
+                  ) : account.actualAuthEmail ? (
+                    <small className="identityOk">✓ 인증: {account.actualAuthEmail}</small>
+                  ) : null}
                   {account.sessionDetectionReason ? (
                     <small className="detectionReason">{account.sessionDetectionReason}</small>
                   ) : null}
