@@ -1050,6 +1050,24 @@ function App() {
     setAccountFormOpen(false);
   }
 
+  async function browseProjectPath() {
+    try {
+      const result = (await runtimeRequest("projects/browse", {
+        defaultPath: projectForm.path || undefined,
+      })) as { path?: string; canceled?: boolean; reason?: string };
+      if (result?.path) {
+        setProjectForm((current) => ({ ...current, path: result.path || "" }));
+      } else if (!result?.canceled && result?.reason) {
+        setToast({ kind: "warn", message: `폴더 선택을 열 수 없습니다: ${result.reason}` });
+      }
+    } catch (caught) {
+      setToast({
+        kind: "warn",
+        message: caught instanceof Error ? caught.message : "폴더 선택에 실패했습니다",
+      });
+    }
+  }
+
   function addProject(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault();
     const projectPath = projectForm.path.trim();
@@ -1250,13 +1268,23 @@ function App() {
               value={projectForm.name}
               onChange={(event) => setProjectForm({ ...projectForm, name: event.target.value })}
             />
-            <input
-              aria-label="프로젝트 경로"
-              placeholder="C:\\path\\to\\your\\project"
-              title="로컬 프로젝트 절대 경로를 입력합니다"
-              value={projectForm.path}
-              onChange={(event) => setProjectForm({ ...projectForm, path: event.target.value })}
-            />
+            <div className="pathPickerRow">
+              <input
+                aria-label="프로젝트 경로"
+                placeholder="C:\\path\\to\\your\\project"
+                title="로컬 프로젝트 절대 경로를 입력합니다"
+                value={projectForm.path}
+                onChange={(event) => setProjectForm({ ...projectForm, path: event.target.value })}
+              />
+              <button
+                type="button"
+                className="button ghost pathBrowseBtn"
+                title="파일 탐색기에서 폴더를 선택합니다"
+                onClick={() => void browseProjectPath()}
+              >
+                찾아보기
+              </button>
+            </div>
             {projectErrors.length > 0 ? (
               <div className="formError" role="alert">
                 {projectErrors.map((item) => (

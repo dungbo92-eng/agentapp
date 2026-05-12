@@ -1,6 +1,6 @@
 # RELEASE_ARTIFACTS
 
-- Generated: 2026-05-12T06:28:47.597Z
+- Generated: 2026-05-12T07:06:02.786Z
 
 ## Portable (단일 EXE, 설치 없음)
 
@@ -17,8 +17,8 @@ Get-FileHash -Algorithm SHA256 dist-desktop/AgentApp-0.1.0-x64.exe
 ## NSIS Installer (표준 설치 마법사)
 
 - Artifact: `dist-desktop/AgentApp-Setup-0.1.0-x64.exe`
-- Size bytes: 100957634
-- SHA256: `d1d9cfc31e18e8beecb71e4a8a5c9e044d7781c86564937c49c5bab13ed1a6ef`
+- Size bytes: 100957885
+- SHA256: `930c86f88a7760865304a0c719da27747a1ea528b8df19b3b89da9d390e89a8a`
 
 ```powershell
 dist-desktop/AgentApp-Setup-0.1.0-x64.exe

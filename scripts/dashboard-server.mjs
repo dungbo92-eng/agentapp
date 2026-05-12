@@ -122,6 +122,10 @@ async function handleApi(req, res, url) {
     sendJson(res, 200, await addProject(await readBody(req)));
     return true;
   }
+  if (req.method === "POST" && url === "/api/agentapp/projects/browse") {
+    sendJson(res, 200, await browseDirectory(await readBody(req)));
+    return true;
+  }
   if (req.method === "POST" && url === "/api/agentapp/runs/start") {
     sendJson(res, 200, await startRun(await readBody(req)));
     return true;
@@ -135,6 +139,33 @@ async function handleApi(req, res, url) {
     return true;
   }
   return false;
+}
+
+async function browseDirectory(options = {}) {
+  if (!process.versions.electron) {
+    return { path: "", reason: "browse_dialog_unavailable" };
+  }
+  try {
+    const electron = await import("electron");
+    const electronModule = electron.default || electron;
+    const { dialog, BrowserWindow } = electronModule;
+    if (!dialog) return { path: "", reason: "dialog_unavailable" };
+    const focused = BrowserWindow?.getFocusedWindow?.() || BrowserWindow?.getAllWindows?.()[0];
+    const dialogOptions = {
+      title: options.title || "프로젝트 경로 선택",
+      defaultPath: options.defaultPath || undefined,
+      properties: ["openDirectory", "createDirectory"],
+    };
+    const result = focused
+      ? await dialog.showOpenDialog(focused, dialogOptions)
+      : await dialog.showOpenDialog(dialogOptions);
+    if (result.canceled || !result.filePaths || result.filePaths.length === 0) {
+      return { path: "", canceled: true };
+    }
+    return { path: result.filePaths[0] };
+  } catch (error) {
+    return { path: "", reason: error instanceof Error ? error.message : String(error) };
+  }
 }
 
 function runtimeWorkspaceRoot() {

@@ -221,6 +221,24 @@ button:disabled {
   margin-top: 12px;
 }
 
+.pathPickerRow {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 6px;
+  align-items: stretch;
+}
+
+.pathPickerRow input {
+  min-width: 0;
+}
+
+.pathBrowseBtn {
+  white-space: nowrap;
+  padding: 0 12px;
+  font-size: 0.78rem;
+  height: 32px;
+}
+
 .accountFormToggle {
   display: grid;
   margin-top: 12px;
