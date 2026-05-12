@@ -303,10 +303,79 @@ function openUrl(url) {
   child.unref();
 }
 
+function windowsToolPathEntries() {
+  if (!isWindows()) return [];
+  const root = windowsSystemRoot();
+  const userProfile = process.env.USERPROFILE || homedir();
+  const appData = process.env.APPDATA || path.join(userProfile, "AppData", "Roaming");
+  const localAppData = process.env.LOCALAPPDATA || path.join(userProfile, "AppData", "Local");
+  return [
+    path.join(root, "System32"),
+    path.join(root, "System32", "Wbem"),
+    path.join(root, "System32", "WindowsPowerShell", "v1.0"),
+    root,
+    "C:\\Program Files\\nodejs",
+    "C:\\Program Files\\Git\\cmd",
+    "C:\\Program Files\\Git\\bin",
+    path.join(appData, "npm"),
+    path.join(localAppData, "Programs", "cursor", "resources", "app", "bin"),
+    path.join(localAppData, "Microsoft", "WindowsApps"),
+  ];
+}
+
+function augmentedSpawnEnv() {
+  if (!isWindows()) return { ...process.env };
+  const next = { ...process.env };
+  const pathKey = Object.keys(next).find((key) => key.toLowerCase() === "path") || "Path";
+  for (const key of Object.keys(next)) {
+    if (key.toLowerCase() === "path" && key !== pathKey) delete next[key];
+  }
+  const entries = [...windowsToolPathEntries(), next[pathKey] || ""]
+    .flatMap((entry) => String(entry).split(";"))
+    .map((entry) => entry.trim())
+    .filter(Boolean);
+  const seen = new Set();
+  next[pathKey] = entries
+    .filter((entry) => {
+      const key = entry.toLowerCase();
+      if (seen.has(key)) return false;
+      seen.add(key);
+      return true;
+    })
+    .join(";");
+  return next;
+}
+
+function firstWindowsExecutableMatch(command) {
+  if (!isWindows()) return "";
+  const extensions = [".cmd", ".exe", ".bat", ".ps1", ""];
+  const hasExt = /\.(cmd|exe|bat|ps1)$/i.test(command);
+  for (const dir of windowsToolPathEntries()) {
+    if (!dir) continue;
+    const exts = hasExt ? [""] : extensions;
+    for (const ext of exts) {
+      const candidate = path.join(dir, `${command}${ext}`);
+      if (existsSync(candidate)) return candidate;
+    }
+  }
+  return "";
+}
+
 async function commandPathFor(command) {
+  if (!command) return "";
   const probe = isWindows() ? windowsSystemCommand("where.exe") : "which";
-  return new Promise((resolve) => {
-    const child = spawn(probe, [command], { windowsHide: true });
+  const fromWhere = await new Promise((resolve) => {
+    let child;
+    try {
+      child = spawn(probe, [command], {
+        cwd: safeSpawnCwd(),
+        env: augmentedSpawnEnv(),
+        windowsHide: true,
+      });
+    } catch {
+      resolve("");
+      return;
+    }
     let stdout = "";
     child.stdout.on("data", (chunk) => {
       stdout += chunk.toString("utf8");
@@ -320,6 +389,8 @@ async function commandPathFor(command) {
       resolve(executableFromPathProbe(stdout));
     });
   });
+  if (fromWhere && existsSync(fromWhere)) return fromWhere;
+  return firstWindowsExecutableMatch(command);
 }
 
 export function sharedSessionProfilesRoot() {
