@@ -483,71 +483,58 @@ function useFlashOnChange<T>(value: T): number {
   return flashKey;
 }
 
-function useNumericHistory(value: number, max = 24): number[] {
-  const [history, setHistory] = React.useState<number[]>(() =>
-    Number.isFinite(value) ? [value] : [],
-  );
+function useAnimatedNumber(target: number, durationMs = 700): number {
+  const [display, setDisplay] = React.useState<number>(() => (Number.isFinite(target) ? target : 0));
+  const startRef = React.useRef<number>(display);
+  const rafRef = React.useRef<number | null>(null);
+
   React.useEffect(() => {
-    if (!Number.isFinite(value)) return;
-    setHistory((previous) => {
-      const last = previous[previous.length - 1];
-      if (last === value && previous.length > 0) return previous;
-      const next = previous.length >= max ? previous.slice(previous.length - max + 1) : previous;
-      return [...next, value];
-    });
-  }, [value, max]);
-  return history;
+    if (!Number.isFinite(target)) return;
+    if (target === display) return;
+    if (rafRef.current !== null) cancelAnimationFrame(rafRef.current);
+    const from = display;
+    const to = target;
+    const t0 = performance.now();
+    startRef.current = from;
+    const step = (now: number) => {
+      const elapsed = now - t0;
+      const t = Math.min(1, elapsed / durationMs);
+      const eased = 1 - Math.pow(1 - t, 3);
+      const current = from + (to - from) * eased;
+      setDisplay(current);
+      if (t < 1) {
+        rafRef.current = requestAnimationFrame(step);
+      } else {
+        setDisplay(to);
+        rafRef.current = null;
+      }
+    };
+    rafRef.current = requestAnimationFrame(step);
+    return () => {
+      if (rafRef.current !== null) {
+        cancelAnimationFrame(rafRef.current);
+        rafRef.current = null;
+      }
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [target, durationMs]);
+
+  return display;
 }
 
-function Sparkline({
-  values,
-  width = 96,
-  height = 24,
-  stroke = "currentColor",
-  fill = "rgba(37, 99, 235, 0.12)",
-  ariaLabel,
+function AnimatedNumber({
+  value,
+  durationMs = 700,
+  format,
 }: {
-  values: number[];
-  width?: number;
-  height?: number;
-  stroke?: string;
-  fill?: string;
-  ariaLabel?: string;
+  value: number;
+  durationMs?: number;
+  format?: (value: number) => string;
 }) {
-  if (!values || values.length < 2) {
-    return <span className="sparkline sparkline-empty" aria-hidden="true" />;
-  }
-  const min = Math.min(...values);
-  const max = Math.max(...values);
-  const range = max - min || 1;
-  const stepX = width / (values.length - 1);
-  const pad = 1.5;
-  const usable = height - pad * 2;
-  const points = values.map((value, index) => {
-    const x = index * stepX;
-    const y = pad + (1 - (value - min) / range) * usable;
-    return `${x.toFixed(2)},${y.toFixed(2)}`;
-  });
-  const polyline = points.join(" ");
-  const area = `0,${height} ${polyline} ${width},${height}`;
-  const lastX = width;
-  const lastValue = values[values.length - 1];
-  const lastY = pad + (1 - (lastValue - min) / range) * usable;
-  return (
-    <svg
-      className="sparkline"
-      width={width}
-      height={height}
-      viewBox={`0 0 ${width} ${height}`}
-      role={ariaLabel ? "img" : undefined}
-      aria-label={ariaLabel}
-      aria-hidden={ariaLabel ? undefined : "true"}
-    >
-      <polygon fill={fill} stroke="none" points={area} />
-      <polyline fill="none" stroke={stroke} strokeWidth="1.4" strokeLinejoin="round" strokeLinecap="round" points={polyline} />
-      <circle cx={lastX} cy={lastY} r="1.8" fill={stroke} />
-    </svg>
-  );
+  const animated = useAnimatedNumber(value, durationMs);
+  const rounded = Number.isInteger(value) ? Math.round(animated) : animated;
+  const formatted = format ? format(rounded) : numberFormatter.format(rounded);
+  return <span className="animatedNumber">{formatted}</span>;
 }
 
 function ProgressBar({ value, live }: { value: number; live?: boolean }) {
@@ -568,12 +555,10 @@ function Stat({
   label,
   value,
   icon: Icon,
-  trend,
 }: {
   label: string;
   value: string;
   icon: LucideIcon;
-  trend?: number[];
 }) {
   const flashKey = useFlashOnChange(value);
   return (
@@ -585,7 +570,6 @@ function Stat({
           {value}
         </strong>
       </div>
-      {trend && trend.length >= 2 ? <Sparkline values={trend} width={64} height={20} /> : null}
     </section>
   );
 }
@@ -859,21 +843,9 @@ function App() {
   const environmentPercentRaw = environment
     ? Math.round((environment.summary.ok / Math.max(1, environment.summary.total)) * 100)
     : 0;
-  const roadmapPercentRaw = snapshot?.progress?.percent ?? 0;
-  const roadmapDoneRaw = snapshot?.progress?.done ?? 0;
-  const approvalCountRaw = snapshot
-    ? snapshot.approval_queue.pending_decisions.length + snapshot.approval_queue.held_tasks.length
-    : 0;
-  const accountsCountRaw = (runtime.accounts || []).length + (snapshot?.usage_budget?.accounts?.length || 0);
 
-  const usageHistory = useNumericHistory(liveUsageRaw.remaining);
   const usageFlashKey = useFlashOnChange(liveUsageRaw.remaining);
-  const environmentHistory = useNumericHistory(environmentPercentRaw);
   const environmentFlashKey = useFlashOnChange(environmentPercentRaw);
-  const roadmapHistory = useNumericHistory(roadmapPercentRaw);
-  const doneHistory = useNumericHistory(roadmapDoneRaw);
-  const approvalHistory = useNumericHistory(approvalCountRaw);
-  const accountsHistory = useNumericHistory(accountsCountRaw);
 
   if (error) {
     return (
@@ -1486,10 +1458,10 @@ function App() {
         </header>
 
         <section className="overview">
-          <Stat label="로드맵" value={`${snapshot.progress.percent}%`} icon={Gauge} trend={roadmapHistory} />
-          <Stat label="완료" value={`${snapshot.progress.done}/${snapshot.progress.total}`} icon={CheckCircle2} trend={doneHistory} />
-          <Stat label="결정 필요" value={String(approvalCount)} icon={AlertCircle} trend={approvalHistory} />
-          <Stat label="계정 수" value={String(accounts.length)} icon={KeyRound} trend={accountsHistory} />
+          <Stat label="로드맵" value={`${snapshot.progress.percent}%`} icon={Gauge} />
+          <Stat label="완료" value={`${snapshot.progress.done}/${snapshot.progress.total}`} icon={CheckCircle2} />
+          <Stat label="결정 필요" value={String(approvalCount)} icon={AlertCircle} />
+          <Stat label="계정 수" value={String(accounts.length)} icon={KeyRound} />
         </section>
 
         <section className="runSurface" id="run">
@@ -1832,12 +1804,9 @@ function App() {
               <RefreshCcw aria-hidden="true" size={15} />
             </button>
           </div>
-          <div className="bigNumberRow">
-            <strong className="bigNumber" key={`usage-${usageFlashKey}`} data-flash="changed">
-              {numberFormatter.format(liveUsage.remaining)}
-            </strong>
-            <Sparkline values={usageHistory} ariaLabel="최근 사용량 추이" />
-          </div>
+          <strong className="bigNumber" key={`usage-${usageFlashKey}`} data-flash="changed">
+            <AnimatedNumber value={liveUsage.remaining} />
+          </strong>
           <span>남은 전체 사용량</span>
           <ProgressBar value={liveUsagePercent} live={Boolean(runtime.activeRun)} />
           <small>주간 예산 {numberFormatter.format(liveUsage.weekly)} / 동기화 {lastRuntimeSyncAt || "대기"}</small>
@@ -1850,12 +1819,17 @@ function App() {
               <RefreshCcw aria-hidden="true" size={15} />
             </button>
           </div>
-          <div className="bigNumberRow">
-            <strong className="bigNumber" key={`env-${environmentFlashKey}`} data-flash="changed">
-              {environment ? `${environment.summary.ok}/${environment.summary.total}` : "-"}
-            </strong>
-            <Sparkline values={environmentHistory} ariaLabel="설치된 도구 추이" />
-          </div>
+          <strong className="bigNumber" key={`env-${environmentFlashKey}`} data-flash="changed">
+            {environment ? (
+              <>
+                <AnimatedNumber value={environment.summary.ok} />
+                <span className="bigNumberDivider">/</span>
+                <AnimatedNumber value={environment.summary.total} />
+              </>
+            ) : (
+              "-"
+            )}
+          </strong>
           <span>설치된 도구</span>
           <ProgressBar value={environmentPercent} />
           {missingInstallableTools.length > 0 ? (
