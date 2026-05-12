@@ -243,6 +243,11 @@ type RunRecord = {
   };
 };
 
+type RuntimeSettings = {
+  idleWarnMs: number;
+  idleKillMs: number;
+};
+
 type RuntimeState = {
   version?: number;
   accounts: ManagedAccount[];
@@ -251,6 +256,7 @@ type RuntimeState = {
   runHistory: RunRecord[];
   pendingRuns?: PendingRun[];
   handoff?: { status: string; targetAccountId?: string; reason: string };
+  settings?: RuntimeSettings;
 };
 
 type EnvironmentTarget = {
@@ -659,13 +665,20 @@ function ChatConversation({
   const idleSec = Math.floor(idleMs / 1000);
   const showIdleWarn = run.status === "running" && idleSec >= 20;
   const noisy = events.filter((event) => NOISY_EVENT_RE.test(event.message));
+  // 진행 사항을 더 많이 보여주기 위해 최근 60개까지 노출 (이전 12개).
   const visibleEvents = events
     .filter((event) => !NOISY_EVENT_RE.test(event.message))
-    .slice(-12);
+    .slice(-60);
   const isRunning = run.status === "running" || run.adapter?.status === "running";
   const hasResponse = Boolean(run.adapter?.lastMessageText);
   const accountLabel = run.routing?.accountId || "계정 대기";
   const modelLabel = run.routing?.model || run.modelOverride || "auto";
+  const timelineRef = React.useRef<HTMLDivElement | null>(null);
+  React.useEffect(() => {
+    if (timelineRef.current && isRunning) {
+      timelineRef.current.scrollTop = timelineRef.current.scrollHeight;
+    }
+  }, [visibleEvents.length, isRunning]);
 
   return (
     <div className="chatThread">
@@ -710,7 +723,7 @@ function ChatConversation({
       ) : null}
 
       {visibleEvents.length > 0 ? (
-        <div className="chatTimeline">
+        <div className="chatTimeline" ref={timelineRef}>
           {visibleEvents.map((event) => (
             <div className={`chatTimelineRow ${event.level}`} key={`${event.at}-${event.message.slice(0, 32)}`}>
               <time>{new Date(event.at).toLocaleTimeString("ko-KR")}</time>
@@ -772,6 +785,81 @@ function ChatConversation({
         </div>
       ) : null}
     </div>
+  );
+}
+
+function RuntimeSettingsPanel({
+  settings,
+  onSave,
+}: {
+  settings?: RuntimeSettings;
+  onSave: (next: { idleWarnMs: number; idleKillMs: number }) => Promise<void>;
+}) {
+  const warnMin = settings ? Math.round(settings.idleWarnMs / 60000) : 1.5;
+  const killMin = settings ? Math.round(settings.idleKillMs / 60000) : 30;
+  const [warnInput, setWarnInput] = React.useState<string>(String(warnMin));
+  const [killInput, setKillInput] = React.useState<string>(String(killMin));
+  const [saving, setSaving] = React.useState(false);
+
+  React.useEffect(() => {
+    if (settings) {
+      setWarnInput(String(Math.round(settings.idleWarnMs / 60000)));
+      setKillInput(String(Math.round(settings.idleKillMs / 60000)));
+    }
+  }, [settings?.idleWarnMs, settings?.idleKillMs]);
+
+  return (
+    <section className="sidebarBlock">
+      <div className="sectionTitle compact">
+        <h2>자율 진행</h2>
+        <TimerReset aria-hidden="true" size={16} />
+      </div>
+      <p className="settingsHint">
+        worker 가 출력 없이 멈춰 보일 때 자동으로 끊는 시간입니다. 자율 진행은 길게, 빠른 실패는 짧게.
+        kill 시간을 <strong>0</strong> 으로 두면 자동 종료를 끕니다.
+      </p>
+      <div className="settingsRow">
+        <label>
+          <span>경고 (분)</span>
+          <input
+            type="number"
+            min={0}
+            step={0.5}
+            value={warnInput}
+            onChange={(event) => setWarnInput(event.target.value)}
+            title="이 시간만큼 worker 출력이 없으면 이벤트 로그에 경고 한 번 남깁니다"
+          />
+        </label>
+        <label>
+          <span>자동 종료 (분)</span>
+          <input
+            type="number"
+            min={0}
+            step={1}
+            value={killInput}
+            onChange={(event) => setKillInput(event.target.value)}
+            title="이 시간을 넘기면 worker 를 강제 종료합니다. 0 으로 두면 끄지 않습니다"
+          />
+        </label>
+      </div>
+      <button
+        type="button"
+        className="button primary settingsSaveBtn"
+        disabled={saving}
+        onClick={async () => {
+          const warnMs = Math.max(0, Number(warnInput) * 60000) || 0;
+          const killMs = Math.max(0, Number(killInput) * 60000) || 0;
+          setSaving(true);
+          try {
+            await onSave({ idleWarnMs: warnMs, idleKillMs: killMs });
+          } finally {
+            setSaving(false);
+          }
+        }}
+      >
+        {saving ? "저장 중…" : "저장"}
+      </button>
+    </section>
   );
 }
 
@@ -1618,6 +1706,22 @@ function App() {
             </IconButton>
           </form>
         </section>
+
+        <RuntimeSettingsPanel
+          settings={runtime.settings}
+          onSave={async (next) => {
+            try {
+              const result = await runtimeRequest("settings", next);
+              setRuntime(result as RuntimeState);
+              setToast({ kind: "success", message: "자율 진행 설정을 저장했습니다." });
+            } catch (caught) {
+              setToast({
+                kind: "warn",
+                message: caught instanceof Error ? caught.message : "설정 저장 실패",
+              });
+            }
+          }}
+        />
 
         <section className="sidebarBlock" id="accounts">
           <div className="sectionTitle compact">

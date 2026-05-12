@@ -990,13 +990,28 @@ async function launchCommandWorker(run, files, adapter, promptText) {
     level: "info",
     message: `작업 디렉터리: ${adapterCwd}`,
   });
+  const { getRuntimeSettings } = await import("./dashboard-runtime.mjs");
+  const settings = await getRuntimeSettings();
+  const idleWarn = Number.isFinite(settings.idleWarnMs) ? settings.idleWarnMs : IDLE_WARN_MS;
+  const idleKill = Number.isFinite(settings.idleKillMs) ? settings.idleKillMs : IDLE_KILL_MS;
+  if (idleKill > 0) {
+    await appendRunEvent(run.id, {
+      level: "info",
+      message: `자동 종료 임계값: ${Math.round(idleKill / 1000 / 60)}분 무응답`,
+    });
+  } else {
+    await appendRunEvent(run.id, {
+      level: "info",
+      message: "자동 종료 비활성 — 사용자가 멈출 때까지 실행 유지",
+    });
+  }
   const result = await streamProcess(adapter.command, adapter.args, {
     cwd: adapterCwd,
     env: { ...augmentedSpawnEnv(), ...(adapter.env || {}) },
     logPath: files.launchLogPath,
     stdinText: promptText,
-    idleWarnMs: IDLE_WARN_MS,
-    idleKillMs: IDLE_KILL_MS,
+    idleWarnMs: idleWarn,
+    idleKillMs: idleKill,
     onSpawn: async (pid) => {
       await patchRunRecord(run.id, {
         adapter: {

@@ -284,6 +284,46 @@ button:disabled {
   height: 32px;
 }
 
+.settingsHint {
+  margin: 4px 0 8px;
+  font-size: 0.72rem;
+  color: #475569;
+  line-height: 1.4;
+}
+
+.settingsHint strong {
+  color: #1d4ed8;
+}
+
+.settingsRow {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 6px;
+  margin-bottom: 6px;
+}
+
+.settingsRow label {
+  display: grid;
+  gap: 2px;
+}
+
+.settingsRow label span {
+  font-size: 0.72rem;
+  color: #475569;
+}
+
+.settingsRow input {
+  height: 28px;
+  padding: 0 8px;
+  font-size: 0.82rem;
+}
+
+.settingsSaveBtn {
+  width: 100%;
+  padding: 6px;
+  font-size: 0.78rem;
+}
+
 .accountFormToggle {
   display: grid;
   margin-top: 12px;
@@ -982,8 +1022,11 @@ textarea:focus {
 .chatTimeline {
   display: grid;
   gap: 3px;
-  padding-top: 8px;
+  padding: 8px 4px 4px;
   border-top: 1px dashed #e2e8f0;
+  max-height: 280px;
+  overflow-y: auto;
+  scroll-behavior: smooth;
 }
 
 .chatTimelineRow {

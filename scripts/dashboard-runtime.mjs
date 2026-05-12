@@ -22,7 +22,32 @@ const DEFAULT_RUNTIME = {
   activeRun: null,
   runHistory: [],
   pendingRuns: [],
+  settings: {
+    idleWarnMs: 90 * 1000,
+    idleKillMs: 30 * 60 * 1000,
+  },
 };
+
+function normalizeSettings(raw) {
+  const source = raw && typeof raw === "object" ? raw : {};
+  const idleWarnMs = Number.isFinite(Number(source.idleWarnMs)) ? Math.max(0, Number(source.idleWarnMs)) : 90 * 1000;
+  const idleKillMs = Number.isFinite(Number(source.idleKillMs)) ? Math.max(0, Number(source.idleKillMs)) : 30 * 60 * 1000;
+  return { idleWarnMs, idleKillMs };
+}
+
+export async function getRuntimeSettings() {
+  const runtime = await readRuntime();
+  return normalizeSettings(runtime.settings);
+}
+
+export async function updateRuntimeSettings(input) {
+  const runtime = await readRuntime();
+  runtime.settings = normalizeSettings({
+    ...(runtime.settings || {}),
+    ...(input || {}),
+  });
+  return writeRuntime(runtime);
+}
 
 const USAGE_ALERT_THRESHOLDS = {
   critical: 0.1,
@@ -263,6 +288,7 @@ function normalizeRuntime(input) {
     activeRun: runtime.activeRun || null,
     runHistory: Array.isArray(runtime.runHistory) ? runtime.runHistory.slice(0, 20) : [],
     pendingRuns: Array.isArray(runtime.pendingRuns) ? runtime.pendingRuns.slice(0, 20) : [],
+    settings: normalizeSettings(runtime.settings),
   };
 }
 
