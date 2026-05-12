@@ -467,7 +467,7 @@ function mapGeminiModel(modelInput) {
 
 async function resolveAdapter(run, files) {
   const sessionProfile = run.routing?.sessionProfile || `${run.workerId}-${run.routing?.accountId || "default"}`;
-  const workspace = REPO_ROOT;
+  const workspace = isPackagedRuntime() ? safeSpawnCwd() : REPO_ROOT;
 
   if (run.workerId === "codex") {
     const command = process.env.AGENTAPP_CODEX_COMMAND || (await commandPathFor("codex"));
@@ -487,6 +487,7 @@ async function resolveAdapter(run, files) {
       command,
       args: [
         "exec",
+        "--skip-git-repo-check",
         "-C",
         workspace,
         "-m",
