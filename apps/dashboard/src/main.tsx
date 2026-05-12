@@ -849,6 +849,32 @@ function App() {
     if (critical) playCriticalBeep();
   }, [runtime.accounts]);
 
+  const liveUsageRaw = (runtime.accounts || []).reduce(
+    (acc, account) => ({
+      remaining: acc.remaining + Number(account.remainingUnits || 0),
+      weekly: acc.weekly + Number(account.weeklyUnits || 0),
+    }),
+    { remaining: 0, weekly: 0 },
+  );
+  const environmentPercentRaw = environment
+    ? Math.round((environment.summary.ok / Math.max(1, environment.summary.total)) * 100)
+    : 0;
+  const roadmapPercentRaw = snapshot?.progress?.percent ?? 0;
+  const roadmapDoneRaw = snapshot?.progress?.done ?? 0;
+  const approvalCountRaw = snapshot
+    ? snapshot.approval_queue.pending_decisions.length + snapshot.approval_queue.held_tasks.length
+    : 0;
+  const accountsCountRaw = (runtime.accounts || []).length + (snapshot?.usage_budget?.accounts?.length || 0);
+
+  const usageHistory = useNumericHistory(liveUsageRaw.remaining);
+  const usageFlashKey = useFlashOnChange(liveUsageRaw.remaining);
+  const environmentHistory = useNumericHistory(environmentPercentRaw);
+  const environmentFlashKey = useFlashOnChange(environmentPercentRaw);
+  const roadmapHistory = useNumericHistory(roadmapPercentRaw);
+  const doneHistory = useNumericHistory(roadmapDoneRaw);
+  const approvalHistory = useNumericHistory(approvalCountRaw);
+  const accountsHistory = useNumericHistory(accountsCountRaw);
+
   if (error) {
     return (
       <main className="shell">
@@ -912,17 +938,7 @@ function App() {
     { remaining: 0, weekly: 0 },
   );
   const liveUsagePercent = liveUsage.weekly > 0 ? Math.round((liveUsage.remaining / liveUsage.weekly) * 100) : 0;
-  const usageHistory = useNumericHistory(liveUsage.remaining);
-  const usageFlashKey = useFlashOnChange(liveUsage.remaining);
-  const environmentPercent = environment
-    ? Math.round((environment.summary.ok / Math.max(1, environment.summary.total)) * 100)
-    : 0;
-  const environmentHistory = useNumericHistory(environmentPercent);
-  const environmentFlashKey = useFlashOnChange(environmentPercent);
-  const roadmapHistory = useNumericHistory(snapshot.progress.percent);
-  const doneHistory = useNumericHistory(snapshot.progress.done);
-  const approvalHistory = useNumericHistory(approvalCount);
-  const accountsHistory = useNumericHistory(accounts.length);
+  const environmentPercent = environmentPercentRaw;
   const missingEnvironment = environment?.targets.filter((target) => !target.ok) || [];
   const missingInstallableTools = missingEnvironment.filter(
     (target) => target.installable !== false && Boolean(target.installCommand),
