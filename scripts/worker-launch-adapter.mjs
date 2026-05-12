@@ -1205,6 +1205,7 @@ async function blockUnavailableWorker(run, files, adapter) {
       adapter: {
         status: "blocked",
         mode: adapter.mode,
+        summary: adapter.summary || "",
         promptPath: relativePath(files.promptPath),
         logPath: relativePath(files.launchLogPath),
       },

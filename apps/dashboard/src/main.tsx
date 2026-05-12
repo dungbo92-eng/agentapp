@@ -222,6 +222,8 @@ type RunRecord = {
     lastMessagePath?: string;
     lastMessageText?: string;
     launchLogTail?: string;
+    summary?: string;
+    lastError?: string;
     exitCode?: number;
   };
   routing?: {
@@ -1783,8 +1785,20 @@ function App() {
                         <summary>응답 보기</summary>
                         <pre>{run.adapter.lastMessageText}</pre>
                       </details>
-                    ) : run.routing?.reason && run.status === "blocked" ? (
-                      <small className="blockedReason">{run.routing.reason}</small>
+                    ) : null}
+                    {run.status === "blocked" || run.adapter?.status === "blocked" ? (
+                      <small className="blockedReason">
+                        {run.adapter?.summary
+                          || run.adapter?.lastError
+                          || run.routing?.reason
+                          || "차단 사유 정보 없음"}
+                      </small>
+                    ) : null}
+                    {run.adapter?.launchLogTail ? (
+                      <details className="runResponse compact">
+                        <summary>실행 로그 tail</summary>
+                        <pre>{run.adapter.launchLogTail}</pre>
+                      </details>
                     ) : null}
                   </div>
                 </article>
