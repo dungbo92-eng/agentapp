@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 
-import { mkdir, readdir, readFile, writeFile } from "node:fs/promises";
+import { mkdir, readdir, readFile, stat, writeFile } from "node:fs/promises";
 import { spawn } from "node:child_process";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
@@ -55,10 +55,34 @@ const PLAN_WEEKLY_BUDGET = {
 };
 
 const PROVIDER_CLI = {
-  claude: { command: "claude", envOverride: "AGENTAPP_CLAUDE_COMMAND", configEnv: "CLAUDE_CONFIG_DIR", configSubdir: "session-profiles/claude-code" },
-  codex: { command: "codex", envOverride: "AGENTAPP_CODEX_COMMAND", configEnv: "CODEX_HOME", configSubdir: "session-profiles/codex" },
-  cursor: { command: "cursor", envOverride: "AGENTAPP_CURSOR_COMMAND", configEnv: "", configSubdir: "session-profiles/cursor" },
-  gemini: { command: "gemini", envOverride: "AGENTAPP_GEMINI_COMMAND", configEnv: "GEMINI_CONFIG_DIR", configSubdir: "session-profiles/gemini-cli" },
+  claude: {
+    command: "claude",
+    envOverride: "AGENTAPP_CLAUDE_COMMAND",
+    configEnv: "CLAUDE_CONFIG_DIR",
+    configSubdir: "session-profiles/claude-code",
+    authFiles: [".credentials.json"],
+  },
+  codex: {
+    command: "codex",
+    envOverride: "AGENTAPP_CODEX_COMMAND",
+    configEnv: "CODEX_HOME",
+    configSubdir: "session-profiles/codex",
+    authFiles: ["auth.json"],
+  },
+  cursor: {
+    command: "cursor",
+    envOverride: "AGENTAPP_CURSOR_COMMAND",
+    configEnv: "",
+    configSubdir: "session-profiles/cursor",
+    authFiles: ["Network/Cookies", "Cookies"],
+  },
+  gemini: {
+    command: "gemini",
+    envOverride: "AGENTAPP_GEMINI_COMMAND",
+    configEnv: "GEMINI_CONFIG_DIR",
+    configSubdir: "session-profiles/gemini-cli",
+    authFiles: ["oauth_creds.json", "google_account_id"],
+  },
 };
 
 function planWeeklyDefault(plan) {
@@ -461,12 +485,30 @@ async function hasSessionArtifacts(provider, sessionProfile) {
   }
   const subdir = config.configSubdir.replace(/^session-profiles\//, "");
   const profileDir = path.join(sharedSessionProfilesRoot(), subdir, sanitizeSegment(sessionProfile));
-  try {
-    const entries = await readdir(profileDir);
-    return entries.some((entry) => !entry.startsWith("."));
-  } catch {
-    return false;
+
+  // Strict check: provider must have one of its known auth marker files
+  // present with non-zero size. Codex/Claude/Gemini auto-create logs and
+  // sqlite files on first invocation even without a successful login, so
+  // a generic "non-dot file exists" probe would falsely report ready.
+  const authFiles = config.authFiles || [];
+  if (authFiles.length === 0) {
+    try {
+      const entries = await readdir(profileDir);
+      return entries.some((entry) => !entry.startsWith("."));
+    } catch {
+      return false;
+    }
   }
+
+  for (const marker of authFiles) {
+    try {
+      const stats = await stat(path.join(profileDir, marker));
+      if (stats.isFile() && stats.size > 0) return true;
+    } catch {
+      // file missing; try next marker
+    }
+  }
+  return false;
 }
 
 function sanitizeSegment(value) {
@@ -492,9 +534,13 @@ export async function detectAccountSession(account) {
   }
   const sessionProfile = account.sessionProfile || sessionProfileFor(provider, account.email, account.loginLabel);
   if (await hasSessionArtifacts(provider, sessionProfile)) {
-    return { sessionStatus: "ready", reason: "세션 프로필 디렉터리에서 기존 인증 흔적을 찾았습니다." };
+    return { sessionStatus: "ready", reason: "세션 프로필에 유효한 인증 토큰이 있습니다." };
   }
-  return { sessionStatus: "needs-login", reason: "세션 프로필이 비어 있습니다. 해당 도구에서 한 번 로그인하면 자동으로 준비 상태로 바뀝니다." };
+  const expected = (PROVIDER_CLI[provider]?.authFiles || []).join(", ");
+  const hint = expected
+    ? `이 계정의 세션 폴더에 ${expected} 가 없습니다. '로그인' 버튼으로 격리 브라우저에서 OAuth 를 완료하세요.`
+    : "세션 프로필이 비어 있습니다. '로그인' 버튼으로 격리 브라우저에서 인증을 완료하세요.";
+  return { sessionStatus: "needs-login", reason: hint };
 }
 
 export async function runAccountLogin(accountId) {

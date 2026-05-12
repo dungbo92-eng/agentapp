@@ -1,6 +1,6 @@
 # RELEASE_ARTIFACTS
 
-- Generated: 2026-05-12T05:04:18.353Z
+- Generated: 2026-05-12T05:35:04.630Z
 
 ## Portable (단일 EXE, 설치 없음)
 
@@ -17,8 +17,8 @@ Get-FileHash -Algorithm SHA256 dist-desktop/AgentApp-0.1.0-x64.exe
 ## NSIS Installer (표준 설치 마법사)
 
 - Artifact: `dist-desktop/AgentApp-Setup-0.1.0-x64.exe`
-- Size bytes: 100956174
-- SHA256: `388621c7e22f8fa19e87dfe9d882779842cc1ccc5b1c70cfb570de58fa3c25ae`
+- Size bytes: 100956458
+- SHA256: `5ad54271da29850b04e37a363647e35b32b823117ed4f45f8c32f317c6f2cf1c`
 
 ```powershell
 dist-desktop/AgentApp-Setup-0.1.0-x64.exe
@@ -29,7 +29,7 @@ Get-FileHash -Algorithm SHA256 dist-desktop/AgentApp-Setup-0.1.0-x64.exe
 
 - win-unpacked/AgentApp.exe 즉시 실행 확인: 8초 뒤에도 프로세스 유지.
 - dist-desktop/AgentApp-Setup-0.1.0-x64.exe UI 경로 즉시 실행 확인: 6초 뒤에도 프로세스 유지.
-- dist-desktop/AgentApp-Setup-0.1.0-x64.exe /S /D=D:\agentApp\tmp\AgentAppInstallSmoke exit code 0.
+- dist-desktop/AgentApp-Setup-0.1.0-x64.exe /S /D=%TEMP%\AgentAppInstallSmoke exit code 0.
 - silent 설치된 AgentApp.exe 즉시 실행 확인: 8초 뒤에도 프로세스 유지.
 
 ## 빌드 명령
