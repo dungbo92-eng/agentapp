@@ -467,9 +467,26 @@ function mapGeminiModel(modelInput) {
   return "";
 }
 
+async function resolveProjectPath(projectId) {
+  if (!projectId || projectId === "current") return "";
+  try {
+    const { readRuntime } = await import("./dashboard-runtime.mjs");
+    const runtime = await readRuntime();
+    const project = (runtime.projects || []).find((item) => item.id === projectId);
+    if (project && project.path && existsSync(project.path)) {
+      return project.path;
+    }
+  } catch {
+    // best-effort lookup; fall through to default workspace
+  }
+  return "";
+}
+
 async function resolveAdapter(run, files) {
   const sessionProfile = run.routing?.sessionProfile || `${run.workerId}-${run.routing?.accountId || "default"}`;
-  const workspace = isPackagedRuntime() ? safeSpawnCwd() : REPO_ROOT;
+  const projectPath = await resolveProjectPath(run.projectId);
+  // 우선순위: 선택된 프로젝트 경로 > 패키징 환경의 safeSpawnCwd > REPO_ROOT
+  const workspace = projectPath || (isPackagedRuntime() ? safeSpawnCwd() : REPO_ROOT);
 
   if (run.workerId === "codex") {
     const command = process.env.AGENTAPP_CODEX_COMMAND || (await commandPathFor("codex"));
@@ -505,8 +522,10 @@ async function resolveAdapter(run, files) {
         AGENTAPP_SESSION_PROFILE: sessionProfile,
         AGENTAPP_ACCOUNT_ID: run.routing?.accountId || "",
         AGENTAPP_MODEL: run.routing?.model || run.modelOverride || "auto",
+        AGENTAPP_WORKSPACE: workspace,
       },
       sessionDir,
+      workspace,
       summary: "Codex exec 어댑터 준비 완료",
     };
   }
@@ -540,8 +559,10 @@ async function resolveAdapter(run, files) {
         AGENTAPP_SESSION_PROFILE: sessionProfile,
         AGENTAPP_ACCOUNT_ID: run.routing?.accountId || "",
         AGENTAPP_MODEL: run.routing?.model || run.modelOverride || "auto",
+        AGENTAPP_WORKSPACE: workspace,
       },
       sessionDir,
+      workspace,
       summary: "Cursor 창 어댑터 준비 완료",
     };
   }
@@ -574,8 +595,10 @@ async function resolveAdapter(run, files) {
         AGENTAPP_SESSION_PROFILE: sessionProfile,
         AGENTAPP_ACCOUNT_ID: run.routing?.accountId || "",
         AGENTAPP_MODEL: claudeModel || "auto",
+        AGENTAPP_WORKSPACE: workspace,
       },
       sessionDir,
+      workspace,
       summary: "Claude Code --print 어댑터 준비 완료",
       writeLastMessageFromStdout: true,
     };
@@ -608,8 +631,10 @@ async function resolveAdapter(run, files) {
         AGENTAPP_SESSION_PROFILE: sessionProfile,
         AGENTAPP_ACCOUNT_ID: run.routing?.accountId || "",
         AGENTAPP_MODEL: geminiModel || "auto",
+        AGENTAPP_WORKSPACE: workspace,
       },
       sessionDir,
+      workspace,
       summary: "Gemini CLI -p 어댑터 준비 완료",
       writeLastMessageFromStdout: true,
     };
@@ -948,9 +973,13 @@ async function launchCommandWorker(run, files, adapter, promptText) {
     level: "info",
     message: `${run.workerId} 작업을 세션 프로필 ${run.routing?.sessionProfile || "default"} 로 시작합니다.`,
   });
-
+  const adapterCwd = adapter.workspace && existsSync(adapter.workspace) ? adapter.workspace : safeSpawnCwd();
+  await appendRunEvent(run.id, {
+    level: "info",
+    message: `작업 디렉터리: ${adapterCwd}`,
+  });
   const result = await streamProcess(adapter.command, adapter.args, {
-    cwd: safeSpawnCwd(),
+    cwd: adapterCwd,
     env: { ...augmentedSpawnEnv(), ...(adapter.env || {}) },
     logPath: files.launchLogPath,
     stdinText: promptText,
@@ -1158,8 +1187,9 @@ async function launchWindowWorker(run, files, adapter) {
     },
   });
 
+  const adapterCwd = adapter.workspace && existsSync(adapter.workspace) ? adapter.workspace : safeSpawnCwd();
   const result = await streamProcess(adapter.command, adapter.args, {
-    cwd: safeSpawnCwd(),
+    cwd: adapterCwd,
     env: { ...augmentedSpawnEnv(), ...(adapter.env || {}) },
     logPath: files.launchLogPath,
     windowsHide: true,

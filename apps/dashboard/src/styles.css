@@ -684,6 +684,32 @@ textarea:focus {
   line-height: 1.1;
 }
 
+.projectContextBanner {
+  display: grid;
+  gap: 4px;
+  margin-bottom: 10px;
+  padding: 8px 12px;
+  border-radius: 8px;
+  background: #fef3c7;
+  border-left: 3px solid #d49a00;
+  color: #78350f;
+  font-size: 0.78rem;
+}
+
+.projectContextBanner strong {
+  color: #7c2d12;
+  font-weight: 700;
+}
+
+.projectContextBanner code {
+  padding: 1px 6px;
+  border-radius: 4px;
+  background: rgba(255, 255, 255, 0.7);
+  color: #422006;
+  font-size: 0.74rem;
+  overflow-wrap: anywhere;
+}
+
 .topActions {
   display: flex;
   align-items: center;

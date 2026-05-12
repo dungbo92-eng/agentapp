@@ -1581,6 +1581,14 @@ function App() {
             <time dateTime={snapshot.generated_at}>{new Date(snapshot.generated_at).toLocaleString("ko-KR")}</time>
           </div>
         </header>
+        {selectedProjectRecord.id !== "current" ? (
+          <div className="projectContextBanner" role="note">
+            <strong>외부 프로젝트 모드</strong>
+            <span>
+              worker 는 <code>{selectedProjectRecord.path}</code> 디렉터리에서 실행됩니다. 아래 로드맵·핸드오프·작업 도구 패널은 AgentApp 자체 메타데이터이고 선택한 프로젝트에는 적용되지 않습니다.
+            </span>
+          </div>
+        ) : null}
 
         <section className="overview">
           <Stat label="로드맵" value={`${snapshot.progress.percent}%`} icon={Gauge} />
