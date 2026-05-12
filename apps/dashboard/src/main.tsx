@@ -162,6 +162,8 @@ type ManagedAccount = {
   lastVerifiedAt?: string;
   sessionDetectionReason?: string;
   actualAuthEmail?: string;
+  quotaResetAt?: string;
+  quotaReason?: string;
   remainingUnits: number;
   weeklyUnits: number;
   resetDay: string;
@@ -1068,6 +1070,13 @@ function App() {
     }
   }
 
+  function deleteProject(project: ManagedProject) {
+    if (project.id === "current") return;
+    if (!window.confirm(`'${project.name}' 프로젝트를 목록에서 제거할까요? (실제 폴더는 삭제되지 않습니다)`)) return;
+    void updateRuntime(runtimeRequest("projects/delete", { id: project.id }));
+    if (selectedProject === project.id) setSelectedProject("current");
+  }
+
   function addProject(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault();
     const projectPath = projectForm.path.trim();
@@ -1247,17 +1256,31 @@ function App() {
           </div>
           <div className="projectList">
             {projects.map((project) => (
-              <button
-                className={`projectButton ${project.id === selectedProject ? "selected" : ""}`}
+              <div
+                className={`projectRow ${project.id === selectedProject ? "selected" : ""}`}
                 key={project.id}
-                type="button"
-                title={`${project.name} 프로젝트를 현재 작업 대상으로 선택합니다`}
-                onClick={() => setSelectedProject(project.id)}
               >
-                <span>{project.name}</span>
-                <small>{project.path}</small>
-                <ProgressBar value={project.progress} />
-              </button>
+                <button
+                  className="projectButton"
+                  type="button"
+                  title={`${project.name} 프로젝트를 현재 작업 대상으로 선택합니다`}
+                  onClick={() => setSelectedProject(project.id)}
+                >
+                  <span>{project.name}</span>
+                  <small>{project.path}</small>
+                  <ProgressBar value={project.progress} />
+                </button>
+                {project.id !== "current" ? (
+                  <button
+                    className="projectDeleteBtn"
+                    type="button"
+                    title="이 프로젝트를 목록에서 제거합니다 (실제 폴더는 삭제되지 않습니다)"
+                    onClick={() => void deleteProject(project)}
+                  >
+                    <Trash2 aria-hidden="true" size={13} />
+                  </button>
+                ) : null}
+              </div>
             ))}
           </div>
           <form className="miniForm" onSubmit={addProject}>
@@ -1392,6 +1415,11 @@ function App() {
                     </small>
                   ) : account.actualAuthEmail ? (
                     <small className="identityOk">✓ 인증: {account.actualAuthEmail}</small>
+                  ) : null}
+                  {account.quotaResetAt && new Date(account.quotaResetAt).getTime() > Date.now() ? (
+                    <small className="quotaLockout" role="alert">
+                      ⏳ 사용량 한도 — <strong>{new Date(account.quotaResetAt).toLocaleString("ko-KR")}</strong> 까지 자동 잠금
+                    </small>
                   ) : null}
                   {account.sessionDetectionReason ? (
                     <small className="detectionReason">{account.sessionDetectionReason}</small>

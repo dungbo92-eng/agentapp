@@ -177,6 +177,25 @@ function normalizeAccount(input) {
   const remainingUnits = Number.isFinite(Number(remainingRaw)) ? Number(remainingRaw) : weeklyUnits;
   const credentialStatus = input.credentialStatus || input.credential_status || (input.credentialRef || input.credential_ref ? "stored" : "empty");
 
+  // Quota lockout — provider 가 "use limit / quota / rate limit" 류 오류에서
+  // 알려준 리셋 시간이 미래면 그 시각까지 remainingUnits 를 0 으로 잠금,
+  // 시간이 지났으면 weekly 한도로 자동 복구.
+  const quotaResetRaw = String(input.quotaResetAt || input.quota_reset_at || "").trim();
+  const quotaResetMs = quotaResetRaw ? Date.parse(quotaResetRaw) : NaN;
+  const quotaActive = Number.isFinite(quotaResetMs) && quotaResetMs > Date.now();
+  const quotaResetAt = quotaActive ? new Date(quotaResetMs).toISOString() : "";
+
+  let effectiveRemaining = Math.max(0, remainingUnits);
+  if (quotaActive) {
+    effectiveRemaining = 0;
+  } else if (quotaResetRaw && !quotaActive) {
+    // Reset window has passed — restore to weekly budget unless caller
+    // explicitly provided a fresh remainingUnits.
+    if (input.remainingUnits == null && input.remaining_units == null) {
+      effectiveRemaining = weeklyUnits;
+    }
+  }
+
   return {
     id,
     displayName: String(input.displayName || input.display_name || id).trim(),
@@ -192,7 +211,7 @@ function normalizeAccount(input) {
     credentialRef: input.credentialRef || input.credential_ref || "",
     credentialStatus,
     auth: "user-managed",
-    remainingUnits: Math.max(0, remainingUnits),
+    remainingUnits: effectiveRemaining,
     weeklyUnits: Math.max(1, weeklyUnits),
     resetDay: String(input.resetDay || input.reset_day || "monday").trim().toLowerCase(),
     source: "local",
@@ -200,8 +219,10 @@ function normalizeAccount(input) {
     sessionDetectionReason: input.sessionDetectionReason || input.session_detection_reason || "",
     actualAuthEmail: String(input.actualAuthEmail || input.actual_auth_email || "").trim().toLowerCase(),
     lastUsedAt: input.lastUsedAt || input.last_used_at || "",
+    quotaResetAt,
+    quotaReason: quotaActive ? String(input.quotaReason || input.quota_reason || "사용량 한도").trim() : "",
     usageAlert: usageAlertLevel({
-      remainingUnits: Math.max(0, remainingUnits),
+      remainingUnits: effectiveRemaining,
       weeklyUnits: Math.max(1, weeklyUnits),
     }),
   };
@@ -789,6 +810,13 @@ export async function addProject(input) {
   return writeRuntime(runtime);
 }
 
+export async function deleteProject(input) {
+  const runtime = await readRuntime();
+  const id = normalizeId(input.id || input.projectId || input.project_id);
+  runtime.projects = runtime.projects.filter((project) => project.id !== id);
+  return writeRuntime(runtime);
+}
+
 function routeScore(candidate, complexity) {
   const profile = candidate.profile;
   const account = candidate.account;
@@ -819,6 +847,11 @@ export function selectRoute(accounts, request) {
     const expected = String(account.email || "").trim().toLowerCase();
     const actual = String(account.actualAuthEmail || "").trim().toLowerCase();
     if (expected && actual && expected !== actual) return false;
+    // Quota lockout — provider 가 알려준 reset 시간이 지나기 전엔 후보 제외.
+    if (account.quotaResetAt) {
+      const resetMs = Date.parse(account.quotaResetAt);
+      if (Number.isFinite(resetMs) && resetMs > Date.now()) return false;
+    }
     return true;
   });
 
@@ -1021,6 +1054,65 @@ async function mutateRuntimeRun(runId, mutator, options = {}) {
   }
 
   return writeRuntime(runtime);
+}
+
+// ---------------------------------------------------------------------------
+// Quota lockout detection
+// ---------------------------------------------------------------------------
+
+const QUOTA_HINT_RE = /(usage limit|rate limit|quota|out of credit|too many requests|429|exceeded|hit your usage|limit (?:reached|reset))/i;
+
+const QUOTA_RESET_PATTERNS = [
+  /(?:try again|available again|available|reset(?:s)?|resume(?:s)?|reset window|next attempt)\s+(?:on|at|in|by)\s+([^.\n)]+?)(?=[.\n)]|$)/i,
+  /(?:reset|available)\s*[:\-]\s*([^.\n)]+?)(?=[.\n)]|$)/i,
+  /(?:available again at|resume at|reset at)\s+([^.\n)]+?)(?=[.\n)]|$)/i,
+];
+
+function stripOrdinal(text) {
+  return String(text || "").replace(/(\d+)(st|nd|rd|th)/gi, "$1");
+}
+
+export function parseQuotaReset(rawLine) {
+  if (!rawLine || typeof rawLine !== "string") return null;
+  if (!QUOTA_HINT_RE.test(rawLine)) return null;
+  const cleaned = rawLine.replace(/[()]/g, " ");
+  for (const re of QUOTA_RESET_PATTERNS) {
+    const match = cleaned.match(re);
+    if (!match || !match[1]) continue;
+    const candidate = stripOrdinal(match[1]).trim();
+    const parsed = Date.parse(candidate);
+    if (Number.isFinite(parsed) && parsed > Date.now()) {
+      return new Date(parsed).toISOString();
+    }
+  }
+  // ISO timestamp anywhere on the line
+  const iso = cleaned.match(/\b(20\d{2}-\d{2}-\d{2}T\d{2}:\d{2}(?::\d{2})?(?:[Zz]|[+-]\d{2}:?\d{2})?)\b/);
+  if (iso && iso[1]) {
+    const t = Date.parse(iso[1]);
+    if (Number.isFinite(t) && t > Date.now()) return new Date(t).toISOString();
+  }
+  return null;
+}
+
+export async function applyQuotaLockout(accountId, resetAtIso, reason = "") {
+  if (!accountId || !resetAtIso) return null;
+  const id = normalizeId(accountId);
+  const runtime = await readRuntime();
+  let touched = false;
+  runtime.accounts = runtime.accounts.map((account) => {
+    if (account.id !== id) return account;
+    touched = true;
+    return {
+      ...account,
+      remainingUnits: 0,
+      quotaResetAt: resetAtIso,
+      quotaReason: reason || account.quotaReason || "사용량 한도",
+      usageAlert: "critical",
+    };
+  });
+  if (!touched) return null;
+  await writeRuntime(runtime);
+  return resetAtIso;
 }
 
 export async function updateAccountSession(accountId, sessionStatus) {

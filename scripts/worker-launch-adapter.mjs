@@ -974,6 +974,23 @@ async function launchCommandWorker(run, files, adapter, promptText) {
         level: level === "stderr" ? "warn" : "info",
         message: line.length > 220 ? `${line.slice(0, 220)}...` : line,
       });
+      try {
+        const { parseQuotaReset, applyQuotaLockout } = await import("./dashboard-runtime.mjs");
+        const resetAt = parseQuotaReset(line);
+        if (resetAt && run.routing?.accountId) {
+          await applyQuotaLockout(
+            run.routing.accountId,
+            resetAt,
+            line.length > 200 ? `${line.slice(0, 200)}...` : line,
+          );
+          await appendRunEvent(run.id, {
+            level: "warn",
+            message: `사용량 한도 감지 — 이 계정은 ${new Date(resetAt).toLocaleString("ko-KR")} 까지 자동 잠금됩니다.`,
+          });
+        }
+      } catch {
+        // best-effort quota detection; do not break the run on parse errors
+      }
     },
     onIdleWarn: async (idleMs) => {
       await appendRunEvent(run.id, {
