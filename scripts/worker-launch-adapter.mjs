@@ -104,15 +104,26 @@ function killChildTree(pid) {
   }
 }
 
+// Worker 종료 후 combinedOutput 을 한 번 더 훑어 quota 로 분류하는 패턴.
+// onLine 단계에서 parseQuotaReset 가 잠금까지 마쳤더라도 여기서 'quota' 로
+// 분류돼야 finishRunRecord(quota_limited) + tryQuotaRetry 가 호출돼 다른
+// 계정으로 자동 이어진다. provider 별 실제 출력 형태를 모두 잡도록 확장.
 const QUOTA_PATTERNS = [
   /rate ?limit(?:ed)?/i,
   /quota (?:exceeded|reached)/i,
   /usage (?:limit|exceeded)/i,
   /you have reached your/i,
+  /you'?ve hit your (?:limit|weekly limit|daily limit|usage)/i, // Claude Code 정확 매칭
+  /hit your (?:limit|weekly|daily)/i,
   /too many requests/i,
   /429/,
   /weekly limit/i,
   /monthly limit/i,
+  /daily limit/i,
+  /resource[_\s]exhausted/i, // Gemini
+  /retry.?delay/i, // Gemini
+  /insufficient_quota/i, // Codex / OpenAI
+  /resets?\s+(?:today|tomorrow|in|at|on|by|\d)/i, // 전치사 없는 "resets 6:30pm" 등
 ];
 
 // Idle 임계값을 환경 변수로 오버라이드 가능. 기본값은 autonomous run 에
@@ -1131,6 +1142,16 @@ async function launchCommandWorker(run, files, adapter, promptText) {
         level: level === "stderr" ? "warn" : "info",
         message: line.length > 220 ? `${line.slice(0, 220)}...` : line,
       });
+      // 진행 상황 표면화 — '[STATUS] ...' 라인이 보이면 run.currentStatus 에 저장.
+      // dashboard 가 이 필드를 topbar/컴팩트 모드에 실시간 표시.
+      try {
+        const statusMatch = String(line).match(/^\s*\[STATUS\]\s*(.+?)\s*$/i);
+        if (statusMatch && statusMatch[1]) {
+          await patchRunRecord(run.id, { currentStatus: statusMatch[1].slice(0, 200) });
+        }
+      } catch {
+        /* status marker is opportunistic */
+      }
       try {
         const { parseQuotaReset, applyQuotaLockout, providerForWorker } = await import("./dashboard-runtime.mjs");
         const providerHint = run.routing?.provider || providerForWorker(run.workerId) || "";

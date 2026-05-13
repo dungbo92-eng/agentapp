@@ -2108,8 +2108,10 @@ export async function quickHandoff(input = {}) {
   };
 }
 
-// 한도 도달한 run 을 다른 ready 계정으로 자동 재시도. 사용자가 자동 라우팅으로
-// 시작한 run 은 다음 후보 provider 까지 다시 열어 둔다.
+// 한도 도달한 run 을 다른 ready 계정으로 자동 재시도. 같은 provider 의 다른
+// 계정 → 다른 provider 의 ready 계정 순으로 후보를 넓힌다. 사용자가 worker
+// 를 명시했더라도, 그 worker provider 가 통째로 잠겼다면 다른 provider 로
+// 넘어가는 게 사용자 의도(작업 자체를 끊지 않기)에 더 가깝다.
 // 최대 시도 횟수를 넘기면 null 반환. 호출자는 사용자 알림으로 마감해야 한다.
 export async function tryQuotaRetry(failedRun) {
   const settings = normalizeSettings((await readRuntime()).settings);
@@ -2117,22 +2119,46 @@ export async function tryQuotaRetry(failedRun) {
   const attempts = Number(failedRun.retryCount || 0) + 1;
   if (attempts > settings.quotaRetryMaxAttempts) return null;
   const runtime = await readRuntime();
-  const retryWorkerId = failedRun.workerAuto ? "auto" : failedRun.workerId;
-  // 현재 계정은 이미 quotaResetAt 잠금 상태라 selectRoute 에서 제외됨.
-  const routing = selectRoute(runtime.accounts, {
-    workerId: retryWorkerId,
+  const failedAccountId = String(failedRun.routing?.accountId || "");
+  const originalWorkerId = failedRun.workerId;
+
+  // 1) 같은 worker (provider) 안에서 다른 ready 계정 시도.
+  let routing = selectRoute(runtime.accounts, {
+    workerId: originalWorkerId,
     complexity: failedRun.complexity || "standard",
     modelOverride: failedRun.modelOverride || "auto",
   });
-  if (routing.status !== "recommended") return null;
+  let resolvedWorker = originalWorkerId;
+
+  // 같은 계정으로 다시 라우팅되는 건 의미 없다 (이미 잠긴 상태라 selectRoute
+  // 에서 걸러져야 하지만, 클럭/타이밍 안전망으로 한 번 더 가드).
+  if (routing.status === "recommended" && routing.accountId === failedAccountId) {
+    routing = { status: "blocked", reason: "same-account-skip" };
+  }
+
+  // 2) 같은 provider 에 후보 없으면 → 모든 provider 의 ready 계정으로 확대.
+  //    이때 worker 도 routing 결과의 provider 에 맞춰 자동 매핑한다.
+  if (routing.status !== "recommended") {
+    routing = selectRoute(runtime.accounts, {
+      workerId: "auto",
+      complexity: failedRun.complexity || "standard",
+      modelOverride: failedRun.modelOverride || "auto",
+    });
+    if (routing.status === "recommended" && routing.accountId !== failedAccountId) {
+      resolvedWorker = workerForProvider(routing.provider) || "auto";
+    } else {
+      return null;
+    }
+  }
+
   const result = await startRun({
-    workerId: retryWorkerId,
+    workerId: resolvedWorker,
     projectId: failedRun.projectId,
     prompt: failedRun.prompt,
     complexity: failedRun.complexity || "auto",
     modelOverride: failedRun.modelOverride || "auto",
     retryCount: attempts,
-    retryReason: `quota_exhausted_attempt_${attempts}`,
+    retryReason: `quota_exhausted_attempt_${attempts}_to_${routing.provider}`,
     autoChain: Boolean(failedRun.autoChain),
   });
   return result.activeRun || null;
@@ -2175,9 +2201,15 @@ export async function tryAutoChain(prevRun) {
   // 갱신하지 않은 상태에서도 다음 단계로 자율 진행된다.
   const prevPrompt = String(prevRun.prompt || "").trim();
   const hasNewTask = nextTitle && !/^none$/i.test(nextTitle) && nextTitle.trim() !== prevPrompt;
-  const chainPrompt = hasNewTask
+  // 진행 상황 가시화 — worker 가 큰 단계 진입/완료 시 '[STATUS] ...' 형식의
+  // 한 줄을 출력하면 dashboard 가 그 라인을 'currently doing' 으로 표면화한다.
+  // 체인이 길어질 때 사용자가 지금 뭘 하고 있는지 한눈에 알기 위해 모든 체인
+  // 프롬프트 끝에 동일 지시문을 덧붙인다.
+  const STATUS_MARKER_HINT = "\n\n[중요] 단계마다 한 줄로 `[STATUS] <지금 하고 있는 일>` 을 출력해 주세요. dashboard 가 이 라인을 현재 작업으로 표면화합니다. 예) `[STATUS] 모델 라우팅 코드 리팩토링 중`. 작업 종료 신호는 `CHAIN_DONE` 한 줄.";
+  const basePrompt = hasNewTask
     ? nextTitle
     : "이전 작업을 완료한 상태입니다. 메모리/계획/핸드오프 파일을 참고해 다음에 진행할 항목을 스스로 판단하고 이어서 진행해 주세요. 더 이상 진행할 작업이 없으면 'CHAIN_DONE' 한 줄만 응답해 주세요.";
+  const chainPrompt = basePrompt + STATUS_MARKER_HINT;
   const nextWorkerId = prevRun.workerAuto ? "auto" : prevRun.workerId;
 
   const result = await startRun({

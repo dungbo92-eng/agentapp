@@ -208,6 +208,9 @@ type RunRecord = {
   stoppedAt?: string;
   completedAt?: string;
   handoffPath?: string;
+  currentStatus?: string; // [STATUS] 마커가 마지막으로 보고한 현재 작업
+  retryCount?: number;
+  chainDepth?: number;
   events?: { at: string; level: "info" | "warn" | "error"; message: string }[];
   validation?: {
     status?: string;
@@ -1889,6 +1892,12 @@ function App() {
                   </span>
                 ) : null}
               </div>
+              {focusRun?.currentStatus ? (
+                <div className="compactNowDoing" title="worker 가 [STATUS] 마커로 보고한 현재 작업">
+                  <span className="compactNowDoingDot" aria-hidden="true" />
+                  <span className="compactNowDoingText">{focusRun.currentStatus}</span>
+                </div>
+              ) : null}
               <form
                 className="compactComposer"
                 onSubmit={(e) => {
@@ -2207,6 +2216,22 @@ function App() {
                       >
                         ↻ 잠금 점검
                       </button>
+                      <button
+                        type="button"
+                        className="probeBtn"
+                        title="자동 감지가 오판했을 때만 사용. 잠금 즉시 해제 (다음 작업에서 후보로 다시 포함)."
+                        onClick={async () => {
+                          try {
+                            const next = (await runtimeRequest("accounts/clear-quota", { id: account.id })) as { ok?: boolean; runtime?: RuntimeState };
+                            if (next.runtime) setRuntime(next.runtime);
+                            setToast({ kind: "info", message: `'${account.displayName || account.id}' 한도 잠금을 강제 해제했습니다.` });
+                          } catch (caught) {
+                            setToast({ kind: "warn", message: caught instanceof Error ? caught.message : "잠금 해제 실패" });
+                          }
+                        }}
+                      >
+                        ✕ 강제 해제
+                      </button>
                     </small>
                   ) : null}
                   {account.sessionDetectionReason ? (
@@ -2325,6 +2350,12 @@ function App() {
           <div>
             <p>{selectedProjectRecord.path}</p>
             <h1>{selectedProjectRecord.name}</h1>
+            {activeRun?.currentStatus ? (
+              <div className="nowDoing" title="worker 가 [STATUS] 마커로 보고한 현재 작업">
+                <span className="nowDoingDot" aria-hidden="true" />
+                <span>{activeRun.currentStatus}</span>
+              </div>
+            ) : null}
           </div>
           <div className="topActions">
             <StatusPill status={activeRun?.status || "ready"} />

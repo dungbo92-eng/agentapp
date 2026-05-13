@@ -1,5 +1,5 @@
 {
-  "generated_at": "2026-05-13T09:25:55.107Z",
+  "generated_at": "2026-05-13T23:10:31.572Z",
   "repo_root": "D:\\agentApp",
   "progress": {
     "percent": 99,
@@ -376,7 +376,7 @@
     ]
   },
   "next_task": {
-    "generated": "2026-05-13T09:25:24.302Z",
+    "generated": "2026-05-13T09:29:47.878Z",
     "title": "Claude/Gemini CLI 설치 후 실제 authenticated cycle 재검증",
     "source": "roadmap",
     "id": "n/a",
@@ -391,11 +391,11 @@
     }
   ],
   "latest_run": {
-    "at": "2026-05-13T09:25:14.737Z",
+    "at": "2026-05-13T09:29:42.738Z",
     "status": "completed",
-    "summary": "Claude quota reset 문자열 May 18, 6am Asia/Seoul 파싱을 정확히 처리하고, active quota lock은 재감지/준비 전환/pending 자동 시작으로 풀리지 않게 수정했습니다. 설치 앱 로컬 상태도 Claude 잠금 2026-05-18 06:00 KST, Codex dungbo92 로컬 예산 ok로 보정했습니다.",
-    "verification": "pnpm validate; pnpm dashboard:build; parseQuotaReset sample => 2026-05-17T21:00:00.000Z",
-    "next": "commit/push/release"
+    "summary": "Claude quota reset dated lockout 수정분을 commit/push했고, 자동 업데이트용 v0.2.3 patch release를 발행했습니다.",
+    "verification": "pnpm validate; pnpm dashboard:build; gh release view v0.2.3",
+    "next": "Claude/Gemini authenticated cycle 재검증"
   },
   "approval_queue": {
     "pending_decisions": [
@@ -529,10 +529,10 @@
       "heading": "NEXT_TASK",
       "status": "roadmap",
       "next": "Claude/Gemini CLI 설치 후 실제 authenticated cycle 재검증",
-      "generated": "2026-05-13T09:25:24.302Z",
+      "generated": "2026-05-13T09:29:47.878Z",
       "decision_count": 0,
       "line_count": 490,
-      "excerpt": "# NEXT_TASK\n\n- Generated: 2026-05-13T09:25:24.302Z\n- Selected task: Claude/Gemini CLI 설치 후 실제 authenticated cycle 재검증\n- Selection source: roadmap\n- Task id: n/a\n- Task priority: n/a\n- Workspace: D:\\agentApp\n- Policy: tools/agent-orchestrator/approval-policy.yaml\n\n## Required Reads\n\n1. AGENTS.md\n2. .claude-sync/memory/project_state.md\n3. .claude-sync/plans/agent-orchestrator-roadmap.md\n4. tools/agent-orchestrator/approval-policy.yaml\n5. docs/usage-budget-model-routing.md\n6. docs/handoff-completion-protocol.md\n7. tools/agent-orchestrator/task-queue.json\n8. tools/agent-orchestrator/workers.example.yaml\n\n## Agent Prompt\n\n위 Required Reads를 먼저 읽고 시작한다.\n\n다음 작업을 진행한다:\n\n> Claude/Gemini CLI 설치 후 실제 authenticated cycle 재검증\n\n## Execution Rules\n\n- `auto_allowed`에 해당하는 로컬 작업은 바로 진행한다.\n- `hold_for_user` 또는 `user_required`에 해당하는 작업은 실행하지 말고 DECISIONS_REQUIRED.md에 남긴다.\n- `deny`에 해당하는 작업은 구현하지 않는다.\n- 비밀값, 계정 정보, 토큰, 쿠키, 운영 인증 정보는 파일/로그/문서에 남기지 않는다.\n- 작업 범위가 섞여 있으면 안전한 로컬 부분만 완료하고 보류 항목을 기록한다.\n- 개발 구현, 문서화, 테스트, 로컬 검증, handoff 갱신, commit/push는 추가 확인 없이 계속 진행한다.\n\n## Completion Checklist\n\n- pnpm validate\n- pnpm agent:doctor\n- pnpm agent:progress\n- pnpm agent:next\n- pnpm agent:sync\n- git status 확인\n- 검증된 변경 commit\n- 승인된 remote가 있으면 push\n\n## Handoff Updates\n\n- tools/agent-orchestrator/handoff/RUN_STATUS.md: 수행 내용과 검증 결과 추가\n- tools/agent-orchestrator/handoff/DECISIONS_REQUIRED.md: 사용자 결정 필요 항목 추가/해결 처리\n- .claude-sync/memory/project_state.md: 의미 있는 진행 반영\n- .claude-sync/plans/agent-orchestrator-roadmap.md: 완료된 roadmap 체크박스 갱신\n\n## Context Snapshot\n\n### Project State\n\n```md\n# Project State\n\nLast updated: 2026-05-11\n\n## 프로젝트 한 줄\n\nAgentApp은 여러 AI 개발 에이전트가 같은 memory/plan/handoff를 공유하며 안전한 작업을 이어받게 하는 멀티 에이전트 개발 오케스트레이터다.\n\n## 현재 상태\n\n- `AGENTS.md`, `CLAUDE.md` 공통 규칙 초안 생성.\n- `.claude-sync` memory/plan 동기화 구조 생성.\n- `scripts/claude-sync.mjs`, `install-hooks.mjs` 생성.\n- `scripts/agent-doctor.mjs`, `agent-next.mjs`, `agent-progress.mjs`, `agent-report.mjs` 생성.\n- `tools/agent-orchestrator` 아래 승인 정책, worker 예시, handoff 초안 생성.\n- `git init`, `pnpm install`, hook 설치 완료.\n- `pnpm validate`, `pnpm agent:doctor`, `pnpm agent:progress`, `pnpm agent:next`, `pnpm agent:status` 검증 완료.\n- 새 PC/새 에이전트 세션에서 `pnpm age..."
+      "excerpt": "# NEXT_TASK\n\n- Generated: 2026-05-13T09:29:47.878Z\n- Selected task: Claude/Gemini CLI 설치 후 실제 authenticated cycle 재검증\n- Selection source: roadmap\n- Task id: n/a\n- Task priority: n/a\n- Workspace: D:\\agentApp\n- Policy: tools/agent-orchestrator/approval-policy.yaml\n\n## Required Reads\n\n1. AGENTS.md\n2. .claude-sync/memory/project_state.md\n3. .claude-sync/plans/agent-orchestrator-roadmap.md\n4. tools/agent-orchestrator/approval-policy.yaml\n5. docs/usage-budget-model-routing.md\n6. docs/handoff-completion-protocol.md\n7. tools/agent-orchestrator/task-queue.json\n8. tools/agent-orchestrator/workers.example.yaml\n\n## Agent Prompt\n\n위 Required Reads를 먼저 읽고 시작한다.\n\n다음 작업을 진행한다:\n\n> Claude/Gemini CLI 설치 후 실제 authenticated cycle 재검증\n\n## Execution Rules\n\n- `auto_allowed`에 해당하는 로컬 작업은 바로 진행한다.\n- `hold_for_user` 또는 `user_required`에 해당하는 작업은 실행하지 말고 DECISIONS_REQUIRED.md에 남긴다.\n- `deny`에 해당하는 작업은 구현하지 않는다.\n- 비밀값, 계정 정보, 토큰, 쿠키, 운영 인증 정보는 파일/로그/문서에 남기지 않는다.\n- 작업 범위가 섞여 있으면 안전한 로컬 부분만 완료하고 보류 항목을 기록한다.\n- 개발 구현, 문서화, 테스트, 로컬 검증, handoff 갱신, commit/push는 추가 확인 없이 계속 진행한다.\n\n## Completion Checklist\n\n- pnpm validate\n- pnpm agent:doctor\n- pnpm agent:progress\n- pnpm agent:next\n- pnpm agent:sync\n- git status 확인\n- 검증된 변경 commit\n- 승인된 remote가 있으면 push\n\n## Handoff Updates\n\n- tools/agent-orchestrator/handoff/RUN_STATUS.md: 수행 내용과 검증 결과 추가\n- tools/agent-orchestrator/handoff/DECISIONS_REQUIRED.md: 사용자 결정 필요 항목 추가/해결 처리\n- .claude-sync/memory/project_state.md: 의미 있는 진행 반영\n- .claude-sync/plans/agent-orchestrator-roadmap.md: 완료된 roadmap 체크박스 갱신\n\n## Context Snapshot\n\n### Project State\n\n```md\n# Project State\n\nLast updated: 2026-05-11\n\n## 프로젝트 한 줄\n\nAgentApp은 여러 AI 개발 에이전트가 같은 memory/plan/handoff를 공유하며 안전한 작업을 이어받게 하는 멀티 에이전트 개발 오케스트레이터다.\n\n## 현재 상태\n\n- `AGENTS.md`, `CLAUDE.md` 공통 규칙 초안 생성.\n- `.claude-sync` memory/plan 동기화 구조 생성.\n- `scripts/claude-sync.mjs`, `install-hooks.mjs` 생성.\n- `scripts/agent-doctor.mjs`, `agent-next.mjs`, `agent-progress.mjs`, `agent-report.mjs` 생성.\n- `tools/agent-orchestrator` 아래 승인 정책, worker 예시, handoff 초안 생성.\n- `git init`, `pnpm install`, hook 설치 완료.\n- `pnpm validate`, `pnpm agent:doctor`, `pnpm agent:progress`, `pnpm agent:next`, `pnpm agent:status` 검증 완료.\n- 새 PC/새 에이전트 세션에서 `pnpm age..."
     },
     {
       "id": "run-status",
@@ -540,11 +540,11 @@
       "path": "tools/agent-orchestrator/handoff/RUN_STATUS.md",
       "heading": "RUN_STATUS",
       "status": "completed",
-      "next": "commit/push/release",
-      "generated": "2026-05-13T09:25:14.737Z",
+      "next": "Claude/Gemini authenticated cycle 재검증",
+      "generated": "2026-05-13T09:29:42.738Z",
       "decision_count": 0,
-      "line_count": 448,
-      "excerpt": "... 정정: gh CLI는 설치되어 있었고 현재 shell PATH에만 없었습니다. 풀 경로 인증 확인 후 desktop-release fallback으로 v0.2.1 GitHub Release를 발행했습니다.\n- Verification: C:\\\\Program Files\\\\GitHub CLI\\\\gh.exe auth status; pnpm desktop:release -- --bump patch; gh release view v0.2.1\n- Git: release commit 9e6af68 and tag v0.2.1 pushed to origin/main\n- Decisions: DEC-20260513-001 resolved\n- Next: Claude/Gemini authenticated cycle 재검증\n\n## 2026-05-13T09:02:02.948Z\n\n- Status: completed\n- Summary: 컴팩트 채팅 모드를 좌측 프로젝트 리스트와 우측 작업 패널로 재배치했습니다. 우측 상단은 프롬프트 입력/시작 버튼으로 고정하고, 프로젝트 요약과 최신 실행/진행 로그만 남겨 나머지 메타 정보는 숨겼습니다.\n- Verification: pnpm validate; pnpm --dir apps/dashboard exec tsc --noEmit; pnpm dashboard:build; Browser visual check http://127.0.0.1:5173 compact mode\n- Git: pending\n- Decisions: none\n- Next: commit/push/release\n\n## 2026-05-13T09:02:57.210Z\n\n- Status: completed\n- Summary: 컴팩트 채팅 모드를 좌측 프로젝트 리스트와 우측 작업 패널로 재배치했습니다. 우측 상단은 프롬프트 입력/시작 버튼으로 고정하고, 프로젝트 요약과 최신 실행/진행 로그만 남겨 나머지 메타 정보는 숨겼습니다.\n- Verification: pnpm validate; pnpm --dir apps/dashboard exec tsc --noEmit; pnpm dashboard:build; pnpm agent:doctor; pnpm agent:progress; pnpm agent:next; pnpm agent:sync; pnpm agent:status; Browser visual check http://127.0.0.1:5173 compact mode\n- Git: pending\n- Decisions: none\n- Next: commit/push/release\n\n## 2026-05-13T09:06:05.787Z\n\n- Status: completed\n- Summary: 컴팩트 채팅 모드 레이아웃을 좌측 프로젝트 리스트/우측 작업 패널로 단순화했고, v0.2.2 릴리즈까지 발행했습니다.\n- Verification: pnpm validate; pnpm --dir apps/dashboard exec tsc --noEmit; pnpm dashboard:build; pnpm agent:doctor; pnpm agent:progress; pnpm agent:next; pnpm agent:sync; pnpm agent:status; Browser visual check; gh release view v0.2.2\n- Git: commit dab5f22 pushed; release commit 0f3393f and tag v0.2.2 pushed\n- Decisions: none\n- Next: Claude/Gemini authenticated cycle 재검증\n\n## 2026-05-13T09:25:14.737Z\n\n- Status: completed\n- Summary: Claude quota reset 문자열 May 18, 6am Asia/Seoul 파싱을 정확히 처리하고, active quota lock은 재감지/준비 전환/pending 자동 시작으로 풀리지 않게 수정했습니다. 설치 앱 로컬 상태도 Claude 잠금 2026-05-18 06:00 KST, Codex dungbo92 로컬 예산 ok로 보정했습니다.\n- Verification: pnpm validate; pnpm dashboard:build; parseQuotaReset sample => 2026-05-17T21:00:00.000Z\n- Git: not recorded\n- Decisions: none\n- Next: commit/push/release"
+      "line_count": 455,
+      "excerpt": "...ini authenticated cycle 재검증\n\n## 2026-05-13T09:02:02.948Z\n\n- Status: completed\n- Summary: 컴팩트 채팅 모드를 좌측 프로젝트 리스트와 우측 작업 패널로 재배치했습니다. 우측 상단은 프롬프트 입력/시작 버튼으로 고정하고, 프로젝트 요약과 최신 실행/진행 로그만 남겨 나머지 메타 정보는 숨겼습니다.\n- Verification: pnpm validate; pnpm --dir apps/dashboard exec tsc --noEmit; pnpm dashboard:build; Browser visual check http://127.0.0.1:5173 compact mode\n- Git: pending\n- Decisions: none\n- Next: commit/push/release\n\n## 2026-05-13T09:02:57.210Z\n\n- Status: completed\n- Summary: 컴팩트 채팅 모드를 좌측 프로젝트 리스트와 우측 작업 패널로 재배치했습니다. 우측 상단은 프롬프트 입력/시작 버튼으로 고정하고, 프로젝트 요약과 최신 실행/진행 로그만 남겨 나머지 메타 정보는 숨겼습니다.\n- Verification: pnpm validate; pnpm --dir apps/dashboard exec tsc --noEmit; pnpm dashboard:build; pnpm agent:doctor; pnpm agent:progress; pnpm agent:next; pnpm agent:sync; pnpm agent:status; Browser visual check http://127.0.0.1:5173 compact mode\n- Git: pending\n- Decisions: none\n- Next: commit/push/release\n\n## 2026-05-13T09:06:05.787Z\n\n- Status: completed\n- Summary: 컴팩트 채팅 모드 레이아웃을 좌측 프로젝트 리스트/우측 작업 패널로 단순화했고, v0.2.2 릴리즈까지 발행했습니다.\n- Verification: pnpm validate; pnpm --dir apps/dashboard exec tsc --noEmit; pnpm dashboard:build; pnpm agent:doctor; pnpm agent:progress; pnpm agent:next; pnpm agent:sync; pnpm agent:status; Browser visual check; gh release view v0.2.2\n- Git: commit dab5f22 pushed; release commit 0f3393f and tag v0.2.2 pushed\n- Decisions: none\n- Next: Claude/Gemini authenticated cycle 재검증\n\n## 2026-05-13T09:25:14.737Z\n\n- Status: completed\n- Summary: Claude quota reset 문자열 May 18, 6am Asia/Seoul 파싱을 정확히 처리하고, active quota lock은 재감지/준비 전환/pending 자동 시작으로 풀리지 않게 수정했습니다. 설치 앱 로컬 상태도 Claude 잠금 2026-05-18 06:00 KST, Codex dungbo92 로컬 예산 ok로 보정했습니다.\n- Verification: pnpm validate; pnpm dashboard:build; parseQuotaReset sample => 2026-05-17T21:00:00.000Z\n- Git: not recorded\n- Decisions: none\n- Next: commit/push/release\n\n## 2026-05-13T09:29:42.738Z\n\n- Status: completed\n- Summary: Claude quota reset dated lockout 수정분을 commit/push했고, 자동 업데이트용 v0.2.3 patch release를 발행했습니다.\n- Verification: pnpm validate; pnpm dashboard:build; gh release view v0.2.3\n- Git: commit b76d469 pushed; release commit 7967461 and tag v0.2.3 pushed\n- Decisions: none\n- Next: Claude/Gemini authenticated cycle 재검증"
     },
     {
       "id": "dashboard-run",
@@ -587,7 +587,7 @@
     "spendable_before_reserve": 0,
     "recommended_today_budget_units": 0,
     "reset_day": "monday",
-    "days_to_reset": 5,
+    "days_to_reset": 4,
     "weekend_days_left": [
       "saturday",
       "sunday"

@@ -25,6 +25,7 @@ import {
   startRun,
   stopRun,
   quickHandoff,
+  clearAccountQuotaLockout,
 } from "./dashboard-runtime.mjs";
 import { inspectEnvironment, installMissingTargets } from "./agent-environment-setup.mjs";
 
@@ -121,6 +122,12 @@ async function handleApi(req, res, url) {
   }
   if (req.method === "POST" && url === "/api/agentapp/accounts/credential") {
     sendJson(res, 200, await saveAccountCredential(await readBody(req)));
+    return true;
+  }
+  if (req.method === "POST" && url === "/api/agentapp/accounts/clear-quota") {
+    const body = await readBody(req);
+    const cleared = await clearAccountQuotaLockout(body.id || body.accountId);
+    sendJson(res, 200, { ok: Boolean(cleared), runtime: await readRuntime() });
     return true;
   }
   if (req.method === "POST" && url === "/api/agentapp/projects") {
