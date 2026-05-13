@@ -66,6 +66,36 @@ const LOGIN_PATTERNS_BY_PROVIDER = {
   ],
 };
 
+// 권한/승인 prompt 패턴 — CLI 가 사용자 입력을 기다리는 신호.
+// 매칭 시 stdin 에 자동 "y" 응답 시도, 안 되면 즉시 kill 해서 hang 회피.
+const PERMISSION_PROMPT_PATTERNS = [
+  /\[y\/n\]/i,
+  /\(y\/n\)/i,
+  /\[Y\/n\]/,
+  /\[y\/N\]/,
+  /\(yes\/no\)/i,
+  /press enter to continue/i,
+  /press any key/i,
+  /do you (want to|wish to|confirm)/i,
+  /are you sure/i,
+  /allow this (tool|command|action)/i,
+  /approve this (action|tool|command)/i,
+  /\bproceed\?/i,
+  /\bcontinue\?/i,
+  /workspace trust/i,
+  /trust this (workspace|folder|directory)/i,
+  /grant permission/i,
+];
+
+function killChildTree(pid) {
+  if (!pid) return;
+  if (process.platform === "win32") {
+    spawn("taskkill.exe", ["/PID", String(pid), "/T", "/F"], { windowsHide: true });
+  } else {
+    try { process.kill(pid, "SIGKILL"); } catch { /* already gone */ }
+  }
+}
+
 const QUOTA_PATTERNS = [
   /rate ?limit(?:ed)?/i,
   /quota (?:exceeded|reached)/i,
@@ -829,6 +859,10 @@ async function streamProcess(command, args, options = {}) {
     let lastActivityAt = Date.now();
     let warned = false;
     let idleKilled = false;
+    let permissionPromptKilled = false;
+    let stdinClosed = false;
+    let autoConfirmCount = 0;
+    const AUTO_CONFIRM_MAX = 5;
 
     const idleTimer = options.idleWarnMs || options.idleKillMs
       ? setInterval(async () => {
@@ -841,14 +875,37 @@ async function streamProcess(command, args, options = {}) {
             idleKilled = true;
             clearInterval(idleTimer);
             if (options.onIdleKill) await options.onIdleKill(idleMs);
-            if (process.platform === "win32") {
-              spawn("taskkill.exe", ["/PID", String(child.pid), "/T", "/F"], { windowsHide: true });
-            } else {
-              try { process.kill(child.pid, "SIGKILL"); } catch { /* already gone */ }
-            }
+            killChildTree(child.pid);
           }
         }, 5000)
       : null;
+
+    const tryAutoConfirm = async (trimmed) => {
+      // 권한 prompt 패턴: y/N, allow/deny, continue?, proceed?
+      if (!PERMISSION_PROMPT_PATTERNS.some((pattern) => pattern.test(trimmed))) return false;
+      // stdin 이 아직 열려있다면 자동 응답 시도 (인터랙티브 mode 가능성).
+      if (!stdinClosed && child.stdin && !child.stdin.destroyed) {
+        try {
+          child.stdin.write("y\n", "utf8");
+          autoConfirmCount += 1;
+          if (options.onAutoConfirm) await options.onAutoConfirm(trimmed, autoConfirmCount);
+          if (autoConfirmCount >= AUTO_CONFIRM_MAX) {
+            // 너무 많이 응답 — 무한 prompt 루프 의심. kill.
+            permissionPromptKilled = true;
+            if (options.onPermissionPrompt) await options.onPermissionPrompt(trimmed);
+            killChildTree(child.pid);
+          }
+          return true;
+        } catch {
+          // stdin write 실패 — 닫혀있을 가능성
+        }
+      }
+      // stdin 닫혀있고 prompt 가 보임 → 영원히 멈출 거니까 즉시 kill + 사용자 안내.
+      permissionPromptKilled = true;
+      if (options.onPermissionPrompt) await options.onPermissionPrompt(trimmed);
+      killChildTree(child.pid);
+      return true;
+    };
 
     const forwardLines = async (lines, level) => {
       for (const line of lines) {
@@ -859,6 +916,9 @@ async function streamProcess(command, args, options = {}) {
         if (level === "stdout") stdoutOnly += `${trimmed}\n`;
         await appendLog(options.logPath, `[${level}] ${trimmed}`);
         if (options.onLine) await options.onLine(trimmed, level, child.pid);
+        if (options.detectPermissionPrompt !== false && !permissionPromptKilled) {
+          await tryAutoConfirm(trimmed);
+        }
       }
     };
 
@@ -889,12 +949,25 @@ async function streamProcess(command, args, options = {}) {
         combinedOutput: combined.trim(),
         stdoutOnly: stdoutOnly.trim(),
         idleKilled,
+        permissionPromptKilled,
       });
     });
 
     if (options.stdinText) {
       child.stdin.write(options.stdinText, "utf8");
-      child.stdin.end();
+      if (options.keepStdinOpen) {
+        // stdin keep-open: 권한 prompt 가 떴을 때 auto-yes 를 보낼 수 있도록.
+        // 정상 종료는 worker 가 출력 끝낸 후 자기 자신 exit 으로.
+      } else {
+        child.stdin.end();
+        stdinClosed = true;
+      }
+    } else {
+      stdinClosed = true;
+    }
+    if (child.stdin) {
+      child.stdin.on("close", () => { stdinClosed = true; });
+      child.stdin.on("error", () => { stdinClosed = true; });
     }
 
     if (options.onSpawn) options.onSpawn(child.pid);
@@ -1080,6 +1153,21 @@ async function launchCommandWorker(run, files, adapter, promptText) {
         message: `${run.workerId} 가 ${Math.round(idleMs / 1000)} 초간 출력이 없어 자동 중지합니다. 인증 또는 CLI 설치 상태를 확인한 뒤 다시 시작하세요.`,
       });
     },
+    // keepStdinOpen 은 비대화형 CLI (claude --print, codex exec, gemini --prompt -) 의
+    // 정상 종료 (stdin EOF = prompt 끝 신호) 를 방해하므로 사용 안 함.
+    // 대신 권한 prompt 패턴이 보이면 stdin 이 이미 닫혔으므로 즉시 fail-fast.
+    onAutoConfirm: async (line, count) => {
+      await appendRunEvent(run.id, {
+        level: "info",
+        message: `⚡ 권한 prompt 자동 응답 (#${count}): ${line.length > 160 ? `${line.slice(0, 160)}...` : line}`,
+      });
+    },
+    onPermissionPrompt: async (line) => {
+      await appendRunEvent(run.id, {
+        level: "error",
+        message: `🛑 권한 prompt 자동 해결 실패 — 즉시 중지: "${line.length > 200 ? `${line.slice(0, 200)}...` : line}". CLI 옵션이 도구 prompt 를 막지 못한 경우입니다.`,
+      });
+    },
   });
 
   if (adapter.writeLastMessageFromStdout && result.stdoutOnly) {
@@ -1095,6 +1183,29 @@ async function launchCommandWorker(run, files, adapter, promptText) {
     lastMessage = (await readFile(files.lastMessagePath, "utf8")).trim();
   } catch {
     lastMessage = "";
+  }
+
+  if (result.permissionPromptKilled) {
+    await finishRunRecord(
+      run.id,
+      {
+        status: "needs_user",
+        adapter: {
+          status: "permission-prompt",
+          mode: adapter.mode,
+          pid: result.pid,
+          exitCode: result.code,
+          logPath: relativePath(files.launchLogPath),
+          promptPath: relativePath(files.promptPath),
+          sessionDir: relativePath(adapter.sessionDir),
+        },
+      },
+      {
+        handoffStatus: "needs_user",
+        handoffReason: "hold_for_user",
+      },
+    );
+    return;
   }
 
   if (result.idleKilled) {
