@@ -25,6 +25,9 @@ const DEFAULT_RUNTIME = {
   settings: {
     idleWarnMs: 90 * 1000,
     idleKillMs: 30 * 60 * 1000,
+    autoChainEnabled: false,
+    quotaRetryEnabled: true,
+    quotaRetryMaxAttempts: 3,
   },
 };
 
@@ -32,7 +35,12 @@ function normalizeSettings(raw) {
   const source = raw && typeof raw === "object" ? raw : {};
   const idleWarnMs = Number.isFinite(Number(source.idleWarnMs)) ? Math.max(0, Number(source.idleWarnMs)) : 90 * 1000;
   const idleKillMs = Number.isFinite(Number(source.idleKillMs)) ? Math.max(0, Number(source.idleKillMs)) : 30 * 60 * 1000;
-  return { idleWarnMs, idleKillMs };
+  const autoChainEnabled = Boolean(source.autoChainEnabled);
+  const quotaRetryEnabled = source.quotaRetryEnabled === undefined ? true : Boolean(source.quotaRetryEnabled);
+  const quotaRetryMaxAttempts = Number.isFinite(Number(source.quotaRetryMaxAttempts))
+    ? Math.max(0, Math.min(10, Number(source.quotaRetryMaxAttempts)))
+    : 3;
+  return { idleWarnMs, idleKillMs, autoChainEnabled, quotaRetryEnabled, quotaRetryMaxAttempts };
 }
 
 export async function getRuntimeSettings() {
@@ -1462,9 +1470,108 @@ export async function quickHandoff(input = {}) {
   };
 }
 
+// 한도 도달한 run 을 다른 ready 계정으로 자동 재시도. 같은 worker 의 다른 계정만 후보.
+// 최대 시도 횟수를 넘기면 null 반환. 호출자는 사용자 알림으로 마감해야 한다.
+export async function tryQuotaRetry(failedRun) {
+  const settings = normalizeSettings((await readRuntime()).settings);
+  if (!settings.quotaRetryEnabled) return null;
+  const attempts = Number(failedRun.retryCount || 0) + 1;
+  if (attempts > settings.quotaRetryMaxAttempts) return null;
+  const runtime = await readRuntime();
+  // 같은 worker 의 다른 계정으로 라우팅 시도. 현재 계정은 이미 quotaResetAt 잠금 상태라 selectRoute 에서 제외됨.
+  const routing = selectRoute(runtime.accounts, {
+    workerId: failedRun.workerId,
+    complexity: failedRun.complexity || "standard",
+    modelOverride: failedRun.modelOverride || "auto",
+  });
+  if (routing.status !== "recommended") return null;
+  const result = await startRun({
+    workerId: failedRun.workerId,
+    projectId: failedRun.projectId,
+    prompt: failedRun.prompt,
+    complexity: failedRun.complexity || "auto",
+    modelOverride: failedRun.modelOverride || "auto",
+    retryCount: attempts,
+    retryReason: `quota_exhausted_attempt_${attempts}`,
+    autoChain: Boolean(failedRun.autoChain),
+  });
+  return result.activeRun || null;
+}
+
+// run 이 completed 로 끝났을 때 autoChain 설정이 켜져 있으면 NEXT_TASK 를 자동으로 픽업해서
+// 같은 worker/project 로 다음 run 시작. 외부 프로젝트는 그 프로젝트의 NEXT_TASK, AgentApp 자체는 repo 의 NEXT_TASK.
+export async function tryAutoChain(prevRun) {
+  const runtime = await readRuntime();
+  const settings = normalizeSettings(runtime.settings);
+  if (!settings.autoChainEnabled) return null;
+  // 외부 프로젝트면 그 프로젝트의 next_task 를 사용.
+  let nextTitle = "";
+  try {
+    if (prevRun.projectId && prevRun.projectId !== "current") {
+      const project = runtime.projects.find((p) => p.id === prevRun.projectId);
+      if (project) {
+        const meta = await readProjectMeta({ path: project.path });
+        nextTitle = meta?.next_task?.title || "";
+      }
+    } else {
+      const nextTaskPath = path.join(HANDOFF_DIR, "NEXT_TASK.md");
+      const body = await readFile(nextTaskPath, "utf8").catch(() => "");
+      const match = body.match(/Selected task:\s*(.+)/i);
+      nextTitle = match ? match[1].trim() : "";
+    }
+  } catch {
+    nextTitle = "";
+  }
+  if (!nextTitle || /^none$/i.test(nextTitle)) return null;
+  const result = await startRun({
+    workerId: prevRun.workerId,
+    projectId: prevRun.projectId,
+    prompt: nextTitle,
+    complexity: "auto",
+    modelOverride: prevRun.modelOverride || "auto",
+    autoChain: true,
+  });
+  return result.activeRun || null;
+}
+
+// 작업 텍스트만으로 complexity 를 자동 분류한다. 사용자가 dropdown 에서 명시적으로 고르지 않을 때 사용.
+export function classifyComplexity(promptText) {
+  const text = String(promptText || "").trim();
+  if (!text) return "standard";
+  const lower = text.toLowerCase();
+  // 가장 강한 신호: critical (운영/배포/보안/긴급)
+  if (/\b(critical|production|deploy(ment)?|security|hotfix|urgent|incident|p0|breaking change)\b/i.test(lower)) {
+    return "critical";
+  }
+  // complex: 아키텍처/대규모 리팩토링/시스템 설계
+  if (/\b(architect(ure)?|design.*system|migrate|migration|protocol|infrastructure|rewrite|overhaul|cross-?cut|orchestrat)/i.test(lower)) {
+    return "complex";
+  }
+  // routine: 매우 단순한 작업 명령어
+  if (/\b(typo|rename|format|whitespace|docstring|comment|fix.*spell|grammar|trivial|cosmetic|lint)\b/i.test(lower)) {
+    return "routine";
+  }
+  // 개발 작업 동사 키워드 → 최소 standard 신호
+  const isDevTask = /\b(implement|build|create|add|feature|enhance|refactor|update|change|fix|debug|integrate|wire|connect|extend|expose|support)\b/i.test(lower);
+  // 다중 줄/여러 단계 신호 → standard 이상
+  const lines = text.split(/\r?\n/).filter((line) => line.trim()).length;
+  if (lines >= 5 || text.length > 320) return "complex";
+  if (isDevTask) return text.length > 200 ? "complex" : "standard";
+  // 길이 기반 fallback (개발 키워드 없을 때만)
+  if (text.length < 60) return "routine";
+  return "standard";
+}
+
 export async function startRun(input) {
   const runtime = await readRuntime();
-  const routing = selectRoute(runtime.accounts, input);
+  // complexity="auto" 또는 미지정이면 prompt 텍스트로 자동 분류.
+  const requestedComplexity = String(input.complexity || "auto").toLowerCase();
+  const resolvedComplexity =
+    requestedComplexity === "auto" || !["routine", "standard", "complex", "critical"].includes(requestedComplexity)
+      ? classifyComplexity(input.prompt)
+      : requestedComplexity;
+  const normalizedInput = { ...input, complexity: resolvedComplexity };
+  const routing = selectRoute(runtime.accounts, normalizedInput);
   const id = `run-${Date.now()}`;
   const run = {
     id,
@@ -1472,8 +1579,12 @@ export async function startRun(input) {
     workerId: String(input.workerId || "codex"),
     projectId: String(input.projectId || "current"),
     prompt: String(input.prompt || "").trim(),
-    complexity: String(input.complexity || "standard"),
+    complexity: resolvedComplexity,
+    complexityAuto: requestedComplexity === "auto",
     modelOverride: String(input.modelOverride || "auto"),
+    retryCount: Number(input.retryCount || 0),
+    retryReason: String(input.retryReason || ""),
+    autoChain: Boolean(input.autoChain),
     startedAt: new Date().toISOString(),
     routing,
     validation: {

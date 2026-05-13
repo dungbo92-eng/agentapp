@@ -246,6 +246,9 @@ type RunRecord = {
 type RuntimeSettings = {
   idleWarnMs: number;
   idleKillMs: number;
+  autoChainEnabled?: boolean;
+  quotaRetryEnabled?: boolean;
+  quotaRetryMaxAttempts?: number;
 };
 
 type RuntimeState = {
@@ -793,20 +796,24 @@ function RuntimeSettingsPanel({
   onSave,
 }: {
   settings?: RuntimeSettings;
-  onSave: (next: { idleWarnMs: number; idleKillMs: number }) => Promise<void>;
+  onSave: (next: Partial<RuntimeSettings>) => Promise<void>;
 }) {
   const warnMin = settings ? Math.round(settings.idleWarnMs / 60000) : 1.5;
   const killMin = settings ? Math.round(settings.idleKillMs / 60000) : 30;
   const [warnInput, setWarnInput] = React.useState<string>(String(warnMin));
   const [killInput, setKillInput] = React.useState<string>(String(killMin));
+  const [autoChain, setAutoChain] = React.useState<boolean>(Boolean(settings?.autoChainEnabled));
+  const [quotaRetry, setQuotaRetry] = React.useState<boolean>(settings?.quotaRetryEnabled !== false);
   const [saving, setSaving] = React.useState(false);
 
   React.useEffect(() => {
     if (settings) {
       setWarnInput(String(Math.round(settings.idleWarnMs / 60000)));
       setKillInput(String(Math.round(settings.idleKillMs / 60000)));
+      setAutoChain(Boolean(settings.autoChainEnabled));
+      setQuotaRetry(settings.quotaRetryEnabled !== false);
     }
-  }, [settings?.idleWarnMs, settings?.idleKillMs]);
+  }, [settings?.idleWarnMs, settings?.idleKillMs, settings?.autoChainEnabled, settings?.quotaRetryEnabled]);
 
   return (
     <section className="sidebarBlock">
@@ -842,6 +849,24 @@ function RuntimeSettingsPanel({
           />
         </label>
       </div>
+      <div className="settingsToggles">
+        <label className="toggleRow" title="run 이 정상 완료되면 NEXT_TASK 를 자동으로 픽업해서 같은 worker 로 이어서 진행합니다. 외부 프로젝트는 그 프로젝트의 NEXT_TASK 를 사용합니다.">
+          <input
+            type="checkbox"
+            checked={autoChain}
+            onChange={(event) => setAutoChain(event.target.checked)}
+          />
+          <span>▶ 자동 이어 진행 (NEXT_TASK 자동 픽업)</span>
+        </label>
+        <label className="toggleRow" title="worker 가 한도(quota) 도달로 종료되면 같은 worker 의 다른 ready 계정으로 자동 재시도합니다. 모든 계정 한도면 자동 중지.">
+          <input
+            type="checkbox"
+            checked={quotaRetry}
+            onChange={(event) => setQuotaRetry(event.target.checked)}
+          />
+          <span>🔁 한도 도달 시 다른 계정으로 자동 재시도</span>
+        </label>
+      </div>
       <button
         type="button"
         className="button primary settingsSaveBtn"
@@ -851,7 +876,12 @@ function RuntimeSettingsPanel({
           const killMs = Math.max(0, Number(killInput) * 60000) || 0;
           setSaving(true);
           try {
-            await onSave({ idleWarnMs: warnMs, idleKillMs: killMs });
+            await onSave({
+              idleWarnMs: warnMs,
+              idleKillMs: killMs,
+              autoChainEnabled: autoChain,
+              quotaRetryEnabled: quotaRetry,
+            });
           } finally {
             setSaving(false);
           }
@@ -991,7 +1021,7 @@ function App() {
   const [runtimeStatus, setRuntimeStatus] = React.useState("로컬 설정 불러오는 중");
   const [lastRuntimeSyncAt, setLastRuntimeSyncAt] = React.useState("");
   const [prompt, setPrompt] = React.useState("");
-  const [complexity, setComplexity] = React.useState("standard");
+  const [complexity, setComplexity] = React.useState("auto");
   const [modelOverride, setModelOverride] = React.useState("auto");
   const [showAdvancedModel, setShowAdvancedModel] = React.useState(false);
   const [selectedWorker, setSelectedWorker] = React.useState("codex");
@@ -2061,13 +2091,14 @@ function App() {
             <label>
               난이도
               <select
-                title="작업 난이도에 따라 모델과 예산 추천이 달라집니다"
+                title="자동: 프롬프트 텍스트로 자동 분류. 수동 선택 시 그 단계로 고정."
                 value={complexity}
                 onChange={(event) => {
                   setComplexity(event.target.value);
                   setRunError("");
                 }}
               >
+                <option value="auto">자동 (작업 내용 분석)</option>
                 <option value="routine">기본</option>
                 <option value="standard">일반</option>
                 <option value="complex">복잡</option>

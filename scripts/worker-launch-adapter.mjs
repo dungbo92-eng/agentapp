@@ -1149,6 +1149,24 @@ async function launchCommandWorker(run, files, adapter, promptText) {
         handoffReason: "completed",
       },
     );
+    // 자동 이어 진행 (autoChain) — settings.autoChainEnabled 가 true 일 때만 발동.
+    try {
+      const { tryAutoChain } = await import("./dashboard-runtime.mjs");
+      const chained = await tryAutoChain(run);
+      if (chained) {
+        await appendRunEvent(run.id, {
+          level: "info",
+          message: `▶ autoChain: NEXT_TASK 를 ${chained.workerId} 로 자동 이어 시작했습니다 (run ${chained.id}).`,
+        });
+        const { launchDashboardWorker } = await import("./worker-launch-adapter.mjs");
+        await launchDashboardWorker(chained);
+      }
+    } catch (error) {
+      await appendRunEvent(run.id, {
+        level: "warn",
+        message: `autoChain 시도 중 오류: ${error instanceof Error ? error.message : String(error)}`,
+      });
+    }
     return;
   }
 
@@ -1198,6 +1216,29 @@ async function launchCommandWorker(run, files, adapter, promptText) {
         handoffReason: "quota_exhausted",
       },
     );
+    // 토큰 소진 시 같은 worker 의 다른 ready 계정으로 자동 재시도.
+    try {
+      const { tryQuotaRetry } = await import("./dashboard-runtime.mjs");
+      const retried = await tryQuotaRetry(run);
+      if (retried) {
+        await appendRunEvent(run.id, {
+          level: "info",
+          message: `▶ 한도 도달 — ${retried.routing?.accountId || "다른 계정"} 으로 자동 재시도 시작 (attempt ${retried.retryCount}).`,
+        });
+        const { launchDashboardWorker } = await import("./worker-launch-adapter.mjs");
+        await launchDashboardWorker(retried);
+      } else {
+        await appendRunEvent(run.id, {
+          level: "error",
+          message: "한도 도달 — 자동 재시도 가능한 ready 계정이 없습니다. 다른 계정 인증/추가 또는 한도 reset 대기 후 다시 시작하세요.",
+        });
+      }
+    } catch (error) {
+      await appendRunEvent(run.id, {
+        level: "warn",
+        message: `quota retry 시도 중 오류: ${error instanceof Error ? error.message : String(error)}`,
+      });
+    }
     return;
   }
 
