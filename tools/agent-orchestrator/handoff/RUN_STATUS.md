@@ -564,3 +564,12 @@ NEXT_TASK.md 템플릿 확정: agent-next 생성물을 Required Reads, Execution
 - Git: pending
 - Decisions: none
 - Next: commit/push/release
+
+## 2026-05-13T09:06:05.787Z
+
+- Status: completed
+- Summary: 컴팩트 채팅 모드 레이아웃을 좌측 프로젝트 리스트/우측 작업 패널로 단순화했고, v0.2.2 릴리즈까지 발행했습니다.
+- Verification: pnpm validate; pnpm --dir apps/dashboard exec tsc --noEmit; pnpm dashboard:build; pnpm agent:doctor; pnpm agent:progress; pnpm agent:next; pnpm agent:sync; pnpm agent:status; Browser visual check; gh release view v0.2.2
+- Git: commit dab5f22 pushed; release commit 0f3393f and tag v0.2.2 pushed
+- Decisions: none
+- Next: Claude/Gemini authenticated cycle 재검증
