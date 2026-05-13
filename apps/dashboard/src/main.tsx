@@ -982,7 +982,12 @@ function providerForWorker(workerId: string) {
 }
 
 function profileFor(account: ManagedAccount, complexity: string) {
-  return account.modelProfiles?.[complexity];
+  // 'auto' / 빈 값 / 미지원 키 면 UI 미리보기 기준 'standard' 로 폴백.
+  // (실제 routing 은 백엔드에서 prompt 텍스트로 정확히 재분류함.)
+  const key = ["routine", "standard", "complex", "critical"].includes(complexity)
+    ? complexity
+    : "standard";
+  return account.modelProfiles?.[key];
 }
 
 function recommendLocalRoute(
@@ -1050,11 +1055,22 @@ function routeBlockMessage(accounts: ManagedAccount[], workerId: string) {
   const matching = accounts.filter((account) => (!provider || account.provider === provider) && account.modelProfiles);
   const enabled = matching.filter((account) => account.enabled !== false);
   const ready = enabled.filter((account) => account.sessionStatus === "ready");
+  const usable = ready.filter((account) => {
+    const expected = String(account.email || "").trim().toLowerCase();
+    const actual = String(account.actualAuthEmail || "").trim().toLowerCase();
+    if (expected && actual && expected !== actual) return false;
+    if (account.quotaResetAt && new Date(account.quotaResetAt).getTime() > Date.now()) return false;
+    return true;
+  });
 
   if (matching.length === 0) return "이 작업 도구에 연결된 계정이 없습니다.";
   if (enabled.length === 0) return "사용 가능한 계정이 없습니다. 토글을 켜 주세요.";
   if (ready.length === 0) return "준비된 세션이 없습니다. 로그인 후 준비 상태로 바꿔 주세요.";
-  return "남은 사용량이 부족하거나 이 난이도에 맞는 모델 프로필이 없습니다.";
+  if (usable.length === 0) {
+    const lockedCount = ready.length - usable.length;
+    return `사용 가능한 계정이 없습니다 (한도 잠금/신원 mismatch ${lockedCount}건). 사이드바에서 상태 확인.`;
+  }
+  return "이 작업 난이도에 맞는 모델 프로필이 정의된 계정이 없습니다. 계정의 modelProfiles 설정을 확인하세요.";
 }
 
 function isAbsoluteLocalPath(value: string) {
@@ -2132,7 +2148,19 @@ function App() {
                   title="자동 선택을 무시하고 특정 도구를 강제 사용합니다"
                   value={selectedWorker}
                   onChange={(event) => {
-                    setSelectedWorker(event.target.value);
+                    const next = event.target.value;
+                    setSelectedWorker(next);
+                    // 워커 변경 시 호환되지 않는 stale modelOverride 를 'auto' 로 초기화
+                    const nextProvider = providerForWorker(next);
+                    const overrideProvider =
+                      modelOverride === "auto" || modelOverride === "best_available"
+                        ? ""
+                        : /^(opus|sonnet|haiku|claude)/i.test(modelOverride) ? "claude"
+                        : /^(gpt|o\d|codex)/i.test(modelOverride) ? "codex"
+                        : /^gemini/i.test(modelOverride) ? "gemini" : "";
+                    if (nextProvider && overrideProvider && nextProvider !== overrideProvider) {
+                      setModelOverride("auto");
+                    }
                     setRunError("");
                   }}
                 >
@@ -2149,17 +2177,28 @@ function App() {
               <label>
                 모델 (수동)
                 <select
-                  title="자동 선택을 무시하고 특정 모델로 고정합니다"
+                  title="자동 선택을 무시하고 특정 모델로 고정합니다 (선택된 작업 도구의 provider 와 호환되는 모델만 표시)"
                   value={modelOverride}
                   onChange={(event) => setModelOverride(event.target.value)}
                 >
                   <option value="auto">자동 (권장)</option>
-                  <option value="gpt-5.5">GPT-5.5</option>
-                  <option value="gpt-5.4">GPT-5.4</option>
-                  <option value="gpt-5.4-mini">GPT-5.4 Mini</option>
-                  <option value="opus">Claude Opus</option>
-                  <option value="sonnet">Claude Sonnet</option>
-                  <option value="best_available">가능한 최고 품질</option>
+                  {(() => {
+                    const provider = providerForWorker(selectedWorker);
+                    const all: { value: string; label: string; provider: string }[] = [
+                      { value: "gpt-5.5", label: "GPT-5.5", provider: "codex" },
+                      { value: "gpt-5.4", label: "GPT-5.4", provider: "codex" },
+                      { value: "gpt-5.4-mini", label: "GPT-5.4 Mini", provider: "codex" },
+                      { value: "opus", label: "Claude Opus", provider: "claude" },
+                      { value: "sonnet", label: "Claude Sonnet", provider: "claude" },
+                      { value: "best_available", label: "가능한 최고 품질", provider: "" },
+                    ];
+                    const filtered = provider
+                      ? all.filter((m) => m.provider === "" || m.provider === provider)
+                      : all;
+                    return filtered.map((m) => (
+                      <option key={m.value} value={m.value}>{m.label}</option>
+                    ));
+                  })()}
                 </select>
               </label>
             ) : null}

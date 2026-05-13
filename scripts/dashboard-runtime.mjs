@@ -172,6 +172,17 @@ function providerForWorker(workerId) {
   return "";
 }
 
+// model 이름으로부터 어느 provider 에 속하는지 추정. 잘못된 모델/provider
+// 조합 (예: claude 계정에 gpt 모델 지정) 을 자동 차단하기 위한 검증용.
+function providerForModel(model) {
+  if (!model) return "";
+  const key = String(model).toLowerCase();
+  if (/^(opus|sonnet|haiku|claude)/i.test(key)) return "claude";
+  if (/^(gpt|o\d|codex)/i.test(key)) return "codex";
+  if (/^gemini/i.test(key)) return "gemini";
+  return "";
+}
+
 // provider 코드를 워커 식별자로 환산. 'auto' 선택 시 routing 이 고른
 // 계정의 provider 를 실제 spawn 대상 workerId 로 매핑하기 위해 사용.
 function workerForProvider(provider) {
@@ -184,7 +195,7 @@ function workerForProvider(provider) {
   }
 }
 
-export { providerForWorker, workerForProvider };
+export { providerForWorker, workerForProvider, providerForModel };
 
 function defaultProfiles(provider) {
   if (provider === "claude") {
@@ -1085,6 +1096,20 @@ export function selectRoute(accounts, request) {
   }
 
   const selected = candidates[0];
+  // modelOverride provider 검증 — claude 워커에 gpt 모델 같은 mismatch 차단.
+  // 사용자가 호환되지 않는 조합을 고른 경우 override 를 무시하고 profile 의
+  // provider 일치 모델로 폴백한다.
+  const overrideProvider = modelOverride !== "auto" ? providerForModel(modelOverride) : "";
+  const overrideCompatible =
+    modelOverride === "auto" ||
+    overrideProvider === "" ||
+    overrideProvider === selected.account.provider;
+  const resolvedModel = overrideCompatible && modelOverride !== "auto"
+    ? modelOverride
+    : selected.profile.model;
+  const mismatchNote = !overrideCompatible
+    ? ` (요청 모델 '${modelOverride}' 은 ${selected.account.provider} 계정과 호환되지 않아 ${resolvedModel} 으로 폴백)`
+    : "";
   return {
     status: "recommended",
     accountId: selected.account.id,
@@ -1092,14 +1117,14 @@ export function selectRoute(accounts, request) {
     loginLabel: selected.account.loginLabel,
     sessionProfile: selected.account.sessionProfile,
     authMethod: selected.account.authMethod,
-    model: modelOverride !== "auto" ? modelOverride : selected.profile.model,
+    model: resolvedModel,
     reasoningEffort: selected.profile.reasoningEffort,
     estimatedUnits: Number(selected.profile.estimatedUnits || ESTIMATED_UNITS[complexity] || 8),
     complexity,
     reason:
-      complexity === "routine"
+      (complexity === "routine"
         ? "단순 작업이므로 남은 사용량이 충분한 가장 효율적인 프로필을 선택했습니다."
-        : "품질 우선 기준으로 남은 사용량이 충분한 가장 강한 프로필을 선택했습니다.",
+        : "품질 우선 기준으로 남은 사용량이 충분한 가장 강한 프로필을 선택했습니다.") + mismatchNote,
   };
 }
 
@@ -1259,30 +1284,100 @@ async function mutateRuntimeRun(runId, mutator, options = {}) {
 // Quota lockout detection
 // ---------------------------------------------------------------------------
 
-const QUOTA_HINT_RE = /(usage limit|rate limit|quota|out of credit|too many requests|429|exceeded|hit your usage|limit (?:reached|reset))/i;
+const QUOTA_HINT_RE = /(usage limit|rate limit|quota|out of credit|too many requests|429|exceeded|hit your (?:usage|limit|weekly|daily)|you'?ve hit|limit (?:reached|reset)|weekly limit|daily limit|resets?\s+\d)/i;
 
 const QUOTA_RESET_PATTERNS = [
   /(?:try again|available again|available|reset(?:s)?|resume(?:s)?|reset window|next attempt)\s+(?:on|at|in|by)\s+([^.\n)]+?)(?=[.\n)]|$)/i,
   /(?:reset|available)\s*[:\-]\s*([^.\n)]+?)(?=[.\n)]|$)/i,
   /(?:available again at|resume at|reset at)\s+([^.\n)]+?)(?=[.\n)]|$)/i,
+  // Preposition-less "resets 6:30pm", "reset 18:30", "resets tomorrow 6pm"
+  /\breset(?:s)?\s+((?:today|tomorrow)?\s*[0-9][^.\n)]*?)(?=[.\n)·•|]|$)/i,
 ];
+
+const TZ_OFFSET_MAP = {
+  "asia/seoul": "+09:00", "kst": "+09:00", "jst": "+09:00", "asia/tokyo": "+09:00",
+  "utc": "+00:00", "gmt": "+00:00",
+  "pst": "-08:00", "pdt": "-07:00", "est": "-05:00", "edt": "-04:00",
+  "america/los_angeles": "-08:00", "america/new_york": "-05:00",
+};
 
 function stripOrdinal(text) {
   return String(text || "").replace(/(\d+)(st|nd|rd|th)/gi, "$1");
+}
+
+// Detect a timezone hint anywhere on the line ("Asia/Seoul", "KST", ...) and
+// return the corresponding offset string ("+09:00") or "" if none recognized.
+function detectTzOffset(line) {
+  const lower = String(line || "").toLowerCase();
+  for (const key of Object.keys(TZ_OFFSET_MAP)) {
+    if (lower.includes(key)) return TZ_OFFSET_MAP[key];
+  }
+  return "";
+}
+
+// Parse loose time tokens like "6:30pm", "18:30", "6pm", "tomorrow 6pm", optionally
+// combined with a timezone offset string. Returns Date or null. If the resolved
+// instant has already passed today, rolls to the next day.
+function parseLooseTime(token, tzOffset) {
+  const text = stripOrdinal(token).trim().toLowerCase();
+  if (!text) return null;
+
+  // Already-absolute parses (e.g. "Mar 5 6:30pm 2026") — try first.
+  const direct = Date.parse(text + (tzOffset ? " " + tzOffset : ""));
+  if (Number.isFinite(direct) && direct > Date.now()) return new Date(direct);
+
+  // Match "h[:mm][am|pm]"
+  const m = text.match(/(\d{1,2})(?::(\d{2}))?\s*(am|pm)?\b/);
+  if (!m) return null;
+  let hour = Number(m[1]);
+  const minute = m[2] ? Number(m[2]) : 0;
+  const ampm = m[3];
+  if (ampm === "pm" && hour < 12) hour += 12;
+  if (ampm === "am" && hour === 12) hour = 0;
+  if (!Number.isFinite(hour) || hour < 0 || hour > 23) return null;
+  if (!Number.isFinite(minute) || minute < 0 || minute > 59) return null;
+
+  // Day hint
+  let dayShift = 0;
+  if (/\btomorrow\b/.test(text)) dayShift = 1;
+  else if (/\btoday\b/.test(text)) dayShift = 0;
+
+  // Resolve against tz-shifted "today"
+  const offset = tzOffset || "+00:00";
+  const offsetMinutes = (() => {
+    const om = offset.match(/^([+-])(\d{2}):?(\d{2})$/);
+    if (!om) return 0;
+    return (om[1] === "-" ? -1 : 1) * (Number(om[2]) * 60 + Number(om[3]));
+  })();
+  const nowUtc = Date.now();
+  const localNow = new Date(nowUtc + offsetMinutes * 60000);
+  const y = localNow.getUTCFullYear();
+  const mo = localNow.getUTCMonth();
+  const d = localNow.getUTCDate() + dayShift;
+  // Build the candidate as a UTC instant representing local-time h:mm at offset
+  const candidateUtc = Date.UTC(y, mo, d, hour, minute) - offsetMinutes * 60000;
+  let ts = candidateUtc;
+  if (ts <= nowUtc && dayShift === 0) ts += 24 * 60 * 60 * 1000; // roll to tomorrow
+  return ts > nowUtc ? new Date(ts) : null;
 }
 
 export function parseQuotaReset(rawLine) {
   if (!rawLine || typeof rawLine !== "string") return null;
   if (!QUOTA_HINT_RE.test(rawLine)) return null;
   const cleaned = rawLine.replace(/[()]/g, " ");
+  const tzOffset = detectTzOffset(cleaned);
   for (const re of QUOTA_RESET_PATTERNS) {
     const match = cleaned.match(re);
     if (!match || !match[1]) continue;
     const candidate = stripOrdinal(match[1]).trim();
-    const parsed = Date.parse(candidate);
+    // Try strict parse first
+    const parsed = Date.parse(candidate + (tzOffset ? " " + tzOffset : ""));
     if (Number.isFinite(parsed) && parsed > Date.now()) {
       return new Date(parsed).toISOString();
     }
+    // Loose parse for "6:30pm" style without a date
+    const loose = parseLooseTime(candidate, tzOffset);
+    if (loose) return loose.toISOString();
   }
   // ISO timestamp anywhere on the line
   const iso = cleaned.match(/\b(20\d{2}-\d{2}-\d{2}T\d{2}:\d{2}(?::\d{2})?(?:[Zz]|[+-]\d{2}:?\d{2})?)\b/);
@@ -1404,18 +1499,26 @@ export async function finishRunRecord(runId, patch, handoff = null) {
     },
   );
   // 성공/완료 시 프로젝트별 마지막 사용 모델/워커를 기억해 다음 실행 기본값으로 사용.
+  // 단, model 의 provider 가 실제 워커의 provider 와 일치하는 경우에만 저장
+  // (예: claude-code 가 'gpt-5.5' 로 잘못 라우팅됐던 mismatch 가 다음 실행에
+  // 이어지지 않도록).
   try {
     const finishedStatus = patch?.status || "";
     if (finishedStatus === "completed" || finishedStatus === "stopped") {
       const finishedRun = result.runHistory?.find((item) => item.id === runId);
       if (finishedRun?.projectId && finishedRun.routing?.model && finishedRun.workerId) {
-        const projectId = finishedRun.projectId;
-        const lastModel = String(finishedRun.routing.model);
-        const lastWorker = String(finishedRun.workerId);
-        result.projects = result.projects.map((project) =>
-          project.id === projectId ? { ...project, lastModel, lastWorker } : project,
-        );
-        await writeRuntime(result);
+        const modelProvider = providerForModel(finishedRun.routing.model);
+        const workerProvider = providerForWorker(finishedRun.workerId);
+        const consistent = modelProvider === "" || workerProvider === "" || modelProvider === workerProvider;
+        if (consistent) {
+          const projectId = finishedRun.projectId;
+          const lastModel = String(finishedRun.routing.model);
+          const lastWorker = String(finishedRun.workerId);
+          result.projects = result.projects.map((project) =>
+            project.id === projectId ? { ...project, lastModel, lastWorker } : project,
+          );
+          await writeRuntime(result);
+        }
       }
     }
   } catch {
@@ -1641,15 +1744,34 @@ export async function startRun(input) {
       ? classifyComplexity(input.prompt)
       : requestedComplexity;
   // workerId="auto" 면 후보 provider 를 모두 열어 두고, modelOverride="auto"
-  // 면 이 프로젝트가 최근에 쓴 모델을 우선 사용.
+  // 면 이 프로젝트가 최근에 쓴 모델을 우선 사용. 단, lastModel 의 provider 가
+  // 실제 라우팅 결과 provider 와 다르면 lastModel 무시 (claude 계정에 gpt 모델
+  // 지정하는 식의 mismatch 방지).
   const requestedWorker = String(input.workerId || "auto").toLowerCase();
   const projectId = String(input.projectId || "current");
   const projectRecord = runtime.projects.find((item) => item.id === projectId);
   const projectLastModel = projectRecord?.lastModel || "";
   const requestedModelOverride = String(input.modelOverride || "auto");
-  const resolvedModelOverride = requestedModelOverride === "auto" && projectLastModel
+
+  // 1차 라우팅 — modelOverride='auto' 로 보내 selectRoute 가 후보 자유 선택.
+  const firstPass = selectRoute(runtime.accounts, {
+    ...input,
+    complexity: resolvedComplexity,
+    workerId: requestedWorker === "auto" ? "" : requestedWorker,
+    modelOverride: "auto",
+  });
+
+  // projectLastModel 이 1차 라우팅이 고른 provider 와 호환되는지 검사.
+  // 호환되면 그 값을 modelOverride 로 다시 전달, 아니면 그냥 auto 유지.
+  const lastModelProvider = providerForModel(projectLastModel);
+  const lastModelCompatible = projectLastModel
+    && firstPass.status !== "blocked"
+    && (lastModelProvider === "" || lastModelProvider === firstPass.provider);
+  const resolvedModelOverride = requestedModelOverride === "auto" && lastModelCompatible
     ? projectLastModel
-    : requestedModelOverride;
+    : requestedModelOverride === "auto"
+      ? "auto"
+      : requestedModelOverride;
   const normalizedInput = {
     ...input,
     complexity: resolvedComplexity,
