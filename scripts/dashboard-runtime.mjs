@@ -826,6 +826,7 @@ export async function detectAndUpdateAccount(accountId) {
           lastVerifiedAt: detection.sessionStatus === "ready" ? nowIso() : item.lastVerifiedAt || "",
           sessionDetectionReason: detection.reason,
           actualAuthEmail: detection.actualEmail || "",
+          ...(detection.sessionStatus === "ready" ? { quotaResetAt: "", quotaReason: "" } : {}),
         }
       : item,
   );
@@ -846,7 +847,16 @@ export async function setAccountSession(input) {
   const nextAccount = normalizeAccount({ ...input, id, sessionStatus, lastVerifiedAt });
 
   runtime.accounts = exists
-    ? runtime.accounts.map((account) => (account.id === id ? { ...account, sessionStatus, lastVerifiedAt } : account))
+    ? runtime.accounts.map((account) =>
+        account.id === id
+          ? {
+              ...account,
+              sessionStatus,
+              lastVerifiedAt,
+              ...(sessionStatus === "ready" ? { quotaResetAt: "", quotaReason: "" } : {}),
+            }
+          : account,
+      )
     : uniqueById([...runtime.accounts, nextAccount]);
 
   const saved = await writeRuntime(runtime);
@@ -1039,6 +1049,25 @@ function routeScore(candidate, complexity) {
   return loadBalance * 20 + modelRank * 20;
 }
 
+function hasAuthIdentityMismatch(account) {
+  const expected = String(account.email || "").trim().toLowerCase();
+  const actual = String(account.actualAuthEmail || "").trim().toLowerCase();
+  return Boolean(expected && actual && expected !== actual);
+}
+
+function activeQuotaLock(account) {
+  if (!account.quotaResetAt) return false;
+  const resetMs = Date.parse(account.quotaResetAt);
+  return Number.isFinite(resetMs) && resetMs > Date.now();
+}
+
+function routeReadyAccount(account) {
+  if (account.sessionStatus !== "ready") return false;
+  if (hasAuthIdentityMismatch(account)) return false;
+  if (activeQuotaLock(account)) return false;
+  return true;
+}
+
 export function selectRoute(accounts, request) {
   const complexity = request.complexity || "standard";
   const preferredProvider = providerForWorker(request.workerId);
@@ -1046,21 +1075,8 @@ export function selectRoute(accounts, request) {
   const enabledAccounts = accounts
     .filter((account) => account.enabled !== false)
     .filter((account) => !preferredProvider || account.provider === preferredProvider);
-  const providerAccounts = enabledAccounts.filter((account) => {
-    if (account.sessionStatus !== "ready") return false;
-    // Drop accounts whose stored OAuth identity disagrees with the configured
-    // email — running with a mismatched token would silently use the wrong
-    // account on behalf of the user.
-    const expected = String(account.email || "").trim().toLowerCase();
-    const actual = String(account.actualAuthEmail || "").trim().toLowerCase();
-    if (expected && actual && expected !== actual) return false;
-    // Quota lockout — provider 가 알려준 reset 시간이 지나기 전엔 후보 제외.
-    if (account.quotaResetAt) {
-      const resetMs = Date.parse(account.quotaResetAt);
-      if (Number.isFinite(resetMs) && resetMs > Date.now()) return false;
-    }
-    return true;
-  });
+  const readyAccounts = enabledAccounts.filter((account) => account.sessionStatus === "ready");
+  const providerAccounts = readyAccounts.filter(routeReadyAccount);
 
   if (enabledAccounts.length === 0) {
     return {
@@ -1071,6 +1087,19 @@ export function selectRoute(accounts, request) {
   }
 
   if (providerAccounts.length === 0) {
+    const lockedCount = readyAccounts.filter(activeQuotaLock).length;
+    const mismatchCount = readyAccounts.filter(hasAuthIdentityMismatch).length;
+    if (readyAccounts.length > 0 && (lockedCount > 0 || mismatchCount > 0)) {
+      const details = [
+        lockedCount > 0 ? `한도 잠금 ${lockedCount}건` : "",
+        mismatchCount > 0 ? `인증 계정 불일치 ${mismatchCount}건` : "",
+      ].filter(Boolean).join(", ");
+      return {
+        status: "blocked",
+        reason: `준비된 세션은 있지만 라우팅 후보에서 제외됐습니다 (${details}). 재감지하거나 계정 상태를 확인하세요.`,
+        complexity,
+      };
+    }
     return {
       status: "blocked",
       reason: "준비된 세션이 없습니다. 로그인된 계정을 준비 상태로 먼저 바꿔 주세요.",
@@ -1681,15 +1710,18 @@ export async function finishRunRecord(runId, patch, handoff = null) {
 }
 
 function buildPendingRecord(input, routing) {
+  const workerId = String(input.workerId || "auto");
+  const provider = providerForWorker(workerId);
   return {
     id: `pending-${Date.now()}`,
     queuedAt: nowIso(),
-    workerId: String(input.workerId || "codex"),
+    workerId,
+    workerAuto: workerId === "auto" || provider === "",
     projectId: String(input.projectId || "current"),
     prompt: String(input.prompt || "").trim(),
     complexity: String(input.complexity || "standard"),
     modelOverride: String(input.modelOverride || "auto"),
-    provider: providerForWorker(input.workerId) || "",
+    provider,
     blockedReason: routing?.reason || "준비된 계정이 없습니다.",
   };
 }
@@ -1697,6 +1729,7 @@ function buildPendingRecord(input, routing) {
 function pendingMatchesAccount(pending, account) {
   if (!pending || !account) return false;
   const provider = pending.provider || providerForWorker(pending.workerId);
+  if (!provider || pending.workerAuto || pending.workerId === "auto") return true;
   return provider === account.provider;
 }
 
@@ -1778,7 +1811,8 @@ export async function quickHandoff(input = {}) {
   };
 }
 
-// 한도 도달한 run 을 다른 ready 계정으로 자동 재시도. 같은 worker 의 다른 계정만 후보.
+// 한도 도달한 run 을 다른 ready 계정으로 자동 재시도. 사용자가 자동 라우팅으로
+// 시작한 run 은 다음 후보 provider 까지 다시 열어 둔다.
 // 최대 시도 횟수를 넘기면 null 반환. 호출자는 사용자 알림으로 마감해야 한다.
 export async function tryQuotaRetry(failedRun) {
   const settings = normalizeSettings((await readRuntime()).settings);
@@ -1786,15 +1820,16 @@ export async function tryQuotaRetry(failedRun) {
   const attempts = Number(failedRun.retryCount || 0) + 1;
   if (attempts > settings.quotaRetryMaxAttempts) return null;
   const runtime = await readRuntime();
-  // 같은 worker 의 다른 계정으로 라우팅 시도. 현재 계정은 이미 quotaResetAt 잠금 상태라 selectRoute 에서 제외됨.
+  const retryWorkerId = failedRun.workerAuto ? "auto" : failedRun.workerId;
+  // 현재 계정은 이미 quotaResetAt 잠금 상태라 selectRoute 에서 제외됨.
   const routing = selectRoute(runtime.accounts, {
-    workerId: failedRun.workerId,
+    workerId: retryWorkerId,
     complexity: failedRun.complexity || "standard",
     modelOverride: failedRun.modelOverride || "auto",
   });
   if (routing.status !== "recommended") return null;
   const result = await startRun({
-    workerId: failedRun.workerId,
+    workerId: retryWorkerId,
     projectId: failedRun.projectId,
     prompt: failedRun.prompt,
     complexity: failedRun.complexity || "auto",
@@ -1846,9 +1881,10 @@ export async function tryAutoChain(prevRun) {
   const chainPrompt = hasNewTask
     ? nextTitle
     : "이전 작업을 완료한 상태입니다. 메모리/계획/핸드오프 파일을 참고해 다음에 진행할 항목을 스스로 판단하고 이어서 진행해 주세요. 더 이상 진행할 작업이 없으면 'CHAIN_DONE' 한 줄만 응답해 주세요.";
+  const nextWorkerId = prevRun.workerAuto ? "auto" : prevRun.workerId;
 
   const result = await startRun({
-    workerId: prevRun.workerId,
+    workerId: nextWorkerId,
     projectId: prevRun.projectId,
     prompt: chainPrompt,
     complexity: "auto",
@@ -1935,7 +1971,7 @@ export async function startRun(input) {
 
   // auto 워커는 routing 이 고른 provider 로 환산.
   const resolvedWorker = requestedWorker === "auto"
-    ? (workerForProvider(routing.provider) || "claude-code")
+    ? (routing.status === "recommended" ? (workerForProvider(routing.provider) || "claude-code") : "auto")
     : requestedWorker;
 
   const id = `run-${Date.now()}`;

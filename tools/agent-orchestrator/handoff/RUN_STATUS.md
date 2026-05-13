@@ -519,3 +519,12 @@ NEXT_TASK.md 템플릿 확정: agent-next 생성물을 Required Reads, Execution
 - Git: committed
 - Decisions: none
 - Next: 패키징 EXE 재빌드는 사용자 시간대에 진행 예정
+
+## 2026-05-13T08:33:28.160Z
+
+- Status: completed
+- Summary: 자동 라우팅 run 의 provider fallback, auto pending dispatch, stale quota lock 해제를 수정했습니다. Codex 세션 인증이 남아 있는데도 한도 잠금 때문에 ready 후보에서 제외되는 경우를 명확히 표시하고, 재감지/ready 전환 시 잠금을 지우도록 했습니다.
+- Verification: pnpm validate; pnpm --dir apps/dashboard exec tsc --noEmit; pnpm dashboard:build; pnpm agent:doctor; pnpm agent:progress; selectRoute/startRun 시뮬레이션
+- Git: pending
+- Decisions: none
+- Next: 현재 변경 검토 후 commit/push, 릴리즈 트리거 여부 확인

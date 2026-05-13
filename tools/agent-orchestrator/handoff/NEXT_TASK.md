@@ -1,6 +1,6 @@
 # NEXT_TASK
 
-- Generated: 2026-05-11T09:06:45.717Z
+- Generated: 2026-05-13T08:33:33.358Z
 - Selected task: Claude/Gemini CLI 설치 후 실제 authenticated cycle 재검증
 - Selection source: roadmap
 - Task id: n/a
@@ -35,7 +35,6 @@
 - 비밀값, 계정 정보, 토큰, 쿠키, 운영 인증 정보는 파일/로그/문서에 남기지 않는다.
 - 작업 범위가 섞여 있으면 안전한 로컬 부분만 완료하고 보류 항목을 기록한다.
 - 개발 구현, 문서화, 테스트, 로컬 검증, handoff 갱신, commit/push는 추가 확인 없이 계속 진행한다.
-- **자동 릴리즈**: 데스크탑/대시보드/scripts/desktop runtime 트리거 경로를 건드린 push 가 완료되면 `pnpm desktop:release -- --bump patch` 까지 한 사이클로 진행한다. 세부 규칙은 `AGENTS.md` 11 절 참고.
 
 ## Completion Checklist
 
@@ -47,7 +46,6 @@
 - git status 확인
 - 검증된 변경 commit
 - 승인된 remote가 있으면 push
-- 트리거 경로(desktop/dashboard/scripts runtime/package.json/build) 가 바뀌었으면 `pnpm desktop:release -- --bump patch` 로 릴리즈 발행
 
 ## Handoff Updates
 
@@ -142,7 +140,7 @@ auto_allowed:
   - id: local_file_edits
     description: "Edit local source, docs, configs, tests, and scripts inside the repository."
     scope:
-      - "repo files under E:\\agentApp"
+      - "repo files inside the AgentApp workspace"
       - "generated docs, tests, and local tool configs that contain no secrets"
     examples:
       - "update scripts"
@@ -201,8 +199,7 @@ auto_allowed:
       - "no payment or plan changes"
     examples:
       - "reserve weekend usage"
-      - "recommend efficient model for routine context review"
-      -
+      - "recommend efficient model for routine context revie
 
 ...truncated...
 ```
@@ -228,7 +225,7 @@ schema:
       - "Do not use multiple workers to bypass quota, billing, approval, or security limits."
 
 defaults:
-  workspace: "E:\\agentApp"
+  workspace: ""
   auth: "user-managed"
   status: "available"
   approval_policy: "tools/agent-orchestrator/approval-policy.yaml"
@@ -256,7 +253,7 @@ workers:
     kind: codex
     display_name: "Codex Desktop"
     auth: "user-managed"
-    workspace: "E:\\agentApp"
+    workspace: ""
     status: "available"
     launch:
       mode: "adapter"
@@ -294,6 +291,8 @@ workers:
       standard:
         model_tier: "balanced"
         reasoning_effort: "high"
+      complex:
+        mo
 
 ...truncated...
 ```

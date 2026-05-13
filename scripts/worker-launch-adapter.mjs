@@ -1347,8 +1347,8 @@ async function launchCommandWorker(run, files, adapter, promptText) {
         handoffReason: "missing_credentials",
       },
     );
-    // 토큰 revoke 도 한도 도달과 동일하게 처리 — 같은 worker 의 다른 ready
-    // 계정으로 자동 이어 시도. 모든 계정이 fail 이면 자동 중지.
+    // 토큰 revoke 도 한도 도달과 동일하게 처리 — 자동 라우팅으로 시작한
+    // run 은 다른 provider 의 ready 계정까지 후보로 열어 둔다.
     try {
       const { tryQuotaRetry } = await import("./dashboard-runtime.mjs");
       const retried = await tryQuotaRetry(run);
@@ -1388,7 +1388,7 @@ async function launchCommandWorker(run, files, adapter, promptText) {
         handoffReason: "quota_exhausted",
       },
     );
-    // 토큰 소진 시 같은 worker 의 다른 ready 계정으로 자동 재시도.
+    // 토큰 소진 시 자동 라우팅 run 은 다른 provider 의 ready 계정까지 재시도.
     try {
       const { tryQuotaRetry } = await import("./dashboard-runtime.mjs");
       const retried = await tryQuotaRetry(run);

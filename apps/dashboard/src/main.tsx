@@ -177,6 +177,7 @@ type PendingRun = {
   id: string;
   queuedAt: string;
   workerId: string;
+  workerAuto?: boolean;
   projectId: string;
   prompt: string;
   complexity: string;
@@ -879,7 +880,7 @@ function RuntimeSettingsPanel({
             <span className="settingsHintInline">사이클 (이후 멈춤)</span>
           </label>
         ) : null}
-        <label className="toggleRow" title="worker 가 한도(quota) 도달로 종료되면 같은 worker 의 다른 ready 계정으로 자동 재시도합니다. 모든 계정 한도면 자동 중지.">
+        <label className="toggleRow" title="worker 가 한도(quota) 도달로 종료되면 다른 ready 계정으로 자동 재시도합니다. 자동 선택으로 시작한 작업은 다른 도구까지 후보로 열고, 수동 도구 선택은 그 도구 안에서 재시도합니다.">
           <input
             type="checkbox"
             checked={quotaRetry}
@@ -1065,6 +1066,9 @@ function routeBlockMessage(accounts: ManagedAccount[], workerId: string) {
 
   if (matching.length === 0) return "이 작업 도구에 연결된 계정이 없습니다.";
   if (enabled.length === 0) return "사용 가능한 계정이 없습니다. 토글을 켜 주세요.";
+  if (ready.length === 0 && enabled.some((account) => account.actualAuthEmail)) {
+    return "인증 계정은 감지됐지만 준비 상태가 아닙니다. 해당 계정에서 재감지를 눌러 ready 상태를 갱신하세요.";
+  }
   if (ready.length === 0) return "준비된 세션이 없습니다. 로그인 후 준비 상태로 바꿔 주세요.";
   if (usable.length === 0) {
     const lockedCount = ready.length - usable.length;
@@ -2493,14 +2497,14 @@ function App() {
             {(runtime.pendingRuns || []).length > 0 ? (
               <div className="pendingList">
                 <h3>준비 대기 중인 작업</h3>
-                <p className="emptyState">계정이 준비 상태로 바뀌면 같은 도구의 첫 작업이 자동으로 시작됩니다.</p>
+                <p className="emptyState">자동 선택 작업은 아무 ready 계정이나 준비되면 시작되고, 수동 도구 작업은 해당 도구 계정이 준비되면 시작됩니다.</p>
                 {(runtime.pendingRuns || []).map((pending) => (
                   <article key={pending.id} className="pendingItem">
                     <StatusPill status="queued" />
                     <div>
                       <strong>{pending.prompt || "(빈 프롬프트)"}</strong>
                       <span>
-                        {pending.workerId} / {complexityLabel(pending.complexity)} / {pending.blockedReason}
+                        {pending.workerAuto ? "auto" : pending.workerId} / {complexityLabel(pending.complexity)} / {pending.blockedReason}
                       </span>
                     </div>
                   </article>
