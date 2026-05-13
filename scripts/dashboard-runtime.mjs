@@ -168,7 +168,19 @@ function providerForWorker(workerId) {
   return "";
 }
 
-export { providerForWorker };
+// provider 코드를 워커 식별자로 환산. 'auto' 선택 시 routing 이 고른
+// 계정의 provider 를 실제 spawn 대상 workerId 로 매핑하기 위해 사용.
+function workerForProvider(provider) {
+  switch (provider) {
+    case "claude": return "claude-code";
+    case "codex": return "codex";
+    case "gemini": return "gemini-cli";
+    case "cursor": return "cursor";
+    default: return "";
+  }
+}
+
+export { providerForWorker, workerForProvider };
 
 function defaultProfiles(provider) {
   if (provider === "claude") {
@@ -280,6 +292,8 @@ function normalizeProject(input) {
     path: rawPath,
     status: rawPath ? "needs-baseline" : "registered",
     progress: 0,
+    lastModel: String(input.lastModel || input.last_model || "").trim(),
+    lastWorker: String(input.lastWorker || input.last_worker || "").trim(),
   };
 }
 
@@ -1356,7 +1370,7 @@ export async function patchRunRecord(runId, patch, handoff = null) {
 
 export async function finishRunRecord(runId, patch, handoff = null) {
   const finishedAt = nowIso();
-  return mutateRuntimeRun(
+  const result = await mutateRuntimeRun(
     runId,
     (run) => ({
       ...run,
@@ -1370,6 +1384,25 @@ export async function finishRunRecord(runId, patch, handoff = null) {
       ...(handoff || {}),
     },
   );
+  // 성공/완료 시 프로젝트별 마지막 사용 모델/워커를 기억해 다음 실행 기본값으로 사용.
+  try {
+    const finishedStatus = patch?.status || "";
+    if (finishedStatus === "completed" || finishedStatus === "stopped") {
+      const finishedRun = result.runHistory?.find((item) => item.id === runId);
+      if (finishedRun?.projectId && finishedRun.routing?.model && finishedRun.workerId) {
+        const projectId = finishedRun.projectId;
+        const lastModel = String(finishedRun.routing.model);
+        const lastWorker = String(finishedRun.workerId);
+        result.projects = result.projects.map((project) =>
+          project.id === projectId ? { ...project, lastModel, lastWorker } : project,
+        );
+        await writeRuntime(result);
+      }
+    }
+  } catch {
+    // best-effort: never block run completion on this bookkeeping
+  }
+  return result;
 }
 
 function buildPendingRecord(input, routing) {
@@ -1570,18 +1603,41 @@ export async function startRun(input) {
     requestedComplexity === "auto" || !["routine", "standard", "complex", "critical"].includes(requestedComplexity)
       ? classifyComplexity(input.prompt)
       : requestedComplexity;
-  const normalizedInput = { ...input, complexity: resolvedComplexity };
+  // workerId="auto" 면 후보 provider 를 모두 열어 두고, modelOverride="auto"
+  // 면 이 프로젝트가 최근에 쓴 모델을 우선 사용.
+  const requestedWorker = String(input.workerId || "auto").toLowerCase();
+  const projectId = String(input.projectId || "current");
+  const projectRecord = runtime.projects.find((item) => item.id === projectId);
+  const projectLastModel = projectRecord?.lastModel || "";
+  const requestedModelOverride = String(input.modelOverride || "auto");
+  const resolvedModelOverride = requestedModelOverride === "auto" && projectLastModel
+    ? projectLastModel
+    : requestedModelOverride;
+  const normalizedInput = {
+    ...input,
+    complexity: resolvedComplexity,
+    workerId: requestedWorker === "auto" ? "" : requestedWorker,
+    modelOverride: resolvedModelOverride,
+  };
   const routing = selectRoute(runtime.accounts, normalizedInput);
+
+  // auto 워커는 routing 이 고른 provider 로 환산.
+  const resolvedWorker = requestedWorker === "auto"
+    ? (workerForProvider(routing.provider) || "claude-code")
+    : requestedWorker;
+
   const id = `run-${Date.now()}`;
   const run = {
     id,
     status: routing.status === "blocked" ? "queued" : "running",
-    workerId: String(input.workerId || "codex"),
-    projectId: String(input.projectId || "current"),
+    workerId: resolvedWorker,
+    workerAuto: requestedWorker === "auto",
+    projectId,
     prompt: String(input.prompt || "").trim(),
     complexity: resolvedComplexity,
     complexityAuto: requestedComplexity === "auto",
-    modelOverride: String(input.modelOverride || "auto"),
+    modelOverride: resolvedModelOverride,
+    modelOverrideAuto: requestedModelOverride === "auto",
     retryCount: Number(input.retryCount || 0),
     retryReason: String(input.retryReason || ""),
     autoChain: Boolean(input.autoChain),

@@ -1024,7 +1024,8 @@ function App() {
   const [complexity, setComplexity] = React.useState("auto");
   const [modelOverride, setModelOverride] = React.useState("auto");
   const [showAdvancedModel, setShowAdvancedModel] = React.useState(false);
-  const [selectedWorker, setSelectedWorker] = React.useState("codex");
+  const [selectedWorker, setSelectedWorker] = React.useState<string>("auto");
+  const [showAdvancedWorker, setShowAdvancedWorker] = React.useState<boolean>(false);
   const [selectedProject, setSelectedProject] = React.useState("current");
   const [projectMeta, setProjectMeta] = React.useState<{
     path?: string;
@@ -2053,23 +2054,26 @@ function App() {
           </div>
 
           <div className="runnerGrid">
-            <label>
-              작업 도구
-              <select
-                title="이번 작업을 실행할 에이전트를 선택합니다"
-                value={selectedWorker}
-                onChange={(event) => {
-                  setSelectedWorker(event.target.value);
-                  setRunError("");
-                }}
-              >
-                {snapshot.workers.map((worker) => (
-                  <option key={worker.id} value={worker.id}>
-                    {worker.display_name || worker.id}
-                  </option>
-                ))}
-              </select>
-            </label>
+            {showAdvancedWorker ? (
+              <label>
+                작업 도구 (수동)
+                <select
+                  title="자동 선택을 무시하고 특정 도구를 강제 사용합니다"
+                  value={selectedWorker}
+                  onChange={(event) => {
+                    setSelectedWorker(event.target.value);
+                    setRunError("");
+                  }}
+                >
+                  <option value="auto">자동 (권장)</option>
+                  {snapshot.workers.map((worker) => (
+                    <option key={worker.id} value={worker.id}>
+                      {worker.display_name || worker.id}
+                    </option>
+                  ))}
+                </select>
+              </label>
+            ) : null}
             {showAdvancedModel ? (
               <label>
                 모델 (수동)
@@ -2124,13 +2128,16 @@ function App() {
             <button
               className="linkButton"
               type="button"
-              onClick={() => setShowAdvancedModel((value) => !value)}
-              title="기본은 자동 라우팅. 특정 모델을 강제로 쓰고 싶을 때만 펼치세요."
+              onClick={() => {
+                setShowAdvancedWorker((value) => !value);
+                setShowAdvancedModel((value) => !value);
+              }}
+              title="기본은 자동 선택. 도구와 모델을 직접 고르고 싶을 때만 펼치세요."
             >
-              {showAdvancedModel ? "▼ 모델 자동 선택으로 돌아가기" : "▸ 모델 수동 선택"}
+              {showAdvancedWorker ? "▼ 자동 선택으로 돌아가기" : "▸ 도구 / 모델 수동 선택"}
             </button>
-            {!showAdvancedModel ? (
-              <small>모델은 계정 사용량/한도 상태를 보고 자동으로 골고루 분배됩니다.</small>
+            {!showAdvancedWorker ? (
+              <small>도구와 모델은 준비된 계정, 잔여 사용량, 프로젝트의 최근 사용 이력을 보고 자동으로 결정됩니다.</small>
             ) : null}
           </div>
 
