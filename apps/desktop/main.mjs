@@ -1,10 +1,20 @@
-import { app, BrowserWindow, shell, globalShortcut } from "electron";
+import { app, BrowserWindow, shell, globalShortcut, Tray, Menu, ipcMain, screen, nativeImage } from "electron";
 import path from "node:path";
+import { fileURLToPath } from "node:url";
 
 let dashboardServer;
 let mainWindow;
+let tray;
+let windowMode = "full"; // "full" | "compact"
+let isQuitting = false;
+let savedFullBounds = null;
+
+const PRELOAD_PATH = path.join(path.dirname(fileURLToPath(import.meta.url)), "preload.mjs");
 
 const debugEnabled = process.env.AGENTAPP_DEBUG === "1" || !app.isPackaged;
+
+const FULL_WINDOW = { width: 1440, height: 920, minWidth: 1120, minHeight: 760 };
+const COMPACT_WINDOW = { width: 380, height: 560, minWidth: 320, minHeight: 420 };
 
 async function bootstrapAutoUpdater() {
   if (!app.isPackaged) return;
@@ -52,19 +62,34 @@ async function createMainWindow() {
   dashboardServer = await createDashboardServer();
 
   mainWindow = new BrowserWindow({
-    width: 1440,
-    height: 920,
-    minWidth: 1120,
-    minHeight: 760,
+    width: FULL_WINDOW.width,
+    height: FULL_WINDOW.height,
+    minWidth: FULL_WINDOW.minWidth,
+    minHeight: FULL_WINDOW.minHeight,
     title: "AgentApp",
     backgroundColor: "#eef1f4",
     autoHideMenuBar: true,
     webPreferences: {
       contextIsolation: true,
       nodeIntegration: false,
-      sandbox: true,
+      sandbox: false, // preload 가 require('electron') 을 쓰려면 sandbox 꺼야 함
       devTools: true,
+      preload: PRELOAD_PATH,
     },
+  });
+
+  mainWindow.on("close", (event) => {
+    // X 버튼은 트레이로 내리는 동작. 실제 종료는 트레이 메뉴 또는 isQuitting flag.
+    if (!isQuitting) {
+      event.preventDefault();
+      mainWindow.hide();
+      if (tray) {
+        tray.displayBalloon?.({
+          title: "AgentApp",
+          content: "트레이에서 계속 실행 중입니다. 아이콘 클릭으로 다시 열 수 있어요.",
+        });
+      }
+    }
   });
 
   mainWindow.webContents.setWindowOpenHandler(({ url }) => {
@@ -99,13 +124,119 @@ async function createMainWindow() {
   }
 
   await mainWindow.loadURL(dashboardServer.url);
+  await bootstrapTray();
   void bootstrapAutoUpdater();
 }
+
+async function bootstrapTray() {
+  if (tray) return;
+  let icon;
+  try {
+    // 패키지본은 .exe 파일 아이콘을 추출. dev 모드는 electron 기본 아이콘을 사용.
+    if (app.isPackaged) {
+      icon = await app.getFileIcon(app.getPath("exe"), { size: "small" });
+    }
+  } catch {
+    icon = undefined;
+  }
+  if (!icon || icon.isEmpty()) {
+    // dev / 아이콘 추출 실패 시 1x1 투명 PNG 라도 넣어 Tray 생성을 막지 않게.
+    icon = nativeImage.createFromBuffer(
+      Buffer.from(
+        "iVBORw0KGgoAAAANSUhEUgAAABAAAAAQCAYAAAAf8/9hAAAAFklEQVR4nGNgGAWjYBSMglEwCkYBJQAABzgAAW0HQfMAAAAASUVORK5CYII=",
+        "base64",
+      ),
+    );
+  }
+  tray = new Tray(icon);
+  tray.setToolTip("AgentApp — 멀티 에이전트 오케스트레이터");
+  rebuildTrayMenu();
+  tray.on("click", () => showMainWindow());
+  tray.on("double-click", () => showMainWindow());
+}
+
+function rebuildTrayMenu() {
+  if (!tray) return;
+  const compact = windowMode === "compact";
+  const menu = Menu.buildFromTemplate([
+    { label: "열기", click: () => showMainWindow() },
+    {
+      label: compact ? "✓ 컴팩트 채팅 모드" : "컴팩트 채팅 모드",
+      click: () => setWindowMode(compact ? "full" : "compact"),
+    },
+    { type: "separator" },
+    {
+      label: "종료",
+      click: () => {
+        isQuitting = true;
+        app.quit();
+      },
+    },
+  ]);
+  tray.setContextMenu(menu);
+}
+
+function showMainWindow() {
+  if (!mainWindow || mainWindow.isDestroyed()) return;
+  if (mainWindow.isMinimized()) mainWindow.restore();
+  mainWindow.show();
+  mainWindow.focus();
+}
+
+function setWindowMode(nextMode) {
+  if (!mainWindow || mainWindow.isDestroyed()) return windowMode;
+  const target = nextMode === "compact" ? "compact" : "full";
+  if (target === windowMode) return windowMode;
+
+  if (target === "compact") {
+    // 전환 직전 full 모드 bounds 저장 → 복귀 시 복원.
+    savedFullBounds = mainWindow.getBounds();
+    const display = screen.getDisplayNearestPoint(screen.getCursorScreenPoint());
+    const area = display?.workArea || { x: 0, y: 0, width: 1280, height: 800 };
+    const w = COMPACT_WINDOW.width;
+    const h = COMPACT_WINDOW.height;
+    const margin = 16;
+    mainWindow.setMinimumSize(COMPACT_WINDOW.minWidth, COMPACT_WINDOW.minHeight);
+    mainWindow.setBounds({
+      x: area.x + area.width - w - margin,
+      y: area.y + area.height - h - margin,
+      width: w,
+      height: h,
+    });
+    mainWindow.setAlwaysOnTop(true, "floating");
+    mainWindow.setSkipTaskbar(false);
+  } else {
+    mainWindow.setAlwaysOnTop(false);
+    mainWindow.setMinimumSize(FULL_WINDOW.minWidth, FULL_WINDOW.minHeight);
+    if (savedFullBounds) {
+      mainWindow.setBounds(savedFullBounds);
+    } else {
+      mainWindow.setSize(FULL_WINDOW.width, FULL_WINDOW.height);
+      mainWindow.center();
+    }
+  }
+
+  windowMode = target;
+  rebuildTrayMenu();
+  if (!mainWindow.webContents.isDestroyed()) {
+    mainWindow.webContents.send("agentapp:window-mode-changed", windowMode);
+  }
+  return windowMode;
+}
+
+ipcMain.handle("agentapp:set-window-mode", (_event, mode) => setWindowMode(mode));
+ipcMain.handle("agentapp:hide-to-tray", () => {
+  if (mainWindow && !mainWindow.isDestroyed()) mainWindow.hide();
+  return true;
+});
+ipcMain.handle("agentapp:get-window-mode", () => windowMode);
 
 app.whenReady().then(createMainWindow);
 
 app.on("window-all-closed", () => {
-  if (process.platform !== "darwin") app.quit();
+  // 트레이로 내려 있을 때는 종료하지 않는다. 트레이 메뉴의 '종료' 가
+  // isQuitting=true 로 명시적으로 종료시킨다.
+  if (process.platform !== "darwin" && isQuitting) app.quit();
 });
 
 app.on("activate", () => {
@@ -113,6 +244,8 @@ app.on("activate", () => {
 });
 
 app.on("before-quit", () => {
+  isQuitting = true;
   globalShortcut.unregisterAll();
   dashboardServer?.server.close();
+  tray?.destroy();
 });

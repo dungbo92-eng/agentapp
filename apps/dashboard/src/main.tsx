@@ -1127,6 +1127,34 @@ function App() {
   // 수동 사용량 편집은 제거됨 — 한도는 worker stderr 패턴 + quota lockout 으로 자동 추적.
   const [now, setNow] = React.useState<number>(Date.now());
   const [activeSection, setActiveSection] = React.useState("run");
+  const [viewMode, setViewMode] = React.useState<"full" | "compact">("full");
+  // electron preload 가 주입한 IPC bridge. 데스크탑이 아니면 undefined.
+  const desktopApi = (typeof window !== "undefined" ? (window as unknown as { agentapp?: {
+    setWindowMode: (mode: "full" | "compact") => Promise<string>;
+    hideToTray: () => Promise<boolean>;
+    getWindowMode: () => Promise<string>;
+    onWindowModeChanged: (handler: (mode: string) => void) => () => void;
+  } }).agentapp : undefined);
+  React.useEffect(() => {
+    if (!desktopApi) return;
+    let off: (() => void) | undefined;
+    void desktopApi.getWindowMode().then((m) => {
+      if (m === "compact" || m === "full") setViewMode(m);
+    });
+    off = desktopApi.onWindowModeChanged((m) => {
+      if (m === "compact" || m === "full") setViewMode(m);
+    });
+    return () => { off?.(); };
+  }, [desktopApi]);
+  const toggleViewMode = React.useCallback(() => {
+    const next = viewMode === "compact" ? "full" : "compact";
+    if (desktopApi) {
+      void desktopApi.setWindowMode(next);
+    } else {
+      // 브라우저 dev 모드: window resize 권한 없으므로 클래스만 토글.
+      setViewMode(next);
+    }
+  }, [viewMode, desktopApi]);
   const [showMetaPanels, setShowMetaPanels] = React.useState<boolean>(() => {
     if (typeof window === "undefined") return false;
     try {
@@ -1723,6 +1751,145 @@ function App() {
     void updateRuntime(runtimeRequest("accounts/delete", { id: account.id }));
   }
 
+  if (viewMode === "compact") {
+    // 컴팩트 채팅 모드 — 우하단 작은 창. 프로젝트=채팅방, 이벤트=메시지.
+    // 입력은 단발 새 run (현재 활성 run 이 있으면 입력 비활성).
+    const compactProjects = projects.filter((p) => p.id !== "none");
+    const compactSelected =
+      compactProjects.find((p) => p.id === selectedProject) || compactProjects[0] || null;
+    // 선택 프로젝트의 가장 최근 run (active 우선, 없으면 history 최신).
+    const activeForProject = activeRun && activeRun.projectId === (compactSelected?.id || "")
+      ? activeRun
+      : null;
+    const historyForProject = !activeForProject && compactSelected
+      ? runtime.runHistory.find((r) => r.projectId === compactSelected.id) || null
+      : null;
+    const focusRun = activeForProject || historyForProject;
+    const events = focusRun?.events || [];
+    const tailEvents = events.slice(-50);
+    const isRunning = Boolean(activeForProject);
+    return (
+      <main className="appShell compactShell">
+        {toast ? (
+          <div className={`toast ${toast.kind}`} role="status">
+            <span>{toast.message}</span>
+            <button type="button" onClick={() => setToast(null)} aria-label="알림 닫기">×</button>
+          </div>
+        ) : null}
+        <header className="compactHeader">
+          <div className="compactBrand">
+            <Bot aria-hidden="true" size={16} />
+            <strong>AgentApp</strong>
+          </div>
+          <div className="compactHeaderActions">
+            <button
+              type="button"
+              className="ghostButton small"
+              title="전체 화면으로 전환"
+              onClick={toggleViewMode}
+            >
+              전체화면
+            </button>
+            <button
+              type="button"
+              className="ghostButton small"
+              title="트레이로 숨기기"
+              onClick={() => desktopApi?.hideToTray()}
+              disabled={!desktopApi}
+            >
+              숨김
+            </button>
+          </div>
+        </header>
+        <div className="compactProjectTabs" role="tablist" aria-label="프로젝트 선택">
+          {compactProjects.length === 0 ? (
+            <span className="compactEmptyHint">등록된 프로젝트가 없습니다. 전체화면에서 프로젝트를 추가하세요.</span>
+          ) : (
+            compactProjects.map((p) => {
+              const isSel = compactSelected?.id === p.id;
+              const projActive = activeRun?.projectId === p.id;
+              return (
+                <button
+                  key={p.id}
+                  type="button"
+                  className={`compactProjectPill${isSel ? " selected" : ""}${projActive ? " running" : ""}`}
+                  onClick={() => setSelectedProject(p.id)}
+                  title={p.path || p.name}
+                >
+                  {projActive ? <span className="compactDot" aria-hidden="true" /> : null}
+                  <span className="compactPillLabel">{p.name}</span>
+                </button>
+              );
+            })
+          )}
+        </div>
+        <section className="compactMeta">
+          {focusRun ? (
+            <>
+              <span className="compactMetaLine">
+                <strong>{focusRun.workerId}</strong>
+                {focusRun.routing?.model ? ` · ${focusRun.routing.model}` : ""}
+                {focusRun.routing?.accountId ? ` · ${focusRun.routing.accountId}` : ""}
+              </span>
+              <span className={`compactStatusBadge status-${focusRun.status || "unknown"}`}>
+                {STATUS_LABELS[focusRun.status] || focusRun.status || "—"}
+              </span>
+            </>
+          ) : (
+            <span className="compactMetaLine muted">선택된 프로젝트의 최근 실행이 없습니다.</span>
+          )}
+        </section>
+        <section
+          className="compactEventList"
+          ref={(node) => {
+            if (node) node.scrollTop = node.scrollHeight;
+          }}
+        >
+          {tailEvents.length === 0 ? (
+            <div className="compactEventEmpty">진행 로그가 여기 표시됩니다.</div>
+          ) : (
+            tailEvents.map((event, idx) => (
+              <div key={`${event.at}-${idx}`} className={`compactEventRow level-${event.level || "info"}`}>
+                <time>{new Date(event.at).toLocaleTimeString("ko-KR", { hour12: false })}</time>
+                <span>{event.message}</span>
+              </div>
+            ))
+          )}
+        </section>
+        <form
+          className="compactComposer"
+          onSubmit={(e) => {
+            e.preventDefault();
+            if (isRunning) return;
+            startRun();
+          }}
+        >
+          <input
+            type="text"
+            value={prompt}
+            placeholder={
+              isRunning
+                ? "실행 중 — 끝나면 새 작업을 보낼 수 있어요"
+                : "프롬프트를 입력하고 Enter (새 작업으로 시작)"
+            }
+            onChange={(e) => setPrompt(e.target.value)}
+            disabled={isRunning}
+            aria-label="컴팩트 모드 프롬프트 입력"
+          />
+          <button
+            type={isRunning ? "button" : "submit"}
+            className={isRunning ? "dangerButton small" : "primaryButton small"}
+            onClick={isRunning ? stopRun : undefined}
+            disabled={!isRunning && !localRecommendation}
+            title={isRunning ? "현재 실행 중지" : "프롬프트로 새 작업 시작"}
+          >
+            {isRunning ? "중지" : "시작"}
+          </button>
+        </form>
+      </main>
+    );
+  }
+
   return (
     <main className="appShell">
       {toast ? (
@@ -2081,6 +2248,24 @@ function App() {
             >
               {showMetaPanels ? "메타 숨김" : "메타 보기"}
             </button>
+            <button
+              className="metaToggleBtn"
+              type="button"
+              title="우하단 작은 채팅 창으로 전환 (선택된 프로젝트의 진행 로그 + 간단 프롬프트)"
+              onClick={toggleViewMode}
+            >
+              컴팩트 모드
+            </button>
+            {desktopApi ? (
+              <button
+                className="metaToggleBtn"
+                type="button"
+                title="앱을 트레이로 내려 백그라운드 실행"
+                onClick={() => desktopApi.hideToTray()}
+              >
+                트레이로
+              </button>
+            ) : null}
             <time dateTime={snapshot.generated_at}>{new Date(snapshot.generated_at).toLocaleString("ko-KR")}</time>
           </div>
         </header>
