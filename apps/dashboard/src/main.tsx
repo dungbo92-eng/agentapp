@@ -1848,20 +1848,27 @@ function App() {
               <p className="emptyState">로컬 계정이 없습니다. 계정 추가 후 공식 도구에서 인증을 완료하면 실행 후보에 들어갑니다.</p>
             ) : null}
             {accounts.map((account) => {
-              const percent = account.weeklyUnits > 0 ? Math.round((account.remainingUnits / account.weeklyUnits) * 100) : 0;
-              const alertLevel = usageAlertLevel(account);
+              const isQuotaLocked = Boolean(
+                account.quotaResetAt && new Date(account.quotaResetAt).getTime() > Date.now(),
+              );
               return (
-                <article className={`accountItem usage-${alertLevel} ${account.enabled === false ? "disabled" : ""}`} key={account.id}>
+                <article
+                  className={`accountItem ${isQuotaLocked ? "usage-critical" : "usage-ok"} ${account.enabled === false ? "disabled" : ""}`}
+                  key={account.id}
+                >
                   <header>
                     <div className="accountNameRow">
                       <strong>{account.displayName || account.id}</strong>
                       {account.source === "config" ? (
                         <span className="badge example" title="usage-budget.example.json 의 예시 데이터입니다. 실제 본인 계정으로 사용하려면 사이드바에서 새 계정을 추가하세요.">예시</span>
                       ) : null}
-                      {alertLevel === "critical" ? (
-                        <span className="badge alertCritical" title="남은 사용량이 10% 이하입니다. 다른 계정으로 인계하거나 사용량 reset 까지 대기를 검토하세요.">⚠ 한도 임박</span>
-                      ) : alertLevel === "warning" ? (
-                        <span className="badge alertWarning" title="남은 사용량이 30% 이하입니다. 복잡 작업은 다른 계정 사용을 고려하세요.">주의</span>
+                      {isQuotaLocked ? (
+                        <span
+                          className="badge alertCritical"
+                          title={`provider 가 한도 초과 메시지를 보내 ${new Date(account.quotaResetAt!).toLocaleString("ko-KR")} 까지 자동 잠겼습니다.`}
+                        >
+                          ⏳ 한도 잠금
+                        </span>
                       ) : null}
                     </div>
                     <label className="enableToggle">
@@ -1934,10 +1941,9 @@ function App() {
                   {account.sessionDetectionReason ? (
                     <small className="detectionReason">{account.sessionDetectionReason}</small>
                   ) : null}
-                  <small className="budgetRow">
+                  <small className="planRow">
                     {planLabel(account.plan)} · 한도 도달 시 자동 잠금
                   </small>
-                  <ProgressBar value={percent} />
                 </article>
               );
             })}
@@ -1986,14 +1992,14 @@ function App() {
               </select>
               <select
                 aria-label="요금제"
-                title="요금제에 따라 주간 사용량 기본값이 자동 설정됩니다"
+                title="요금제 유형. 라우팅엔 영향 없고 표시용입니다."
                 value={accountForm.plan}
                 onChange={(event) => setAccountForm({ ...accountForm, plan: event.target.value })}
               >
-                <option value="pro">Pro (주간 100단위)</option>
-                <option value="plus">Plus (주간 80단위)</option>
-                <option value="team">Team (주간 200단위)</option>
-                <option value="local">Local (주간 50단위)</option>
+                <option value="pro">Pro</option>
+                <option value="plus">Plus</option>
+                <option value="team">Team</option>
+                <option value="local">Local</option>
               </select>
               <input
                 aria-label="이메일 또는 계정 ID"
@@ -2434,17 +2440,35 @@ function App() {
       <aside className="contextRail">
         <section className="railPanel">
           <div className="sectionTitle compact">
-            <h2>사용량</h2>
-            <button className="iconOnly" type="button" title="로컬 사용량을 다시 동기화합니다" onClick={() => void refreshRuntime()}>
+            <h2>계정 상태</h2>
+            <button className="iconOnly" type="button" title="계정 상태를 다시 동기화합니다" onClick={() => void refreshRuntime()}>
               <RefreshCcw aria-hidden="true" size={15} />
             </button>
           </div>
-          <strong className="bigNumber" key={`usage-${usageFlashKey}`} data-flash="changed">
-            <AnimatedNumber value={liveUsage.remaining} />
-          </strong>
-          <span>남은 전체 사용량</span>
-          <ProgressBar value={liveUsagePercent} live={Boolean(runtime.activeRun)} />
-          <small>주간 예산 {numberFormatter.format(liveUsage.weekly)} / 동기화 {lastRuntimeSyncAt || "대기"}</small>
+          {(() => {
+            const ready = accounts.filter((a) => a.sessionStatus === "ready" && a.enabled !== false);
+            const locked = accounts.filter(
+              (a) => a.quotaResetAt && new Date(a.quotaResetAt).getTime() > Date.now(),
+            );
+            return (
+              <>
+                <strong className="bigNumber" data-flash="changed">
+                  <AnimatedNumber value={ready.length} />
+                  <span className="bigNumberDivider">/</span>
+                  <AnimatedNumber value={accounts.length} />
+                </strong>
+                <span>사용 가능한 계정</span>
+                {locked.length > 0 ? (
+                  <small style={{ color: "#b45309" }}>
+                    ⏳ 한도 잠금 {locked.length}개 (자동 reset 대기)
+                  </small>
+                ) : (
+                  <small>실제 한도 도달 시 자동 잠금 → reset 시각 지나면 자동 복귀</small>
+                )}
+                <small>동기화 {lastRuntimeSyncAt || "대기"}</small>
+              </>
+            );
+          })()}
         </section>
 
         <section className="railPanel">
