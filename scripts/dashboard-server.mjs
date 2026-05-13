@@ -13,6 +13,8 @@ import {
   deleteProject,
   readProjectMeta,
   updateRuntimeSettings,
+  probeAccountLockout,
+  probeAllLockedAccounts,
   applyAccountPreset,
   applyFourAccountPreset,
   readRuntime,
@@ -139,6 +141,15 @@ async function handleApi(req, res, url) {
   }
   if (req.method === "POST" && url === "/api/agentapp/settings") {
     sendJson(res, 200, await updateRuntimeSettings(await readBody(req)));
+    return true;
+  }
+  if (req.method === "POST" && url === "/api/agentapp/accounts/probe") {
+    const body = await readBody(req);
+    if (body && (body.id || body.accountId)) {
+      sendJson(res, 200, await probeAccountLockout(body.id || body.accountId, { force: Boolean(body.force) }));
+    } else {
+      sendJson(res, 200, await probeAllLockedAccounts({ force: Boolean(body?.force) }));
+    }
     return true;
   }
   if (req.method === "POST" && url === "/api/agentapp/runs/start") {

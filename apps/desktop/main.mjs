@@ -126,6 +126,31 @@ async function createMainWindow() {
   await mainWindow.loadURL(dashboardServer.url);
   await bootstrapTray();
   void bootstrapAutoUpdater();
+  void bootstrapAccountProbe();
+}
+
+async function bootstrapAccountProbe() {
+  // 앱이 켜진 후 8초 뒤, 그 다음부터 30분마다 quota 잠금된 계정을 ping 해
+  // 토큰이 실제로 살아 있는지 확인. provider 점검 보상 등으로 reset 시각보다
+  // 일찍 풀린 경우 자동 잠금 해제.
+  if (!app.isPackaged && process.env.AGENTAPP_FORCE_PROBE !== "1") return;
+  const probeOnce = async () => {
+    try {
+      const mod = await import("../../scripts/dashboard-runtime.mjs");
+      if (typeof mod.probeAllLockedAccounts !== "function") return;
+      const result = await mod.probeAllLockedAccounts();
+      if (result && result.tried > 0) {
+        process.stderr.write(`[probe] ${result.unlocked}/${result.tried} accounts unlocked\n`);
+        if (mainWindow && !mainWindow.isDestroyed() && result.unlocked > 0) {
+          mainWindow.webContents.send("agentapp:accounts-unlocked", result);
+        }
+      }
+    } catch (error) {
+      process.stderr.write(`[probe] ${error instanceof Error ? error.message : String(error)}\n`);
+    }
+  };
+  setTimeout(probeOnce, 8000);
+  setInterval(probeOnce, 30 * 60 * 1000);
 }
 
 async function bootstrapTray() {

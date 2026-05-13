@@ -1701,6 +1701,193 @@ export async function applyQuotaLockout(accountId, resetAtIso, reason = "") {
   return resetAtIso;
 }
 
+export async function clearAccountQuotaLockout(accountId) {
+  if (!accountId) return null;
+  const id = normalizeId(accountId);
+  const runtime = await readRuntime();
+  let touched = false;
+  runtime.accounts = runtime.accounts.map((account) => {
+    if (account.id !== id) return account;
+    touched = true;
+    return {
+      ...account,
+      quotaResetAt: "",
+      quotaReason: "",
+      remainingUnits: Math.max(account.remainingUnits || 0, Math.max(1, account.weeklyUnits || 1)),
+      usageAlert: "ok",
+      lastProbeAt: new Date().toISOString(),
+      lastProbeResult: "ok",
+    };
+  });
+  if (!touched) return null;
+  await writeRuntime(runtime);
+  return id;
+}
+
+const PROBE_THROTTLE_MS = 10 * 60 * 1000; // 같은 계정 10 분 내 중복 probe 차단.
+
+// 잠긴 계정에 가장 저렴한 모델로 짧은 ping 을 보내 토큰이 실제로 살아 있는지
+// 확인한다. 점검 보상 / quota 갱신으로 quotaResetAt 보다 일찍 풀린 경우를
+// 자동 감지해 잠금 해제하기 위한 헬퍼.
+export async function probeAccountLockout(accountId, options = {}) {
+  const id = normalizeId(accountId);
+  const runtime = await readRuntime();
+  const account = runtime.accounts.find((item) => item.id === id);
+  if (!account) return { ok: false, reason: "account_not_found" };
+  if (!account.quotaResetAt) return { ok: false, reason: "not_locked" };
+
+  if (!options.force && account.lastProbeAt) {
+    const since = Date.now() - Date.parse(account.lastProbeAt);
+    if (Number.isFinite(since) && since < PROBE_THROTTLE_MS) {
+      return { ok: false, reason: "throttled", retryAfterMs: PROBE_THROTTLE_MS - since };
+    }
+  }
+
+  const { commandPathFor, sharedSessionProfilesRoot } = await import("./worker-launch-adapter.mjs");
+  const provider = account.provider;
+  const sessionProfileRaw = account.sessionProfile || "";
+  let command = "";
+  let args = [];
+  let configEnv = "";
+  let subdir = "";
+
+  if (provider === "codex") {
+    command = process.env.AGENTAPP_CODEX_COMMAND || (await commandPathFor("codex"));
+    args = [
+      "exec",
+      "--skip-git-repo-check",
+      "--dangerously-bypass-approvals-and-sandbox",
+      "-m",
+      "gpt-4o-mini",
+      "ok",
+    ];
+    configEnv = "CODEX_HOME";
+    subdir = "codex";
+  } else if (provider === "claude") {
+    command = process.env.AGENTAPP_CLAUDE_COMMAND || (await commandPathFor("claude"));
+    args = [
+      "--print",
+      "--dangerously-skip-permissions",
+      "--model",
+      "haiku",
+      "ok",
+    ];
+    configEnv = "CLAUDE_CONFIG_DIR";
+    subdir = "claude-code";
+  } else if (provider === "gemini") {
+    command = process.env.AGENTAPP_GEMINI_COMMAND || (await commandPathFor("gemini"));
+    args = [
+      "--prompt",
+      "ok",
+      "--yolo",
+      "--model",
+      "gemini-2.5-flash",
+    ];
+    configEnv = "GEMINI_CONFIG_DIR";
+    subdir = "gemini-cli";
+  } else {
+    return { ok: false, reason: "unsupported_provider" };
+  }
+
+  if (!command) {
+    return { ok: false, reason: "cli_not_found" };
+  }
+  if (!sessionProfileRaw) {
+    return { ok: false, reason: "missing_session_profile" };
+  }
+
+  const sessionDir = path.join(sharedSessionProfilesRoot(), subdir, sanitizeSegment(sessionProfileRaw));
+
+  const { spawn } = await import("node:child_process");
+  return new Promise((resolve) => {
+    let combined = "";
+    let resolved = false;
+    const env = { ...process.env, [configEnv]: sessionDir };
+    let child;
+    try {
+      child = spawn(command, args, {
+        env,
+        windowsHide: true,
+        stdio: ["ignore", "pipe", "pipe"],
+        // shell needed for .cmd wrappers (claude.cmd / codex.cmd / gemini.cmd)
+        shell: /\.(cmd|bat)$/i.test(command),
+      });
+    } catch (error) {
+      void markProbeResult(id, "spawn_error", error?.message || String(error));
+      resolve({ ok: false, reason: "spawn_error" });
+      return;
+    }
+    const finish = async (ok, reason) => {
+      if (resolved) return;
+      resolved = true;
+      if (ok) {
+        await clearAccountQuotaLockout(id);
+      } else {
+        await markProbeResult(id, reason || "still_locked");
+      }
+      resolve({ ok, reason });
+    };
+    child.stdout.on("data", (chunk) => { combined += chunk.toString("utf8"); });
+    child.stderr.on("data", (chunk) => { combined += chunk.toString("utf8"); });
+    child.on("error", () => finish(false, "spawn_error"));
+    const timer = setTimeout(() => {
+      try { child.kill(); } catch { /* already gone */ }
+      finish(false, "timeout");
+    }, 30000);
+    child.on("close", (code) => {
+      clearTimeout(timer);
+      // 출력에 quota / unauthorized 패턴이 있으면 still locked.
+      if (/quota|rate.?limit|too many requests|usage limit|429|hit your (?:usage|limit)|exceeded/i.test(combined)) {
+        finish(false, "still_locked");
+        return;
+      }
+      if (/unauthor|revoked|refresh token/i.test(combined)) {
+        finish(false, "auth_invalid");
+        return;
+      }
+      if (code === 0 && combined.trim().length > 0) {
+        finish(true, "ok");
+      } else if (code === 0) {
+        // Empty output with code 0 — likely OK but ambiguous. Treat as success.
+        finish(true, "ok_empty");
+      } else {
+        finish(false, `exit_${code}`);
+      }
+    });
+  });
+}
+
+async function markProbeResult(accountId, result, detail = "") {
+  const runtime = await readRuntime();
+  runtime.accounts = runtime.accounts.map((account) =>
+    account.id === accountId
+      ? {
+          ...account,
+          lastProbeAt: new Date().toISOString(),
+          lastProbeResult: detail ? `${result}: ${detail.slice(0, 120)}` : result,
+        }
+      : account,
+  );
+  await writeRuntime(runtime);
+}
+
+export async function probeAllLockedAccounts(options = {}) {
+  const runtime = await readRuntime();
+  const now = Date.now();
+  const locked = runtime.accounts.filter((account) => {
+    if (!account.quotaResetAt) return false;
+    const resetMs = Date.parse(account.quotaResetAt);
+    return Number.isFinite(resetMs) && resetMs > now;
+  });
+  if (locked.length === 0) return { tried: 0, unlocked: 0 };
+  let unlocked = 0;
+  for (const account of locked) {
+    const result = await probeAccountLockout(account.id, options);
+    if (result.ok) unlocked += 1;
+  }
+  return { tried: locked.length, unlocked };
+}
+
 export async function clearAccountAuthIdentity(accountId) {
   if (!accountId) return null;
   const id = normalizeId(accountId);

@@ -410,7 +410,11 @@ button:disabled {
 }
 
 .quotaLockout {
-  display: block;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 6px;
   padding: 6px 8px;
   border-radius: 6px;
   background: #fef3c7;
@@ -423,6 +427,24 @@ button:disabled {
 .quotaLockout strong {
   color: #78350f;
   font-variant-numeric: tabular-nums;
+}
+
+.quotaLockout .probeBtn {
+  padding: 3px 8px;
+  border: 1px solid #d49a00;
+  border-radius: 4px;
+  background: #ffffff;
+  color: #78350f;
+  font-size: 0.72rem;
+  font-weight: 600;
+  cursor: pointer;
+  white-space: nowrap;
+  transition: background 180ms ease, color 180ms ease;
+}
+
+.quotaLockout .probeBtn:hover {
+  background: #d49a00;
+  color: #ffffff;
 }
 
 .accountNameRow {

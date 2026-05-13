@@ -1763,6 +1763,27 @@ function App() {
     void updateRuntime(runtimeRequest("accounts/delete", { id: account.id }));
   }
 
+  async function probeAccount(account: ManagedAccount) {
+    setToast({ kind: "info", message: `'${account.displayName || account.id}' 토큰 확인 중…` });
+    try {
+      const result = (await runtimeRequest("accounts/probe", {
+        id: account.id,
+        force: true,
+      })) as { ok?: boolean; reason?: string };
+      // 결과 반영 위해 runtime 다시 새로고침
+      await refreshRuntime();
+      if (result?.ok) {
+        setToast({ kind: "success", message: `'${account.displayName || account.id}' 잠금 해제 완료. 다시 사용 가능합니다.` });
+      } else if (result?.reason === "throttled") {
+        setToast({ kind: "warn", message: "최근에 점검했습니다. 10분 후 다시 시도해 주세요." });
+      } else {
+        setToast({ kind: "warn", message: `여전히 잠금 상태 (${result?.reason || "unknown"}). reset 시각을 더 기다리세요.` });
+      }
+    } catch (caught) {
+      setToast({ kind: "warn", message: caught instanceof Error ? caught.message : "토큰 점검 실패" });
+    }
+  }
+
   if (viewMode === "compact") {
     // 컴팩트 채팅 모드 — 프로젝트 목록과 현재 작업 진행만 남긴다.
     const compactProjects = projects.filter((p) => p.id !== "none");
@@ -2177,7 +2198,15 @@ function App() {
                   ) : null}
                   {account.quotaResetAt && new Date(account.quotaResetAt).getTime() > Date.now() ? (
                     <small className="quotaLockout" role="alert">
-                      ⏳ 사용량 한도 — <strong>{new Date(account.quotaResetAt).toLocaleString("ko-KR")}</strong> 까지 자동 잠금
+                      <span>⏳ 사용량 한도 — <strong>{new Date(account.quotaResetAt).toLocaleString("ko-KR")}</strong> 까지 자동 잠금</span>
+                      <button
+                        type="button"
+                        className="probeBtn"
+                        title="이 계정에 가장 저렴한 모델로 짧은 ping 을 보내 토큰이 실제로 살아 있는지 확인합니다. 정상 응답이면 잠금이 즉시 해제됩니다."
+                        onClick={() => void probeAccount(account)}
+                      >
+                        ↻ 잠금 점검
+                      </button>
                     </small>
                   ) : null}
                   {account.sessionDetectionReason ? (

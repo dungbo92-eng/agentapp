@@ -431,7 +431,7 @@ function firstWindowsExecutableMatch(command) {
   return "";
 }
 
-async function commandPathFor(command) {
+export async function commandPathFor(command) {
   if (!command) return "";
   const probe = isWindows() ? windowsSystemCommand("where.exe") : "which";
   const fromWhere = await new Promise((resolve) => {
