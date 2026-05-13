@@ -169,3 +169,42 @@ pnpm validate
 - AgentApp이 관리하는 모든 프로젝트는 공통 memory, plan, handoff, git sync 기준을 기본 포함 사항으로 둔다.
 - 새 프로젝트는 기능 개발보다 먼저 `AGENTS.md`, `CLAUDE.md`, `.claude-sync`, task queue, handoff 문서, git remote/branch 점검 흐름을 갖춘다.
 - 세부 기준은 `docs/project-baseline-sync.md`를 따른다.
+
+## 11. 자동 릴리즈 규칙 (필수)
+
+설치된 데스크탑 앱은 GitHub Release 의 `latest.yml` 을 통해서만 자동 업데이트된다. **릴리즈 발행이 없으면 자동 업데이트도 없다**. 따라서 의미 있는 코드 변경이 main 에 푸시되면 같은 사이클 안에서 릴리즈를 발행한다. 사용자의 추가 승인은 필요하지 않다.
+
+### 트리거 조건
+
+다음 경로 중 하나라도 변경되어 commit + push 가 완료되면 **즉시** `pnpm desktop:release -- --bump patch` 를 실행한다.
+
+- `apps/desktop/**`
+- `apps/dashboard/**`
+- `scripts/dashboard-*.mjs`, `scripts/worker-*.mjs`, `scripts/desktop-*.mjs`, `scripts/credential-vault.mjs`, `scripts/electron-*.mjs`
+- `package.json` (의존성/스크립트/build 설정 변경)
+- `build/**`
+
+문서, memory, plan, handoff, task-queue 만 바뀐 커밋은 릴리즈하지 않는다.
+
+### 실행 절차
+
+1. 릴리즈 대상 변경이 `git push` 까지 완료된 상태인지 확인한다 (`git status` clean).
+2. `pnpm desktop:release -- --bump patch` 를 실행한다. 의미 있는 기능 추가/UX 변화는 `--bump minor`, 호환성 깨짐은 `--bump major`.
+3. 스크립트가 자동으로:
+   - `package.json` version bump
+   - `pnpm desktop:installer` 로 NSIS Setup + `latest.yml` 빌드
+   - `chore: release vX.Y.Z` commit + `vX.Y.Z` tag + push
+   - `gh release create` 로 자산 업로드
+4. 실패 시 version 은 자동 롤백된다. 실패 원인을 `RUN_STATUS.md` 에 기록하고 다음 시도 전에 해결한다.
+
+### 옵트아웃
+
+- 환경변수 `AGENTAPP_SKIP_RELEASE=1` 이면 자동 릴리즈를 건너뛴다 (긴 작업 중간 산물이나 실험 브랜치에서만 사용).
+- `gh auth status` 가 실패하거나 토큰이 없으면 릴리즈는 자동 건너뛰고 `DECISIONS_REQUIRED.md` 에 토큰 점검 항목을 남긴다.
+- 같은 push 안에 여러 트리거 파일이 묶여 있으면 한 번만 릴리즈한다 (push 단위로 patch 한 번).
+
+### 금지
+
+- portable 빌드만 발행하지 않는다 (electron-updater 가 portable 을 in-place 업데이트하지 못한다). NSIS Setup + `latest.yml` 이 같이 올라가야 한다.
+- 릴리즈 노트를 비워두지 않는다. 최근 commit 메시지 요약을 `--notes` 로 전달한다.
+- 사용자가 `AGENTAPP_DISABLE_AUTOUPDATE=1` 로 켜진 환경에서 테스트 중이라고 알린 경우 그 세션에서만 릴리즈를 보류한다.

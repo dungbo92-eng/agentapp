@@ -76,3 +76,21 @@ commit 시 pre-commit hook이 `~/.claude`의 memory/plan을 `.claude-sync`에 pu
 - AgentApp이 관리하는 모든 프로젝트는 공통 memory, plan, handoff, git sync 기준을 기본 포함 사항으로 둔다.
 - 새 프로젝트는 기능 개발보다 먼저 `AGENTS.md`, `CLAUDE.md`, `.claude-sync`, task queue, handoff 문서, git remote/branch 점검 흐름을 갖춘다.
 - 세부 기준은 `docs/project-baseline-sync.md`를 따른다.
+
+## 자동 릴리즈 (필수)
+
+데스크탑 자동 업데이트는 GitHub Release 발행이 있어야 동작한다. 의미 있는 변경이 main 에 push 되면 같은 사이클 안에서 릴리즈를 발행한다. 사용자의 추가 승인은 필요하지 않다. 상세 규칙은 `AGENTS.md` 11 절 참고.
+
+### 트리거 경로
+
+- `apps/desktop/**`, `apps/dashboard/**`
+- `scripts/dashboard-*.mjs`, `scripts/worker-*.mjs`, `scripts/desktop-*.mjs`, `scripts/credential-vault.mjs`, `scripts/electron-*.mjs`
+- `package.json`, `build/**`
+
+문서/memory/plan/handoff 만 바뀐 커밋은 릴리즈하지 않는다.
+
+### 실행
+
+push 완료 → `git status` clean 확인 → `pnpm desktop:release -- --bump patch`. 기능 추가는 `--bump minor`, 호환성 깨짐은 `--bump major`. 스크립트가 build → version commit → tag → push → `gh release create` 까지 한 번에 수행한다. 실패 시 version 자동 롤백, 원인 `RUN_STATUS.md` 기록.
+
+`AGENTAPP_SKIP_RELEASE=1` 또는 `gh auth status` 실패 시에만 자동 릴리즈를 건너뛴다.
