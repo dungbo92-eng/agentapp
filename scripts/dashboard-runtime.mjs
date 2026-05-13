@@ -1284,14 +1284,79 @@ async function mutateRuntimeRun(runId, mutator, options = {}) {
 // Quota lockout detection
 // ---------------------------------------------------------------------------
 
-const QUOTA_HINT_RE = /(usage limit|rate limit|quota|out of credit|too many requests|429|exceeded|hit your (?:usage|limit|weekly|daily)|you'?ve hit|limit (?:reached|reset)|weekly limit|daily limit|resets?\s+\d)/i;
+// Provider 별 한도 메시지 포맷이 달라서 hint/reset 정규식을 provider key 로
+// 묶어 관리한다. parseQuotaReset 는 provider hint 가 주어지면 해당 provider
+// 의 패턴을 먼저 시도하고, hint 가 없거나 매칭 실패면 generic 패턴으로 폴백.
+//
+// 새 provider 메시지 포맷을 발견하면 PROVIDER_QUOTA_PATTERNS 에 추가만 하면
+// 다른 provider 의 인식에는 영향이 없다.
+const PROVIDER_QUOTA_PATTERNS = {
+  // Claude Code (Anthropic CLI) 예시:
+  //   "You've hit your limit · resets 6:30pm (Asia/Seoul)"
+  //   "Approaching weekly limit"
+  //   "Usage limit reached, resets tomorrow 6pm (Asia/Seoul)"
+  claude: {
+    hint: /(you'?ve hit your (?:limit|weekly limit|daily limit|usage)|hit your (?:limit|weekly|daily)|usage limit (?:reached|hit)|weekly limit (?:reached|hit)|approaching (?:your )?(?:weekly|daily) limit|reset(?:s)?\s+\d)/i,
+    reset: [
+      /\breset(?:s)?\s+((?:today|tomorrow)?\s*[0-9][^.\n)·•|]+?)(?=[.\n)·•|]|$)/i,
+      /\breset(?:s)?\s+(?:at|on|by)\s+([^.\n)·•|]+?)(?=[.\n)·•|]|$)/i,
+    ],
+  },
+  // Codex (OpenAI CLI) 예시:
+  //   "You've used 100% of your weekly limit. Resets in 2h 30m."
+  //   "rate_limit_exceeded — try again in 45 seconds"
+  //   "429 Too Many Requests; please retry after 60s"
+  //   "You've reached your usage limit. Try again at 2026-05-14T10:00:00Z."
+  codex: {
+    hint: /(rate.?limit(?:_exceeded)?|429|too many requests|you'?ve (?:used|reached) .*limit|usage limit|out of (?:credit|quota)|insufficient_quota|quota.*exceeded|retry.after|resets? in)/i,
+    reset: [
+      // "Resets in 2h 30m", "try again in 45 seconds", "retry after 60s"
+      /(?:resets?|try again|retry|wait)\s+(?:in|after)\s+([0-9][^.\n)·•|]*?)(?=[.\n)·•|]|$)/i,
+      /retry.after[:\s]+([0-9]+\s*(?:s|sec|seconds|m|min|minutes|h|hr|hours)?)/i,
+      // "try again at <time>"
+      /(?:try again|retry|available)\s+(?:at|on|by)\s+([^.\n)·•|]+?)(?=[.\n)·•|]|$)/i,
+      // ISO timestamp on the line
+      /\b(20\d{2}-\d{2}-\d{2}T\d{2}:\d{2}(?::\d{2})?(?:[Zz]|[+-]\d{2}:?\d{2})?)\b/,
+    ],
+  },
+  // Gemini CLI / Google AI 예시:
+  //   "RESOURCE_EXHAUSTED: Quota exceeded for quota metric 'Generate requests'"
+  //   "retryDelay: '60s'"
+  //   "Quota exceeded for ... Please retry after 30s."
+  //   "You have exceeded your quota. Try again in 45 minutes."
+  gemini: {
+    hint: /(resource[_\s]exhausted|quota exceeded|exceeded your quota|429|rate.?limit|retry.?delay|please retry|quota metric)/i,
+    reset: [
+      // "retryDelay: '60s'" / "retry-delay: 60s"
+      /retry.?delay[:\s'"]+([0-9]+\s*(?:s|sec|seconds|m|min|minutes|h|hr|hours)?)/i,
+      // "retry after 30s" / "try again in 45 minutes"
+      /(?:retry|try again|please retry|available)\s+(?:after|in)\s+([0-9][^.\n)·•|'"]*?)(?=[.\n)·•|'"]|$)/i,
+      /(?:retry|try again|available)\s+(?:at|on|by)\s+([^.\n)·•|]+?)(?=[.\n)·•|]|$)/i,
+    ],
+  },
+  // Cursor 예시:
+  //   "You have used all your fast requests this month. Resets on 2026-06-01."
+  //   "Free tier limit reached. Renews in 5 days."
+  cursor: {
+    hint: /(usage limit|rate.?limit|quota|too many requests|429|exceeded|monthly limit|used all|fast requests|premium requests|tier limit|renews?)/i,
+    reset: [
+      /\b(?:reset(?:s)?|renews?|available)\s+(?:on|at|in|by)\s+([^.\n)·•|]+?)(?=[.\n)·•|]|$)/i,
+      /\breset(?:s)?\s+((?:today|tomorrow)?\s*[0-9][^.\n)·•|]+?)(?=[.\n)·•|]|$)/i,
+    ],
+  },
+};
+
+// 어떤 provider 인지 hint 가 없을 때 사용하는 폴백.
+const QUOTA_HINT_RE = /(usage limit|rate limit|quota|out of credit|too many requests|429|exceeded|hit your (?:usage|limit|weekly|daily)|you'?ve hit|limit (?:reached|reset)|weekly limit|daily limit|resets?\s+\d|resource[_\s]exhausted|retry.?delay|resets? in)/i;
 
 const QUOTA_RESET_PATTERNS = [
-  /(?:try again|available again|available|reset(?:s)?|resume(?:s)?|reset window|next attempt)\s+(?:on|at|in|by)\s+([^.\n)]+?)(?=[.\n)]|$)/i,
-  /(?:reset|available)\s*[:\-]\s*([^.\n)]+?)(?=[.\n)]|$)/i,
-  /(?:available again at|resume at|reset at)\s+([^.\n)]+?)(?=[.\n)]|$)/i,
+  /(?:try again|available again|available|reset(?:s)?|resume(?:s)?|reset window|next attempt|retry|please retry)\s+(?:on|at|in|by|after)\s+([^.\n)·•|]+?)(?=[.\n)·•|]|$)/i,
+  /(?:reset|available)\s*[:\-]\s*([^.\n)·•|]+?)(?=[.\n)·•|]|$)/i,
+  /(?:available again at|resume at|reset at)\s+([^.\n)·•|]+?)(?=[.\n)·•|]|$)/i,
   // Preposition-less "resets 6:30pm", "reset 18:30", "resets tomorrow 6pm"
-  /\breset(?:s)?\s+((?:today|tomorrow)?\s*[0-9][^.\n)]*?)(?=[.\n)·•|]|$)/i,
+  /\breset(?:s)?\s+((?:today|tomorrow)?\s*[0-9][^.\n)·•|]+?)(?=[.\n)·•|]|$)/i,
+  // retry-delay style: "retryDelay: '60s'", "retry-after: 30s"
+  /retry.?(?:delay|after)[:\s'"]+([0-9]+\s*(?:s|sec|seconds|m|min|minutes|h|hr|hours)?)/i,
 ];
 
 const TZ_OFFSET_MAP = {
@@ -1307,9 +1372,20 @@ function stripOrdinal(text) {
 
 // Detect a timezone hint anywhere on the line ("Asia/Seoul", "KST", ...) and
 // return the corresponding offset string ("+09:00") or "" if none recognized.
+// IMPORTANT: substring 매칭은 "request" 안의 "est" 같은 false positive 를 만든다.
+// 반드시 word boundary 또는 toxic context (앞뒤 영문자) 를 검사한다.
 function detectTzOffset(line) {
   const lower = String(line || "").toLowerCase();
+  // 짧은 약어 (3-4 자) 는 양쪽이 영문자가 아닐 때만 인정.
+  const tzAbbrev = /\b(kst|jst|utc|gmt|pst|pdt|est|edt)\b/i;
+  const am = lower.match(tzAbbrev);
+  if (am && am[1]) {
+    const key = am[1].toLowerCase();
+    if (TZ_OFFSET_MAP[key]) return TZ_OFFSET_MAP[key];
+  }
+  // 긴 IANA 이름은 그대로 검사.
   for (const key of Object.keys(TZ_OFFSET_MAP)) {
+    if (key.length <= 4) continue;
     if (lower.includes(key)) return TZ_OFFSET_MAP[key];
   }
   return "";
@@ -1321,6 +1397,8 @@ function detectTzOffset(line) {
 function parseLooseTime(token, tzOffset) {
   const text = stripOrdinal(token).trim().toLowerCase();
   if (!text) return null;
+  // "5 days", "3 weeks" 같이 duration unit 이 따라오면 시각이 아니라 기간이므로 거부.
+  if (/\d+\s*(?:d|w|day|days|week|weeks|month|months|year|years)\b/.test(text)) return null;
 
   // Already-absolute parses (e.g. "Mar 5 6:30pm 2026") — try first.
   const direct = Date.parse(text + (tzOffset ? " " + tzOffset : ""));
@@ -1361,23 +1439,98 @@ function parseLooseTime(token, tzOffset) {
   return ts > nowUtc ? new Date(ts) : null;
 }
 
-export function parseQuotaReset(rawLine) {
+// Parse relative duration tokens like "60s", "2h 30m", "45 minutes", "1h",
+// "90 sec" and return absolute Date in the future, or null if not parseable.
+function parseRelativeDuration(token) {
+  const text = String(token || "").trim().toLowerCase();
+  if (!text) return null;
+  // Disallow tokens that are clearly absolute times (contain : or am/pm or
+  // a year) to avoid misinterpreting "6:30pm" as duration. But allow tokens
+  // that include a duration unit (s/m/h/d/w/...).
+  if (/(?:\d{1,2}:\d{2}|am|pm|20\d{2})/i.test(text)
+      && !/\d+\s*(s|sec|secs|m|min|mins|h|hr|hrs|d|w|second|seconds|minute|minutes|hour|hours|day|days|week|weeks)\b/i.test(text)) {
+    return null;
+  }
+  let totalMs = 0;
+  let matched = false;
+  const re = /(\d+(?:\.\d+)?)\s*(seconds?|secs?|minutes?|mins?|hours?|hrs?|days?|weeks?|h|m|s|d|w)\b/gi;
+  let m;
+  while ((m = re.exec(text)) !== null) {
+    const value = Number(m[1]);
+    const unit = m[2].toLowerCase();
+    if (!Number.isFinite(value)) continue;
+    matched = true;
+    if (/^(s|sec|secs|second|seconds)$/.test(unit)) totalMs += value * 1000;
+    else if (/^(m|min|mins|minute|minutes)$/.test(unit)) totalMs += value * 60_000;
+    else if (/^(h|hr|hrs|hour|hours)$/.test(unit)) totalMs += value * 3_600_000;
+    else if (/^(d|day|days)$/.test(unit)) totalMs += value * 86_400_000;
+    else if (/^(w|week|weeks)$/.test(unit)) totalMs += value * 7 * 86_400_000;
+  }
+  // Bare integer with no unit → treat as seconds if it looks like retry-after seconds (<= 86400)
+  if (!matched) {
+    const bare = text.match(/^(\d+)$/);
+    if (bare) {
+      const value = Number(bare[1]);
+      if (value > 0 && value <= 7 * 24 * 60 * 60) {
+        totalMs = value * 1000;
+        matched = true;
+      }
+    }
+  }
+  if (!matched || totalMs <= 0) return null;
+  return new Date(Date.now() + totalMs);
+}
+
+// 단일 candidate 문자열을 절대 시각으로 해석. 절대→상대→느슨한 시각 순.
+function resolveCandidate(candidate, tzOffset) {
+  if (!candidate) return null;
+  const cleaned = stripOrdinal(candidate).trim();
+  // 1) Strict absolute parse
+  const strict = Date.parse(cleaned + (tzOffset ? " " + tzOffset : ""));
+  if (Number.isFinite(strict) && strict > Date.now()) return new Date(strict);
+  // 2) Relative duration (e.g. "2h 30m", "60s")
+  const rel = parseRelativeDuration(cleaned);
+  if (rel) return rel;
+  // 3) Loose time (e.g. "6:30pm", "tomorrow 6pm")
+  const loose = parseLooseTime(cleaned, tzOffset);
+  if (loose) return loose;
+  return null;
+}
+
+export function parseQuotaReset(rawLine, providerHint = "") {
   if (!rawLine || typeof rawLine !== "string") return null;
-  if (!QUOTA_HINT_RE.test(rawLine)) return null;
   const cleaned = rawLine.replace(/[()]/g, " ");
   const tzOffset = detectTzOffset(cleaned);
+
+  // Provider-specific 우선 매칭
+  const provider = String(providerHint || "").trim().toLowerCase();
+  const providerEntry = provider && PROVIDER_QUOTA_PATTERNS[provider];
+  if (providerEntry) {
+    if (providerEntry.hint.test(rawLine)) {
+      for (const re of providerEntry.reset) {
+        const match = cleaned.match(re);
+        if (!match) continue;
+        // ISO 직접 매칭은 group 0 이 후보가 될 수 있음 (capture group 없는 경우)
+        const captured = (match[1] || match[0] || "").toString();
+        const resolved = resolveCandidate(captured, tzOffset);
+        if (resolved && resolved.getTime() > Date.now()) {
+          return resolved.toISOString();
+        }
+      }
+      // hint 는 맞았지만 reset 시각 추출 실패 → 기본 잠금 윈도우 (1시간) 적용해
+      // 같은 메시지에서 무한 재시도를 막는다. provider 가 시간을 안 알려 줄 때 안전판.
+      return new Date(Date.now() + 60 * 60 * 1000).toISOString();
+    }
+    // provider hint 가 안 맞으면 generic 으로 폴백 (오탐 방지)
+  }
+
+  // Generic 폴백
+  if (!QUOTA_HINT_RE.test(rawLine)) return null;
   for (const re of QUOTA_RESET_PATTERNS) {
     const match = cleaned.match(re);
     if (!match || !match[1]) continue;
-    const candidate = stripOrdinal(match[1]).trim();
-    // Try strict parse first
-    const parsed = Date.parse(candidate + (tzOffset ? " " + tzOffset : ""));
-    if (Number.isFinite(parsed) && parsed > Date.now()) {
-      return new Date(parsed).toISOString();
-    }
-    // Loose parse for "6:30pm" style without a date
-    const loose = parseLooseTime(candidate, tzOffset);
-    if (loose) return loose.toISOString();
+    const resolved = resolveCandidate(match[1], tzOffset);
+    if (resolved && resolved.getTime() > Date.now()) return resolved.toISOString();
   }
   // ISO timestamp anywhere on the line
   const iso = cleaned.match(/\b(20\d{2}-\d{2}-\d{2}T\d{2}:\d{2}(?::\d{2})?(?:[Zz]|[+-]\d{2}:?\d{2})?)\b/);

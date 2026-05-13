@@ -1132,8 +1132,9 @@ async function launchCommandWorker(run, files, adapter, promptText) {
         message: line.length > 220 ? `${line.slice(0, 220)}...` : line,
       });
       try {
-        const { parseQuotaReset, applyQuotaLockout } = await import("./dashboard-runtime.mjs");
-        const resetAt = parseQuotaReset(line);
+        const { parseQuotaReset, applyQuotaLockout, providerForWorker } = await import("./dashboard-runtime.mjs");
+        const providerHint = run.routing?.provider || providerForWorker(run.workerId) || "";
+        const resetAt = parseQuotaReset(line, providerHint);
         if (resetAt && run.routing?.accountId) {
           await applyQuotaLockout(
             run.routing.accountId,
