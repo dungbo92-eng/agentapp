@@ -582,3 +582,12 @@ NEXT_TASK.md 템플릿 확정: agent-next 생성물을 Required Reads, Execution
 - Git: not recorded
 - Decisions: none
 - Next: commit/push/release
+
+## 2026-05-13T09:29:42.738Z
+
+- Status: completed
+- Summary: Claude quota reset dated lockout 수정분을 commit/push했고, 자동 업데이트용 v0.2.3 patch release를 발행했습니다.
+- Verification: pnpm validate; pnpm dashboard:build; gh release view v0.2.3
+- Git: commit b76d469 pushed; release commit 7967461 and tag v0.2.3 pushed
+- Decisions: none
+- Next: Claude/Gemini authenticated cycle 재검증
