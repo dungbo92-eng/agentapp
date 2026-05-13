@@ -27,6 +27,24 @@ import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { spawn } from "node:child_process";
 
+// Windows 에서 gh.exe 가 PATH 에 없으면 알려진 설치 경로를 직접 찾아 사용한다.
+// (winget install GitHub.cli 결과가 PATH 에 자동 추가되지 않는 환경에서
+// 자동 릴리즈 사이클이 막히는 걸 막기 위함.)
+function resolveGhCommand() {
+  if (process.platform !== "win32") return "gh";
+  const candidates = [
+    process.env.AGENTAPP_GH_COMMAND,
+    process.env.ProgramFiles && path.join(process.env.ProgramFiles, "GitHub CLI", "gh.exe"),
+    process.env["ProgramFiles(x86)"] && path.join(process.env["ProgramFiles(x86)"], "GitHub CLI", "gh.exe"),
+    process.env.LOCALAPPDATA && path.join(process.env.LOCALAPPDATA, "Programs", "GitHub CLI", "gh.exe"),
+    process.env.LOCALAPPDATA && path.join(process.env.LOCALAPPDATA, "GitHubCLI", "gh.exe"),
+  ].filter(Boolean);
+  for (const candidate of candidates) {
+    if (existsSync(candidate)) return candidate;
+  }
+  return "gh";
+}
+
 const REPO_ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 const PKG_FILE = path.join(REPO_ROOT, "package.json");
 
@@ -105,7 +123,8 @@ async function main() {
     }
 
     const notes = args.notes || `AgentApp v${newVersion}\n\n자동 빌드 릴리스.`;
-    await run("gh", [
+    const ghCommand = resolveGhCommand();
+    await run(ghCommand, [
       "release",
       "create",
       `v${newVersion}`,
