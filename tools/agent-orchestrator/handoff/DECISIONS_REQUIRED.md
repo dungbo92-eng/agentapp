@@ -32,22 +32,6 @@
 
 ## 대기
 
-### DEC-20260513-001 — GitHub Release 도구 점검
-
-- Status: pending
-- Priority: high
-- Category: deployment
-- Requested by: agent
-- Blocks: 코드 변경 push 후 자동 업데이트용 GitHub Release 발행
-- Context: 대시보드/worker 런타임 변경을 main에 push했으나 이 PC에서 `gh` CLI를 찾을 수 없어 `gh auth status`가 실행되지 않았다. 규칙상 GitHub Release 자동 발행은 건너뛰고 토큰/CLI 점검 항목으로 남긴다.
-- Options:
-  - A: GitHub CLI를 설치하고 정상 인증한 뒤 릴리즈 명령을 다시 실행한다.
-  - B: 이번 배포를 의도적으로 보류한다.
-- Recommended: A. 설치된 데스크탑 앱 자동 업데이트는 GitHub Release의 `latest.yml`에 의존하므로 릴리즈 도구를 복구해야 한다.
-- Decision needed: 이 PC에 GitHub CLI를 설치/인증해 자동 릴리즈를 진행할까?
-- After decision: `gh auth status` 확인 후 `pnpm desktop:release -- --bump patch`를 실행한다.
-- Created: 2026-05-13
-
 ### DEC-20260509-003 — 주간 사용량 입력 방식
 
 - Status: pending
@@ -65,6 +49,18 @@
 - Created: 2026-05-09
 
 ## 해결됨
+
+### DEC-20260513-001 — GitHub Release 도구 점검
+
+- Status: resolved
+- Priority: high
+- Category: deployment
+- Requested by: agent
+- Blocks: 코드 변경 push 후 자동 업데이트용 GitHub Release 발행
+- Context: bare `gh`는 현재 세션 PATH에서 감지되지 않았지만, `C:\Program Files\GitHub CLI\gh.exe`가 설치되어 있고 인증도 정상임을 확인했다. `scripts/desktop-release.mjs`의 fallback이 해당 경로를 사용해 릴리즈를 발행했다.
+- Decision: GitHub CLI 설치/인증 확인 후 자동 릴리즈 진행.
+- Resolved: 2026-05-13
+- Result: `pnpm desktop:release -- --bump patch`로 `v0.2.1` GitHub Release를 발행했고 `latest.yml`, NSIS setup, blockmap 업로드를 확인했다.
 
 ### DEC-20260509-001 — 첫 UI 구현 방식
 

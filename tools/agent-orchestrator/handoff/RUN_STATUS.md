@@ -537,3 +537,12 @@ NEXT_TASK.md 템플릿 확정: agent-next 생성물을 Required Reads, Execution
 - Git: commit befa6d7 pushed to origin/main
 - Decisions: DEC-20260513-001 pending: gh CLI missing, release skipped
 - Next: gh CLI 설치/인증 후 pnpm desktop:release -- --bump patch 실행
+
+## 2026-05-13T08:43:52.870Z
+
+- Status: completed
+- Summary: 정정: gh CLI는 설치되어 있었고 현재 shell PATH에만 없었습니다. 풀 경로 인증 확인 후 desktop-release fallback으로 v0.2.1 GitHub Release를 발행했습니다.
+- Verification: C:\\Program Files\\GitHub CLI\\gh.exe auth status; pnpm desktop:release -- --bump patch; gh release view v0.2.1
+- Git: release commit 9e6af68 and tag v0.2.1 pushed to origin/main
+- Decisions: DEC-20260513-001 resolved
+- Next: Claude/Gemini authenticated cycle 재검증
