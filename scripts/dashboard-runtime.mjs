@@ -900,56 +900,105 @@ async function safeReadText(filePath) {
   }
 }
 
-async function readHandoffDocs(rootPath) {
-  const handoffDir = path.join(rootPath, "tools", "agent-orchestrator", "handoff");
+async function collectMarkdownFiles(rootPath, candidates) {
   const docs = [];
-  try {
-    const entries = await readdir(handoffDir);
-    for (const entry of entries) {
-      if (!entry.toLowerCase().endsWith(".md")) continue;
-      const full = path.join(handoffDir, entry);
-      const text = await safeReadText(full);
-      if (!text) continue;
-      docs.push({
-        id: entry.toLowerCase().replace(/\.md$/, ""),
-        title: entry,
-        path: path.relative(rootPath, full).replaceAll("\\", "/"),
-        excerpt: text.length > META_EXCERPT_LIMIT ? `${text.slice(0, META_EXCERPT_LIMIT)}…` : text,
-      });
+  for (const relPath of candidates) {
+    const full = path.join(rootPath, relPath);
+    try {
+      const stats = await stat(full);
+      if (stats.isDirectory()) {
+        const entries = await readdir(full);
+        for (const entry of entries) {
+          if (!entry.toLowerCase().endsWith(".md")) continue;
+          const file = path.join(full, entry);
+          const text = await safeReadText(file);
+          if (!text) continue;
+          docs.push({
+            id: entry.toLowerCase().replace(/\.md$/, ""),
+            title: entry,
+            path: path.relative(rootPath, file).replaceAll("\\", "/"),
+            excerpt: text.length > META_EXCERPT_LIMIT ? `${text.slice(0, META_EXCERPT_LIMIT)}…` : text,
+          });
+        }
+      } else if (stats.isFile() && full.toLowerCase().endsWith(".md")) {
+        const text = await safeReadText(full);
+        if (text) {
+          docs.push({
+            id: path.basename(full, ".md").toLowerCase(),
+            title: path.basename(full),
+            path: path.relative(rootPath, full).replaceAll("\\", "/"),
+            excerpt: text.length > META_EXCERPT_LIMIT ? `${text.slice(0, META_EXCERPT_LIMIT)}…` : text,
+          });
+        }
+      }
+    } catch {
+      // skip missing
     }
-  } catch {
-    // handoff dir absent — return empty
   }
   return docs;
 }
 
+async function readHandoffDocs(rootPath) {
+  // 우선순위: AgentApp 표준 handoff 디렉터리 → 없으면 .claude-sync/memory.
+  const primary = await collectMarkdownFiles(rootPath, [
+    path.join("tools", "agent-orchestrator", "handoff"),
+  ]);
+  if (primary.length > 0) return primary;
+  // fallback: 일반 프로젝트도 보통 memory/plans 에 핸드오프 격 문서가 있음.
+  return collectMarkdownFiles(rootPath, [
+    path.join(".claude-sync", "memory"),
+    "AGENTS.md",
+    "CLAUDE.md",
+    "README.md",
+  ]);
+}
+
 async function readPlanPhases(rootPath) {
-  const roadmapPath = path.join(rootPath, ".claude-sync", "plans", "agent-orchestrator-roadmap.md");
-  const text = await safeReadText(roadmapPath);
-  if (!text) return [];
+  // plans 디렉터리 안 모든 .md 를 합쳐 phase 추출. AgentApp 의
+  // agent-orchestrator-roadmap.md 단일 파일 가정에서 일반 프로젝트의 임의
+  // 파일명까지 지원.
+  const plansDir = path.join(rootPath, ".claude-sync", "plans");
   const phases = [];
-  let currentTitle = "";
-  let currentItems = [];
-  const flush = () => {
-    if (!currentTitle) return;
-    const done = currentItems.filter((item) => item.done).length;
-    phases.push({ title: currentTitle, total: currentItems.length, done, items: currentItems });
-    currentTitle = "";
-    currentItems = [];
-  };
-  for (const rawLine of text.split(/\r?\n/)) {
-    const headerMatch = rawLine.match(/^##\s+(.+?)\s*$/);
-    if (headerMatch) {
-      flush();
-      currentTitle = headerMatch[1].trim();
-      continue;
-    }
-    const taskMatch = rawLine.match(/^\s*-\s*\[(.)\]\s+(.+?)\s*$/);
-    if (taskMatch) {
-      currentItems.push({ done: taskMatch[1].trim() !== "", title: taskMatch[2].trim() });
-    }
+  let planFiles = [];
+  try {
+    planFiles = await readdir(plansDir);
+  } catch {
+    return [];
   }
-  flush();
+  for (const entry of planFiles) {
+    if (!entry.toLowerCase().endsWith(".md")) continue;
+    const text = await safeReadText(path.join(plansDir, entry));
+    if (!text) continue;
+    let currentTitle = "";
+    let currentItems = [];
+    const fileBase = entry.replace(/\.md$/i, "");
+    const flush = () => {
+      if (!currentTitle && currentItems.length === 0) return;
+      const done = currentItems.filter((item) => item.done).length;
+      phases.push({
+        title: currentTitle || fileBase,
+        total: currentItems.length,
+        done,
+        items: currentItems,
+        file: entry,
+      });
+      currentTitle = "";
+      currentItems = [];
+    };
+    for (const rawLine of text.split(/\r?\n/)) {
+      const headerMatch = rawLine.match(/^##\s+(.+?)\s*$/);
+      if (headerMatch) {
+        flush();
+        currentTitle = headerMatch[1].trim();
+        continue;
+      }
+      const taskMatch = rawLine.match(/^\s*-\s*\[(.)\]\s+(.+?)\s*$/);
+      if (taskMatch) {
+        currentItems.push({ done: taskMatch[1].trim() !== "", title: taskMatch[2].trim() });
+      }
+    }
+    flush();
+  }
   return phases;
 }
 
