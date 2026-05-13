@@ -1679,8 +1679,20 @@ async function killPid(pid) {
 }
 
 export async function stopDashboardWorker(run) {
-  await killPid(Number(run.adapter?.runnerPid || 0));
-  await killPid(Number(run.adapter?.pid || 0));
+  // inlineRunner=true 이면 runnerPid 는 우리 Electron/Node 메인 프로세스 자체다.
+  // 그걸 죽이면 dashboard 가 같이 죽으므로 절대 kill 하지 않는다. worker 자식 pid 만 종료.
+  if (!run.adapter?.inlineRunner) {
+    const runnerPid = Number(run.adapter?.runnerPid || 0);
+    if (runnerPid && runnerPid !== process.pid) {
+      await killPid(runnerPid);
+    }
+  }
+  const workerPid = Number(run.adapter?.pid || 0);
+  if (workerPid && workerPid !== process.pid) {
+    await killPid(workerPid);
+  }
+  // 인라인 실행 중인 streamProcess 가 worker close 이벤트를 받고 promise 가 resolve 되면
+  // executeRun 의 후속 로직이 finishRunRecord 로 마감한다.
 }
 
 const options = parseArgs(process.argv.slice(2));
