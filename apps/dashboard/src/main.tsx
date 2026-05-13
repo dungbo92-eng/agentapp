@@ -563,6 +563,14 @@ function summarizeEvent(message: string): string {
   return message.replace(/\.{3}\s*$/, "");
 }
 
+function compactEventTime(value: string): string {
+  return new Date(value).toLocaleTimeString("ko-KR", {
+    hour: "2-digit",
+    minute: "2-digit",
+    hour12: false,
+  });
+}
+
 // Lightweight inline markdown renderer for the chat assistant bubble.
 // Handles: paragraph breaks, dash/asterisk bullet lists, fenced ``` blocks,
 // inline `code`, **bold**, *italic*, and [text](url) links. No external dep.
@@ -1756,12 +1764,10 @@ function App() {
   }
 
   if (viewMode === "compact") {
-    // 컴팩트 채팅 모드 — 우하단 작은 창. 프로젝트=채팅방, 이벤트=메시지.
-    // 입력은 단발 새 run (현재 활성 run 이 있으면 입력 비활성).
+    // 컴팩트 채팅 모드 — 프로젝트 목록과 현재 작업 진행만 남긴다.
     const compactProjects = projects.filter((p) => p.id !== "none");
     const compactSelected =
       compactProjects.find((p) => p.id === selectedProject) || compactProjects[0] || null;
-    // 선택 프로젝트의 가장 최근 run (active 우선, 없으면 history 최신).
     const activeForProject = activeRun && activeRun.projectId === (compactSelected?.id || "")
       ? activeRun
       : null;
@@ -1770,8 +1776,18 @@ function App() {
       : null;
     const focusRun = activeForProject || historyForProject;
     const events = focusRun?.events || [];
-    const tailEvents = events.slice(-50);
+    const visibleEvents = events
+      .filter((event) => !NOISY_EVENT_RE.test(event.message))
+      .slice(-80);
     const isRunning = Boolean(activeForProject);
+    const projectProgress = compactSelected?.id !== "current" && projectMeta?.progress
+      ? projectMeta.progress.percent
+      : compactSelected?.progress ?? snapshot.progress.percent;
+    const projectNextTask = compactSelected?.id !== "current"
+      ? projectMeta?.next_task?.title || ""
+      : snapshot.next_task.title === "none" ? "" : snapshot.next_task.title;
+    const lastMessage = focusRun?.adapter?.lastMessageText || "";
+    const latestEvent = visibleEvents[visibleEvents.length - 1];
     return (
       <main className="appShell compactShell">
         {toast ? (
@@ -1805,91 +1821,130 @@ function App() {
             </button>
           </div>
         </header>
-        <div className="compactProjectTabs" role="tablist" aria-label="프로젝트 선택">
-          {compactProjects.length === 0 ? (
-            <span className="compactEmptyHint">등록된 프로젝트가 없습니다. 전체화면에서 프로젝트를 추가하세요.</span>
-          ) : (
-            compactProjects.map((p) => {
-              const isSel = compactSelected?.id === p.id;
-              const projActive = activeRun?.projectId === p.id;
-              return (
-                <button
-                  key={p.id}
-                  type="button"
-                  className={`compactProjectPill${isSel ? " selected" : ""}${projActive ? " running" : ""}`}
-                  onClick={() => setSelectedProject(p.id)}
-                  title={p.path || p.name}
-                >
-                  {projActive ? <span className="compactDot" aria-hidden="true" /> : null}
-                  <span className="compactPillLabel">{p.name}</span>
-                </button>
-              );
-            })
-          )}
-        </div>
-        <section className="compactMeta">
-          {focusRun ? (
-            <>
-              <span className="compactMetaLine">
-                <strong>{focusRun.workerId}</strong>
-                {focusRun.routing?.model ? ` · ${focusRun.routing.model}` : ""}
-                {focusRun.routing?.accountId ? ` · ${focusRun.routing.accountId}` : ""}
-              </span>
-              <span className={`compactStatusBadge status-${focusRun.status || "unknown"}`}>
-                {STATUS_LABELS[focusRun.status] || focusRun.status || "—"}
-              </span>
-            </>
-          ) : (
-            <span className="compactMetaLine muted">선택된 프로젝트의 최근 실행이 없습니다.</span>
-          )}
-        </section>
-        <section
-          className="compactEventList"
-          ref={(node) => {
-            if (node) node.scrollTop = node.scrollHeight;
-          }}
-        >
-          {tailEvents.length === 0 ? (
-            <div className="compactEventEmpty">진행 로그가 여기 표시됩니다.</div>
-          ) : (
-            tailEvents.map((event, idx) => (
-              <div key={`${event.at}-${idx}`} className={`compactEventRow level-${event.level || "info"}`}>
-                <time>{new Date(event.at).toLocaleTimeString("ko-KR", { hour12: false })}</time>
-                <span>{event.message}</span>
+        <div className="compactWorkspace">
+          <aside className="compactProjectRail" aria-label="프로젝트">
+            {compactProjects.length === 0 ? (
+              <div className="compactEmptyHint">프로젝트 없음</div>
+            ) : (
+              compactProjects.map((p) => {
+                const isSel = compactSelected?.id === p.id;
+                const projActive = activeRun?.projectId === p.id;
+                const lastRun = runtime.runHistory.find((run) => run.projectId === p.id);
+                return (
+                  <button
+                    key={p.id}
+                    type="button"
+                    className={`compactProjectItem${isSel ? " selected" : ""}${projActive ? " running" : ""}`}
+                    onClick={() => setSelectedProject(p.id)}
+                    title={p.path || p.name}
+                  >
+                    <span className="compactProjectName">
+                      {projActive ? <span className="compactDot" aria-hidden="true" /> : null}
+                      {p.name}
+                    </span>
+                    <span className="compactProjectSub">
+                      {projActive
+                        ? "실행 중"
+                        : lastRun
+                          ? STATUS_LABELS[lastRun.status] || lastRun.status
+                          : `${Math.round(p.progress || 0)}%`}
+                    </span>
+                  </button>
+                );
+              })
+            )}
+          </aside>
+
+          <section className="compactWorkPane">
+            <div className="compactPromptDock">
+              <div className="compactProjectSummary">
+                <div>
+                  <strong>{compactSelected?.name || "프로젝트 없음"}</strong>
+                  <span>{compactSelected?.path || "프로젝트를 선택하세요"}</span>
+                </div>
+                {focusRun ? (
+                  <span className={`compactStatusBadge status-${focusRun.status || "unknown"}`}>
+                    {STATUS_LABELS[focusRun.status] || focusRun.status || "—"}
+                  </span>
+                ) : null}
               </div>
-            ))
-          )}
-        </section>
-        <form
-          className="compactComposer"
-          onSubmit={(e) => {
-            e.preventDefault();
-            if (isRunning) return;
-            startRun();
-          }}
-        >
-          <input
-            type="text"
-            value={prompt}
-            placeholder={
-              isRunning
-                ? "실행 중 — 끝나면 새 작업을 보낼 수 있어요"
-                : "프롬프트를 입력하고 Enter (새 작업으로 시작)"
-            }
-            onChange={(e) => setPrompt(e.target.value)}
-            disabled={isRunning}
-            aria-label="컴팩트 모드 프롬프트 입력"
-          />
-          <button
-            type={isRunning ? "button" : "submit"}
-            className={isRunning ? "dangerButton small" : "primaryButton small"}
-            onClick={isRunning ? stopRun : undefined}
-            disabled={!isRunning && !localRecommendation}
-            title={isRunning ? "현재 실행 중지" : "프롬프트로 새 작업 시작"}
-          >
-            {isRunning ? "중지" : "시작"}
-          </button>
-        </form>
+              <form
+                className="compactComposer"
+                onSubmit={(e) => {
+                  e.preventDefault();
+                  if (isRunning) return;
+                  startRun();
+                }}
+              >
+                <textarea
+                  value={prompt}
+                  placeholder={isRunning ? "실행 중" : "작업 지시 입력"}
+                  onChange={(e) => setPrompt(e.target.value)}
+                  disabled={isRunning}
+                  aria-label="컴팩트 모드 프롬프트 입력"
+                />
+                <button
+                  type={isRunning ? "button" : "submit"}
+                  className={isRunning ? "dangerButton small" : "primaryButton small"}
+                  onClick={isRunning ? stopRun : undefined}
+                  disabled={!isRunning && !localRecommendation}
+                  title={isRunning ? "현재 실행 중지" : "프롬프트로 새 작업 시작"}
+                >
+                  {isRunning ? "중지" : "시작"}
+                </button>
+              </form>
+            </div>
+
+            <section className="compactProjectContent">
+              <div className="compactProjectCard">
+                <span>진행률</span>
+                <strong>{Math.round(projectProgress || 0)}%</strong>
+              </div>
+              <div className="compactProjectCard wide">
+                <span>다음 작업</span>
+                <strong>{projectNextTask || "대기 중"}</strong>
+              </div>
+              {focusRun ? (
+                <div className="compactProjectCard wide">
+                  <span>최근 실행</span>
+                  <strong>
+                    {focusRun.workerId}
+                    {focusRun.routing?.model ? ` / ${focusRun.routing.model}` : ""}
+                  </strong>
+                </div>
+              ) : null}
+              {latestEvent ? (
+                <div className={`compactLatestEvent level-${latestEvent.level || "info"}`}>
+                  <time>{compactEventTime(latestEvent.at)}</time>
+                  <span>{summarizeEvent(latestEvent.message)}</span>
+                </div>
+              ) : null}
+              {lastMessage ? (
+                <article className="compactLastMessage">
+                  <MarkdownText source={lastMessage} />
+                </article>
+              ) : null}
+            </section>
+
+            <section
+              className="compactEventList"
+              ref={(node) => {
+                if (node) node.scrollTop = node.scrollHeight;
+              }}
+            >
+              {visibleEvents.length === 0 ? (
+                <div className="compactEventEmpty">진행 내역 없음</div>
+              ) : (
+                visibleEvents.map((event, idx) => (
+                  <div key={`${event.at}-${idx}`} className={`compactEventRow level-${event.level || "info"}`}>
+                    <time>{compactEventTime(event.at)}</time>
+                    <span>{summarizeEvent(event.message)}</span>
+                  </div>
+                ))
+              )}
+            </section>
+          </section>
+        </div>
       </main>
     );
   }

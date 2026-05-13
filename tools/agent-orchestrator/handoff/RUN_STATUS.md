@@ -546,3 +546,21 @@ NEXT_TASK.md 템플릿 확정: agent-next 생성물을 Required Reads, Execution
 - Git: release commit 9e6af68 and tag v0.2.1 pushed to origin/main
 - Decisions: DEC-20260513-001 resolved
 - Next: Claude/Gemini authenticated cycle 재검증
+
+## 2026-05-13T09:02:02.948Z
+
+- Status: completed
+- Summary: 컴팩트 채팅 모드를 좌측 프로젝트 리스트와 우측 작업 패널로 재배치했습니다. 우측 상단은 프롬프트 입력/시작 버튼으로 고정하고, 프로젝트 요약과 최신 실행/진행 로그만 남겨 나머지 메타 정보는 숨겼습니다.
+- Verification: pnpm validate; pnpm --dir apps/dashboard exec tsc --noEmit; pnpm dashboard:build; Browser visual check http://127.0.0.1:5173 compact mode
+- Git: pending
+- Decisions: none
+- Next: commit/push/release
+
+## 2026-05-13T09:02:57.210Z
+
+- Status: completed
+- Summary: 컴팩트 채팅 모드를 좌측 프로젝트 리스트와 우측 작업 패널로 재배치했습니다. 우측 상단은 프롬프트 입력/시작 버튼으로 고정하고, 프로젝트 요약과 최신 실행/진행 로그만 남겨 나머지 메타 정보는 숨겼습니다.
+- Verification: pnpm validate; pnpm --dir apps/dashboard exec tsc --noEmit; pnpm dashboard:build; pnpm agent:doctor; pnpm agent:progress; pnpm agent:next; pnpm agent:sync; pnpm agent:status; Browser visual check http://127.0.0.1:5173 compact mode
+- Git: pending
+- Decisions: none
+- Next: commit/push/release
