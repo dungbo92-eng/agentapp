@@ -571,10 +571,10 @@ async function resolveAdapter(run, files) {
         workspace,
         "-m",
         run.routing?.model || run.modelOverride || "gpt-5.4",
-        "--sandbox",
-        "workspace-write",
-        "--ask-for-approval",
-        "never",
+        // 자율 진행 모드: 승인 프롬프트 + 샌드박스를 모두 우회. 코덱스
+        // v0.128+ 에서 'exec' 가 받는 자동 승인 옵션은 이것 하나뿐
+        // (이전 --ask-for-approval 은 인터랙티브 명령에만 존재).
+        "--dangerously-bypass-approvals-and-sandbox",
         "-o",
         files.lastMessagePath,
         "-",
