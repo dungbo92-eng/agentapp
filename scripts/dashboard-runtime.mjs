@@ -25,7 +25,8 @@ const DEFAULT_RUNTIME = {
   settings: {
     idleWarnMs: 90 * 1000,
     idleKillMs: 30 * 60 * 1000,
-    autoChainEnabled: false,
+    autoChainEnabled: true,
+    autoChainMaxDepth: 30,
     quotaRetryEnabled: true,
     quotaRetryMaxAttempts: 3,
   },
@@ -35,12 +36,15 @@ function normalizeSettings(raw) {
   const source = raw && typeof raw === "object" ? raw : {};
   const idleWarnMs = Number.isFinite(Number(source.idleWarnMs)) ? Math.max(0, Number(source.idleWarnMs)) : 90 * 1000;
   const idleKillMs = Number.isFinite(Number(source.idleKillMs)) ? Math.max(0, Number(source.idleKillMs)) : 30 * 60 * 1000;
-  const autoChainEnabled = Boolean(source.autoChainEnabled);
+  const autoChainEnabled = source.autoChainEnabled === undefined ? true : Boolean(source.autoChainEnabled);
+  const autoChainMaxDepth = Number.isFinite(Number(source.autoChainMaxDepth))
+    ? Math.max(1, Math.min(500, Number(source.autoChainMaxDepth)))
+    : 30;
   const quotaRetryEnabled = source.quotaRetryEnabled === undefined ? true : Boolean(source.quotaRetryEnabled);
   const quotaRetryMaxAttempts = Number.isFinite(Number(source.quotaRetryMaxAttempts))
     ? Math.max(0, Math.min(10, Number(source.quotaRetryMaxAttempts)))
     : 3;
-  return { idleWarnMs, idleKillMs, autoChainEnabled, quotaRetryEnabled, quotaRetryMaxAttempts };
+  return { idleWarnMs, idleKillMs, autoChainEnabled, autoChainMaxDepth, quotaRetryEnabled, quotaRetryMaxAttempts };
 }
 
 export async function getRuntimeSettings() {
@@ -1537,6 +1541,13 @@ export async function tryAutoChain(prevRun) {
   const runtime = await readRuntime();
   const settings = normalizeSettings(runtime.settings);
   if (!settings.autoChainEnabled) return null;
+
+  // 무한 루프 방지: 같은 체인에서 너무 많이 반복되지 않도록 제한.
+  const prevDepth = Number(prevRun.chainDepth || 0);
+  if (prevDepth >= settings.autoChainMaxDepth) {
+    return { skipped: true, reason: `autoChain max depth ${settings.autoChainMaxDepth} 도달` };
+  }
+
   // 외부 프로젝트면 그 프로젝트의 next_task 를 사용.
   let nextTitle = "";
   try {
@@ -1555,14 +1566,25 @@ export async function tryAutoChain(prevRun) {
   } catch {
     nextTitle = "";
   }
-  if (!nextTitle || /^none$/i.test(nextTitle)) return null;
+
+  // NEXT_TASK 가 비었거나 'none' 이거나, **방금 끝낸 작업과 동일**하면
+  // 일반 '이어 진행' 프롬프트로 폴백. 그래야 worker 가 NEXT_TASK 를
+  // 갱신하지 않은 상태에서도 다음 단계로 자율 진행된다.
+  const prevPrompt = String(prevRun.prompt || "").trim();
+  const hasNewTask = nextTitle && !/^none$/i.test(nextTitle) && nextTitle.trim() !== prevPrompt;
+  const chainPrompt = hasNewTask
+    ? nextTitle
+    : "이전 작업을 완료한 상태입니다. 메모리/계획/핸드오프 파일을 참고해 다음에 진행할 항목을 스스로 판단하고 이어서 진행해 주세요. 더 이상 진행할 작업이 없으면 'CHAIN_DONE' 한 줄만 응답해 주세요.";
+
   const result = await startRun({
     workerId: prevRun.workerId,
     projectId: prevRun.projectId,
-    prompt: nextTitle,
+    prompt: chainPrompt,
     complexity: "auto",
     modelOverride: prevRun.modelOverride || "auto",
     autoChain: true,
+    chainDepth: prevDepth + 1,
+    chainReason: hasNewTask ? "next_task_picked" : "generic_continuation",
   });
   return result.activeRun || null;
 }
@@ -1641,6 +1663,8 @@ export async function startRun(input) {
     retryCount: Number(input.retryCount || 0),
     retryReason: String(input.retryReason || ""),
     autoChain: Boolean(input.autoChain),
+    chainDepth: Number(input.chainDepth || 0),
+    chainReason: String(input.chainReason || ""),
     startedAt: new Date().toISOString(),
     routing,
     validation: {

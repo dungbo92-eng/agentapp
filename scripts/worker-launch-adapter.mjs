@@ -1264,15 +1264,35 @@ async function launchCommandWorker(run, files, adapter, promptText) {
     );
     // 자동 이어 진행 (autoChain) — settings.autoChainEnabled 가 true 일 때만 발동.
     try {
-      const { tryAutoChain } = await import("./dashboard-runtime.mjs");
-      const chained = await tryAutoChain(run);
-      if (chained) {
+      const responseText = String(lastMessage || "").trim();
+      const stopSignal = /^CHAIN_DONE\s*$/im.test(responseText);
+      if (stopSignal) {
         await appendRunEvent(run.id, {
           level: "info",
-          message: `▶ autoChain: NEXT_TASK 를 ${chained.workerId} 로 자동 이어 시작했습니다 (run ${chained.id}).`,
+          message: "▣ autoChain 종료 — worker 가 CHAIN_DONE 신호를 보냈습니다.",
         });
-        const { launchDashboardWorker } = await import("./worker-launch-adapter.mjs");
-        await launchDashboardWorker(chained);
+      } else {
+        const { tryAutoChain } = await import("./dashboard-runtime.mjs");
+        const chained = await tryAutoChain(run);
+        if (chained && chained.skipped) {
+          await appendRunEvent(run.id, {
+            level: "info",
+            message: `▣ autoChain 중단 — ${chained.reason || "한도 도달"}.`,
+          });
+        } else if (chained) {
+          const depthSuffix = chained.chainDepth ? ` (depth ${chained.chainDepth})` : "";
+          await appendRunEvent(run.id, {
+            level: "info",
+            message: `▶ autoChain: ${chained.workerId} 로 자동 이어 시작했습니다 (run ${chained.id})${depthSuffix}.`,
+          });
+          const { launchDashboardWorker } = await import("./worker-launch-adapter.mjs");
+          await launchDashboardWorker(chained);
+        } else {
+          await appendRunEvent(run.id, {
+            level: "info",
+            message: "▣ autoChain 비활성 또는 다음 작업 없음 — 사이클 종료.",
+          });
+        }
       }
     } catch (error) {
       await appendRunEvent(run.id, {

@@ -350,6 +350,23 @@ button:disabled {
   flex-shrink: 0;
 }
 
+.toggleRow.inline {
+  padding-left: 24px;
+  font-size: 0.74rem;
+  color: #475569;
+}
+
+.toggleRow.inline .inlineNumber {
+  width: 56px;
+  height: 24px;
+  padding: 0 6px;
+  font-size: 0.78rem;
+}
+
+.settingsHintInline {
+  color: #94a3b8;
+}
+
 .accountFormToggle {
   display: grid;
   margin-top: 12px;

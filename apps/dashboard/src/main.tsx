@@ -247,6 +247,7 @@ type RuntimeSettings = {
   idleWarnMs: number;
   idleKillMs: number;
   autoChainEnabled?: boolean;
+  autoChainMaxDepth?: number;
   quotaRetryEnabled?: boolean;
   quotaRetryMaxAttempts?: number;
 };
@@ -802,7 +803,8 @@ function RuntimeSettingsPanel({
   const killMin = settings ? Math.round(settings.idleKillMs / 60000) : 30;
   const [warnInput, setWarnInput] = React.useState<string>(String(warnMin));
   const [killInput, setKillInput] = React.useState<string>(String(killMin));
-  const [autoChain, setAutoChain] = React.useState<boolean>(Boolean(settings?.autoChainEnabled));
+  const [autoChain, setAutoChain] = React.useState<boolean>(settings?.autoChainEnabled !== false);
+  const [chainDepthInput, setChainDepthInput] = React.useState<string>(String(settings?.autoChainMaxDepth ?? 30));
   const [quotaRetry, setQuotaRetry] = React.useState<boolean>(settings?.quotaRetryEnabled !== false);
   const [saving, setSaving] = React.useState(false);
 
@@ -810,10 +812,11 @@ function RuntimeSettingsPanel({
     if (settings) {
       setWarnInput(String(Math.round(settings.idleWarnMs / 60000)));
       setKillInput(String(Math.round(settings.idleKillMs / 60000)));
-      setAutoChain(Boolean(settings.autoChainEnabled));
+      setAutoChain(settings.autoChainEnabled !== false);
+      setChainDepthInput(String(settings.autoChainMaxDepth ?? 30));
       setQuotaRetry(settings.quotaRetryEnabled !== false);
     }
-  }, [settings?.idleWarnMs, settings?.idleKillMs, settings?.autoChainEnabled, settings?.quotaRetryEnabled]);
+  }, [settings?.idleWarnMs, settings?.idleKillMs, settings?.autoChainEnabled, settings?.autoChainMaxDepth, settings?.quotaRetryEnabled]);
 
   return (
     <section className="sidebarBlock">
@@ -850,14 +853,30 @@ function RuntimeSettingsPanel({
         </label>
       </div>
       <div className="settingsToggles">
-        <label className="toggleRow" title="run 이 정상 완료되면 NEXT_TASK 를 자동으로 픽업해서 같은 worker 로 이어서 진행합니다. 외부 프로젝트는 그 프로젝트의 NEXT_TASK 를 사용합니다.">
+        <label className="toggleRow" title="run 이 정상 완료되면 NEXT_TASK 를 자동으로 픽업해서 같은 worker 로 이어서 진행합니다. NEXT_TASK 가 비어 있으면 '이어서 다음 단계 진행' 일반 프롬프트로 자율 진행하다가 worker 가 CHAIN_DONE 응답을 보내면 종료합니다.">
           <input
             type="checkbox"
             checked={autoChain}
             onChange={(event) => setAutoChain(event.target.checked)}
           />
-          <span>▶ 자동 이어 진행 (NEXT_TASK 자동 픽업)</span>
+          <span>▶ 자동 이어 진행 (사이클 완료 후 다음 작업 자동 픽업)</span>
         </label>
+        {autoChain ? (
+          <label className="toggleRow inline">
+            <span>최대 반복</span>
+            <input
+              className="inlineNumber"
+              type="number"
+              min={1}
+              max={500}
+              step={1}
+              value={chainDepthInput}
+              onChange={(event) => setChainDepthInput(event.target.value)}
+              title="이 횟수만큼 자동 이어 진행 후 멈춥니다. 무한 루프 방지용."
+            />
+            <span className="settingsHintInline">사이클 (이후 멈춤)</span>
+          </label>
+        ) : null}
         <label className="toggleRow" title="worker 가 한도(quota) 도달로 종료되면 같은 worker 의 다른 ready 계정으로 자동 재시도합니다. 모든 계정 한도면 자동 중지.">
           <input
             type="checkbox"
@@ -876,10 +895,12 @@ function RuntimeSettingsPanel({
           const killMs = Math.max(0, Number(killInput) * 60000) || 0;
           setSaving(true);
           try {
+            const depth = Math.max(1, Math.min(500, Number(chainDepthInput) || 30));
             await onSave({
               idleWarnMs: warnMs,
               idleKillMs: killMs,
               autoChainEnabled: autoChain,
+              autoChainMaxDepth: depth,
               quotaRetryEnabled: quotaRetry,
             });
           } finally {
