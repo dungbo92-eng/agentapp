@@ -38,12 +38,13 @@
     "desktop:installer": "pnpm dashboard:build && electron-builder --win nsis --x64",
     "desktop:all": "pnpm dashboard:build && electron-builder --win portable nsis --x64",
     "desktop:artifact": "node scripts/desktop-artifact-info.mjs",
+    "desktop:release": "node scripts/desktop-release.mjs",
     "claude:pull": "node scripts/claude-sync.mjs --pull --verbose",
     "claude:push": "node scripts/claude-sync.mjs --push --verbose",
     "claude:sync": "node scripts/claude-sync.mjs --auto --verbose",
     "claude:status": "node scripts/claude-sync.mjs --status",
     "hooks:install": "node scripts/install-hooks.mjs",
-    "validate": "node --check scripts/claude-sync.mjs && node --check scripts/install-hooks.mjs && node --check scripts/agent-budget.mjs && node --check scripts/agent-doctor.mjs && node --check scripts/agent-dry-run.mjs && node --check scripts/agent-handoff-only.mjs && node --check scripts/agent-next.mjs && node --check scripts/agent-worker-prompt.mjs && node --check scripts/dashboard-prepare.mjs && node --check scripts/credential-vault.mjs && node --check scripts/electron-login-window.mjs && node --check scripts/dashboard-runtime.mjs && node --check scripts/worker-launch-adapter.mjs && node --check scripts/dashboard-server.mjs && node --check scripts/desktop-artifact-info.mjs && node --check scripts/agent-environment-setup.mjs && node --check scripts/user-environment-cycle-test.mjs && node --check apps/desktop/main.mjs && node --check scripts/agent-progress.mjs && node --check scripts/agent-route-model.mjs && node --check scripts/agent-scheduled-check.mjs && node --check scripts/agent-report.mjs && node --check scripts/validate-configs.mjs && node scripts/validate-configs.mjs",
+    "validate": "node --check scripts/claude-sync.mjs && node --check scripts/install-hooks.mjs && node --check scripts/agent-budget.mjs && node --check scripts/agent-doctor.mjs && node --check scripts/agent-dry-run.mjs && node --check scripts/agent-handoff-only.mjs && node --check scripts/agent-next.mjs && node --check scripts/agent-worker-prompt.mjs && node --check scripts/dashboard-prepare.mjs && node --check scripts/credential-vault.mjs && node --check scripts/electron-login-window.mjs && node --check scripts/dashboard-runtime.mjs && node --check scripts/worker-launch-adapter.mjs && node --check scripts/dashboard-server.mjs && node --check scripts/desktop-artifact-info.mjs && node --check scripts/desktop-release.mjs && node --check scripts/agent-environment-setup.mjs && node --check scripts/user-environment-cycle-test.mjs && node --check apps/desktop/main.mjs && node --check scripts/agent-progress.mjs && node --check scripts/agent-route-model.mjs && node --check scripts/agent-scheduled-check.mjs && node --check scripts/agent-report.mjs && node --check scripts/validate-configs.mjs && node scripts/validate-configs.mjs",
     "postinstall": "node scripts/install-hooks.mjs && node scripts/claude-sync.mjs --auto --quiet-on-noop"
   },
   "build": {
@@ -68,10 +69,15 @@
       ".claude-sync/**/*"
     ],
     "extraResources": [
-      { "from": "build/setup-tools.cmd", "to": "setup-tools.cmd" }
+      {
+        "from": "build/setup-tools.cmd",
+        "to": "setup-tools.cmd"
+      }
     ],
     "win": {
-      "target": ["portable"],
+      "target": [
+        "portable"
+      ],
       "artifactName": "${productName}-${version}-${arch}.${ext}"
     },
     "nsis": {
@@ -85,10 +91,21 @@
       "artifactName": "${productName}-Setup-${version}-${arch}.${ext}",
       "deleteAppDataOnUninstall": false,
       "runAfterFinish": true
-    }
+    },
+    "publish": [
+      {
+        "provider": "github",
+        "owner": "dungbo92-eng",
+        "repo": "agentapp",
+        "releaseType": "release"
+      }
+    ]
   },
   "devDependencies": {
     "electron": "^42.0.1",
     "electron-builder": "^26.8.1"
+  },
+  "dependencies": {
+    "electron-updater": "^6.8.3"
   }
 }
