@@ -64,13 +64,41 @@ function parseArgs(argv) {
   return args;
 }
 
+// Windows shim 도구 (pnpm/npm/npx/yarn) 는 PATH 의 .CMD 파일이라 spawn 이
+// 직접 실행 못 한다. PATH 를 훑어 절대 .cmd/.exe 경로로 변환해서 spawn 에
+// 넘기면 shell:true 의 quoting 위험 없이 직접 실행할 수 있다.
+function resolveCommandOnWindows(command) {
+  if (process.platform !== "win32") return command;
+  if (path.isAbsolute(command) || command.includes(path.sep)) return command;
+  if (/\.(exe|cmd|bat)$/i.test(command)) return command;
+  const pathEnv = process.env.PATH || process.env.Path || "";
+  const pathExt = (process.env.PATHEXT || ".COM;.EXE;.BAT;.CMD").split(";").filter(Boolean);
+  const dirs = pathEnv.split(";").filter(Boolean);
+  for (const dir of dirs) {
+    for (const ext of pathExt) {
+      const candidate = path.join(dir, command + ext);
+      if (existsSync(candidate)) return candidate;
+    }
+    // 확장자가 이미 붙은 경우 (드물지만 안전망)
+    const bare = path.join(dir, command);
+    if (existsSync(bare) && /\.(exe|cmd|bat)$/i.test(bare)) return bare;
+  }
+  return command;
+}
+
 function run(command, args, options = {}) {
   return new Promise((resolve, reject) => {
-    // command 가 .exe / 절대경로면 shell 우회 (Node spawn 이 알아서 quoting).
-    // .cmd / .bat 파일만 shell:true 필요.
-    const isWin = process.platform === "win32";
-    const needsShell = isWin && /\.(cmd|bat)$/i.test(command);
-    const child = spawn(command, args, {
+    const resolved = resolveCommandOnWindows(command);
+    // .cmd / .bat 은 cmd.exe 로 실행돼야 하므로 shell:true.
+    // .exe / 절대 .exe 경로면 spawn 직접 실행 (quoting 안전).
+    const needsShell = process.platform === "win32" && /\.(cmd|bat)$/i.test(resolved);
+    // shell:true 면 command 가 cmd.exe 에 그대로 전달되는데 공백 포함 경로
+    // ("C:\Program Files\...") 가 따옴표 없이 들어가면 cmd 가 첫 토큰을 잘못
+    // 해석한다. 그래서 공백이 있으면 큰따옴표로 감싼다.
+    const finalCommand = needsShell && /\s/.test(resolved) && !/^".*"$/.test(resolved)
+      ? `"${resolved}"`
+      : resolved;
+    const child = spawn(finalCommand, args, {
       cwd: REPO_ROOT,
       stdio: "inherit",
       shell: needsShell,
