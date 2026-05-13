@@ -1012,25 +1012,20 @@ function routeScore(candidate, complexity) {
   const profile = candidate.profile;
   const account = candidate.account;
   const modelRank = MODEL_RANK[profile.model] || 1;
-  const weekly = Math.max(1, Number(account.weeklyUnits || 1));
-  const remaining = Number(account.remainingUnits || 0);
-  const remainingRatio = Math.max(0, Math.min(1, remaining / weekly)); // 0..1
-  const estimated = Number(profile.estimatedUnits || ESTIMATED_UNITS[complexity] || 8);
   const lastUsed = account.lastUsedAt ? Date.parse(account.lastUsedAt) : 0;
   // 24 시간 윈도에서 균등 분배 가중 (오래 안 쓴 계정 우선).
   const idleHours = lastUsed > 0 ? Math.max(0, (Date.now() - lastUsed) / 3600000) : 48;
   const loadBalance = Math.min(idleHours, 24) / 24; // 0..1, 24h+ 이면 만점
 
-  // 균등 분배 + 잔여 비율을 1순위, 모델 품질을 2순위로.
-  // 한도 락아웃된 계정은 호출부에서 이미 제외되므로 여기서는 ready 계정만 들어옴.
+  // 로컬 remainingUnits 는 실제 provider 한도와 무관하므로 점수에서 제외.
+  // 균등 분배 (오래 안 쓴 계정 우선) + 모델 품질만 사용.
   if (complexity === "routine") {
-    return remainingRatio * 40 + loadBalance * 30 - estimated * 2 - modelRank;
+    return loadBalance * 40 - modelRank;
   }
   if (complexity === "standard") {
-    return remainingRatio * 35 + loadBalance * 25 + modelRank * 8 - estimated;
+    return loadBalance * 30 + modelRank * 8;
   }
-  // complex / critical: 모델 품질을 더 크게 가산하되 균등 분배는 유지.
-  return remainingRatio * 25 + loadBalance * 15 + modelRank * 20 - estimated;
+  return loadBalance * 20 + modelRank * 20;
 }
 
 export function selectRoute(accounts, request) {
@@ -1072,16 +1067,19 @@ export function selectRoute(accounts, request) {
     };
   }
 
+  // 로컬 remainingUnits 는 정보용 추정치일 뿐 실제 provider 한도와
+  // 동기화되지 않는다. 진짜 한도는 quota_limited 에러로 감지되어
+  // quotaResetAt 으로 마킹되며 위 필터에서 이미 제외된다. 그러므로
+  // 여기서는 remainingUnits 로 후보를 거르지 않는다.
   const candidates = providerAccounts
     .map((account) => ({ account, profile: account.modelProfiles?.[complexity] }))
     .filter((candidate) => candidate.profile)
-    .filter((candidate) => Number(candidate.account.remainingUnits || 0) >= Number(candidate.profile.estimatedUnits || 0))
     .sort((left, right) => routeScore(right, complexity) - routeScore(left, complexity));
 
   if (candidates.length === 0) {
     return {
       status: "blocked",
-      reason: "이 작업과 난이도에 맞는 남은 사용량이 충분한 계정이 없습니다.",
+      reason: "이 작업 난이도에 맞는 프로필 (model profile) 이 정의된 계정이 없습니다.",
       complexity,
     };
   }

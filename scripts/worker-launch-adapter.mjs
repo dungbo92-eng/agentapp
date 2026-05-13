@@ -1556,11 +1556,8 @@ export async function executeRun(runId) {
     return;
   }
 
-  await reserveAccountBudget(run.routing?.accountId || "", run.routing?.estimatedUnits || 0);
-  await appendRunEvent(run.id, {
-    level: "info",
-    message: `이번 실행을 위해 로컬 예산 ${run.routing?.estimatedUnits || 0} 단위를 예약했습니다.`,
-  });
+  // 로컬 예산 차감은 실제 provider 한도와 동기화되지 않아 사용자 혼동만 키워서
+  // 비활성. 실제 한도는 provider 가 보낸 quota_limited 메시지로만 판단한다.
 
   if (adapter.mode === "open-window") {
     await launchWindowWorker(run, files, adapter);

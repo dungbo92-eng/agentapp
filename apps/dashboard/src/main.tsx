@@ -191,6 +191,8 @@ type ManagedProject = {
   path: string;
   status: "active" | "registered" | "needs-baseline";
   progress: number;
+  lastModel?: string;
+  lastWorker?: string;
 };
 
 type RunRecord = {
@@ -983,27 +985,61 @@ function profileFor(account: ManagedAccount, complexity: string) {
   return account.modelProfiles?.[complexity];
 }
 
-function recommendLocalRoute(accounts: ManagedAccount[], complexity: string, workerId: string) {
-  const provider = providerForWorker(workerId);
+function recommendLocalRoute(
+  accounts: ManagedAccount[],
+  complexity: string,
+  workerId: string,
+  projectHint?: { lastModel?: string; lastWorker?: string },
+) {
+  // workerId='auto' 면 모든 provider 허용. 프로젝트의 lastWorker 가 있고
+  // 사용자가 명시 worker 를 안 골랐다면 그 worker 를 선호하도록 힌트.
+  const explicitProvider = providerForWorker(workerId);
+  const hintProvider = projectHint?.lastWorker ? providerForWorker(projectHint.lastWorker) : "";
   const candidates = accounts
-    .filter((account) => !provider || account.provider === provider)
     .filter((account) => account.enabled !== false)
     .filter((account) => account.sessionStatus === "ready")
+    .filter((account) => {
+      // OAuth 신원 mismatch 계정 제외
+      const expected = String(account.email || "").trim().toLowerCase();
+      const actual = String(account.actualAuthEmail || "").trim().toLowerCase();
+      if (expected && actual && expected !== actual) return false;
+      // quotaResetAt 미래 계정 제외
+      if (account.quotaResetAt) {
+        const resetMs = Date.parse(account.quotaResetAt);
+        if (Number.isFinite(resetMs) && resetMs > Date.now()) return false;
+      }
+      return true;
+    })
+    .filter((account) => !explicitProvider || account.provider === explicitProvider)
     .map((account) => ({ account, profile: profileFor(account, complexity) }))
     .filter(
       (candidate): candidate is { account: ManagedAccount; profile: { model: string; reasoningEffort: string; estimatedUnits: number } } =>
         Boolean(candidate.profile),
-    )
-    .filter((candidate) => candidate.account.remainingUnits >= candidate.profile.estimatedUnits)
-    .sort((left, right) => right.account.remainingUnits - left.account.remainingUnits);
+    );
+
+  if (candidates.length === 0) return null;
+
+  // 점수: 프로젝트 hint provider 일치 + 모델 일치 + load balance.
+  candidates.sort((left, right) => {
+    const score = (c: typeof candidates[number]) => {
+      let s = 0;
+      if (hintProvider && c.account.provider === hintProvider) s += 100;
+      if (projectHint?.lastModel && c.profile.model === projectHint.lastModel) s += 50;
+      // load balance: 오래 안 쓴 계정 가산
+      const lastUsed = c.account.lastUsedAt ? Date.parse(c.account.lastUsedAt) : 0;
+      const idleHours = lastUsed > 0 ? Math.max(0, (Date.now() - lastUsed) / 3600000) : 48;
+      s += Math.min(idleHours, 24);
+      return s;
+    };
+    return score(right) - score(left);
+  });
 
   const selected = candidates[0];
-  if (!selected) return null;
   return {
     accountId: selected.account.id,
     provider: selected.account.provider,
     loginLabel: selected.account.loginLabel,
-    model: selected.profile.model,
+    model: projectHint?.lastModel && projectHint.lastModel !== "auto" ? projectHint.lastModel : selected.profile.model,
     reasoningEffort: selected.profile.reasoningEffort,
     estimatedUnits: selected.profile.estimatedUnits,
   };
@@ -1415,7 +1451,15 @@ function App() {
   const accounts = uniqById([...configuredAccounts, ...runtime.accounts]);
   const localAccounts = runtime.accounts;
   const readyLocalAccounts = localAccounts.filter((account) => account.enabled !== false && account.sessionStatus === "ready");
-  const localRecommendation = recommendLocalRoute(accounts, complexity, selectedWorker);
+  // 프로젝트 최근 사용 이력 (lastWorker / lastModel) 을 라우팅 힌트로 전달
+  // 해서 UI 미리보기와 백엔드 startRun 의 실제 라우팅이 같은 후보를 고르도록.
+  const selectedProjectRow = runtime.projects.find((project) => project.id === selectedProject);
+  const localRecommendation = recommendLocalRoute(
+    accounts,
+    complexity,
+    selectedWorker,
+    selectedProjectRow ? { lastModel: selectedProjectRow.lastModel, lastWorker: selectedProjectRow.lastWorker } : undefined,
+  );
   const placeholderProject: ManagedProject = {
     id: "none",
     name: "프로젝트 추가",
