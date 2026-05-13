@@ -543,6 +543,8 @@ async function resolveAdapter(run, files) {
         run.routing?.model || run.modelOverride || "gpt-5.4",
         "--sandbox",
         "workspace-write",
+        "--ask-for-approval",
+        "never",
         "-o",
         files.lastMessagePath,
         "-",
@@ -616,8 +618,7 @@ async function resolveAdapter(run, files) {
       command,
       args: [
         "--print",
-        "--permission-mode",
-        "acceptEdits",
+        "--dangerously-skip-permissions",
         ...(claudeModel ? ["--model", claudeModel] : []),
       ],
       env: {
@@ -654,6 +655,7 @@ async function resolveAdapter(run, files) {
       args: [
         "--prompt",
         "-",
+        "--yolo",
         ...(geminiModel ? ["--model", geminiModel] : []),
       ],
       env: {
