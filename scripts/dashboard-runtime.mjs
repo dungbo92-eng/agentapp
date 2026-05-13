@@ -249,11 +249,9 @@ function normalizeAccount(input) {
   if (quotaActive) {
     effectiveRemaining = 0;
   } else if (quotaResetRaw && !quotaActive) {
-    // Reset window has passed — restore to weekly budget unless caller
-    // explicitly provided a fresh remainingUnits.
-    if (input.remainingUnits == null && input.remaining_units == null) {
-      effectiveRemaining = weeklyUnits;
-    }
+    // Reset window has passed. Stored runtime objects still carry the old
+    // remainingUnits: 0 from the lockout, so restore the local budget here.
+    effectiveRemaining = weeklyUnits;
   }
 
   return {
@@ -296,6 +294,10 @@ export function usageAlertLevel(account) {
   if (ratio <= USAGE_ALERT_THRESHOLDS.critical) return "critical";
   if (ratio <= USAGE_ALERT_THRESHOLDS.warning) return "warning";
   return "ok";
+}
+
+function readyQuotaPatch(account) {
+  return activeQuotaLock(account) ? {} : { quotaResetAt: "", quotaReason: "" };
 }
 
 function normalizeProject(input) {
@@ -826,7 +828,7 @@ export async function detectAndUpdateAccount(accountId) {
           lastVerifiedAt: detection.sessionStatus === "ready" ? nowIso() : item.lastVerifiedAt || "",
           sessionDetectionReason: detection.reason,
           actualAuthEmail: detection.actualEmail || "",
-          ...(detection.sessionStatus === "ready" ? { quotaResetAt: "", quotaReason: "" } : {}),
+          ...(detection.sessionStatus === "ready" ? readyQuotaPatch(item) : {}),
         }
       : item,
   );
@@ -853,7 +855,7 @@ export async function setAccountSession(input) {
               ...account,
               sessionStatus,
               lastVerifiedAt,
-              ...(sessionStatus === "ready" ? { quotaResetAt: "", quotaReason: "" } : {}),
+              ...(sessionStatus === "ready" ? readyQuotaPatch(account) : {}),
             }
           : account,
       )
@@ -1322,11 +1324,13 @@ async function mutateRuntimeRun(runId, mutator, options = {}) {
 const PROVIDER_QUOTA_PATTERNS = {
   // Claude Code (Anthropic CLI) 예시:
   //   "You've hit your limit · resets 6:30pm (Asia/Seoul)"
+  //   "You've hit your limit · resets May 18, 6am (Asia/Seoul)"
   //   "Approaching weekly limit"
   //   "Usage limit reached, resets tomorrow 6pm (Asia/Seoul)"
   claude: {
-    hint: /(you'?ve hit your (?:limit|weekly limit|daily limit|usage)|hit your (?:limit|weekly|daily)|usage limit (?:reached|hit)|weekly limit (?:reached|hit)|approaching (?:your )?(?:weekly|daily) limit|reset(?:s)?\s+\d)/i,
+    hint: /(you'?ve hit your (?:limit|weekly limit|daily limit|usage)|hit your (?:limit|weekly|daily)|usage limit (?:reached|hit)|weekly limit (?:reached|hit)|approaching (?:your )?(?:weekly|daily) limit|reset(?:s)?\s+(?:\d|[a-z]{3,9}\s+\d))/i,
     reset: [
+      /\breset(?:s)?\s+([a-z]{3,9}\s+\d{1,2}(?:,?\s*20\d{2})?(?:,?\s*(?:at\s*)?\d{1,2}(?::\d{2})?\s*(?:am|pm)?)?[^.\n)·•|]*?)(?=[.\n)·•|]|$)/i,
       /\breset(?:s)?\s+((?:today|tomorrow)?\s*[0-9][^.\n)·•|]+?)(?=[.\n)·•|]|$)/i,
       /\breset(?:s)?\s+(?:at|on|by)\s+([^.\n)·•|]+?)(?=[.\n)·•|]|$)/i,
     ],
@@ -1376,13 +1380,14 @@ const PROVIDER_QUOTA_PATTERNS = {
 };
 
 // 어떤 provider 인지 hint 가 없을 때 사용하는 폴백.
-const QUOTA_HINT_RE = /(usage limit|rate limit|quota|out of credit|too many requests|429|exceeded|hit your (?:usage|limit|weekly|daily)|you'?ve hit|limit (?:reached|reset)|weekly limit|daily limit|resets?\s+\d|resource[_\s]exhausted|retry.?delay|resets? in)/i;
+const QUOTA_HINT_RE = /(usage limit|rate limit|quota|out of credit|too many requests|429|exceeded|hit your (?:usage|limit|weekly|daily)|you'?ve hit|limit (?:reached|reset)|weekly limit|daily limit|resets?\s+(?:\d|[a-z]{3,9}\s+\d)|resource[_\s]exhausted|retry.?delay|resets? in)/i;
 
 const QUOTA_RESET_PATTERNS = [
   /(?:try again|available again|available|reset(?:s)?|resume(?:s)?|reset window|next attempt|retry|please retry)\s+(?:on|at|in|by|after)\s+([^.\n)·•|]+?)(?=[.\n)·•|]|$)/i,
   /(?:reset|available)\s*[:\-]\s*([^.\n)·•|]+?)(?=[.\n)·•|]|$)/i,
   /(?:available again at|resume at|reset at)\s+([^.\n)·•|]+?)(?=[.\n)·•|]|$)/i,
-  // Preposition-less "resets 6:30pm", "reset 18:30", "resets tomorrow 6pm"
+  // Preposition-less "resets 6:30pm", "reset 18:30", "resets tomorrow 6pm", "resets May 18, 6am"
+  /\breset(?:s)?\s+([a-z]{3,9}\s+\d{1,2}(?:,?\s*20\d{2})?(?:,?\s*(?:at\s*)?\d{1,2}(?::\d{2})?\s*(?:am|pm)?)?[^.\n)·•|]*?)(?=[.\n)·•|]|$)/i,
   /\breset(?:s)?\s+((?:today|tomorrow)?\s*[0-9][^.\n)·•|]+?)(?=[.\n)·•|]|$)/i,
   // retry-delay style: "retryDelay: '60s'", "retry-after: 30s"
   /retry.?(?:delay|after)[:\s'"]+([0-9]+\s*(?:s|sec|seconds|m|min|minutes|h|hr|hours)?)/i,
@@ -1397,6 +1402,27 @@ const TZ_OFFSET_MAP = {
 
 function stripOrdinal(text) {
   return String(text || "").replace(/(\d+)(st|nd|rd|th)/gi, "$1");
+}
+
+const MONTH_INDEX = {
+  jan: 0, january: 0,
+  feb: 1, february: 1,
+  mar: 2, march: 2,
+  apr: 3, april: 3,
+  may: 4,
+  jun: 5, june: 5,
+  jul: 6, july: 6,
+  aug: 7, august: 7,
+  sep: 8, sept: 8, september: 8,
+  oct: 9, october: 9,
+  nov: 10, november: 10,
+  dec: 11, december: 11,
+};
+
+function offsetMinutesFromString(offset) {
+  const om = String(offset || "+00:00").match(/^([+-])(\d{2}):?(\d{2})$/);
+  if (!om) return 0;
+  return (om[1] === "-" ? -1 : 1) * (Number(om[2]) * 60 + Number(om[3]));
 }
 
 // Detect a timezone hint anywhere on the line ("Asia/Seoul", "KST", ...) and
@@ -1451,11 +1477,7 @@ function parseLooseTime(token, tzOffset) {
 
   // Resolve against tz-shifted "today"
   const offset = tzOffset || "+00:00";
-  const offsetMinutes = (() => {
-    const om = offset.match(/^([+-])(\d{2}):?(\d{2})$/);
-    if (!om) return 0;
-    return (om[1] === "-" ? -1 : 1) * (Number(om[2]) * 60 + Number(om[3]));
-  })();
+  const offsetMinutes = offsetMinutesFromString(offset);
   const nowUtc = Date.now();
   const localNow = new Date(nowUtc + offsetMinutes * 60000);
   const y = localNow.getUTCFullYear();
@@ -1466,6 +1488,42 @@ function parseLooseTime(token, tzOffset) {
   let ts = candidateUtc;
   if (ts <= nowUtc && dayShift === 0) ts += 24 * 60 * 60 * 1000; // roll to tomorrow
   return ts > nowUtc ? new Date(ts) : null;
+}
+
+function parseMonthDateTime(token, tzOffset) {
+  const text = stripOrdinal(token).trim().toLowerCase();
+  if (!text) return null;
+  const monthNames = Object.keys(MONTH_INDEX).join("|");
+  const re = new RegExp(
+    `\\b(${monthNames})\\s+(\\d{1,2})(?:,?\\s*(20\\d{2}))?(?:,?\\s*(?:at\\s*)?(\\d{1,2})(?::(\\d{2}))?\\s*(am|pm)?)?\\b`,
+    "i",
+  );
+  const match = text.match(re);
+  if (!match) return null;
+
+  const month = MONTH_INDEX[match[1].toLowerCase()];
+  const day = Number(match[2]);
+  if (!Number.isInteger(month) || !Number.isFinite(day) || day < 1 || day > 31) return null;
+
+  let hour = match[4] ? Number(match[4]) : 0;
+  const minute = match[5] ? Number(match[5]) : 0;
+  const ampm = match[6]?.toLowerCase();
+  if (ampm === "pm" && hour < 12) hour += 12;
+  if (ampm === "am" && hour === 12) hour = 0;
+  if (!Number.isFinite(hour) || hour < 0 || hour > 23) return null;
+  if (!Number.isFinite(minute) || minute < 0 || minute > 59) return null;
+
+  const offset = tzOffset || "+00:00";
+  const offsetMinutes = offsetMinutesFromString(offset);
+  const nowUtc = Date.now();
+  const localNow = new Date(nowUtc + offsetMinutes * 60000);
+  let year = match[3] ? Number(match[3]) : localNow.getUTCFullYear();
+  let candidateUtc = Date.UTC(year, month, day, hour, minute) - offsetMinutes * 60000;
+  if (!match[3] && candidateUtc <= nowUtc) {
+    year += 1;
+    candidateUtc = Date.UTC(year, month, day, hour, minute) - offsetMinutes * 60000;
+  }
+  return candidateUtc > nowUtc ? new Date(candidateUtc) : null;
 }
 
 // Parse relative duration tokens like "60s", "2h 30m", "45 minutes", "1h",
@@ -1517,10 +1575,13 @@ function resolveCandidate(candidate, tzOffset) {
   // 1) Strict absolute parse
   const strict = Date.parse(cleaned + (tzOffset ? " " + tzOffset : ""));
   if (Number.isFinite(strict) && strict > Date.now()) return new Date(strict);
-  // 2) Relative duration (e.g. "2h 30m", "60s")
+  // 2) Month date + time (e.g. "May 18, 6am (Asia/Seoul)")
+  const monthDate = parseMonthDateTime(cleaned, tzOffset);
+  if (monthDate) return monthDate;
+  // 3) Relative duration (e.g. "2h 30m", "60s")
   const rel = parseRelativeDuration(cleaned);
   if (rel) return rel;
-  // 3) Loose time (e.g. "6:30pm", "tomorrow 6pm")
+  // 4) Loose time (e.g. "6:30pm", "tomorrow 6pm")
   const loose = parseLooseTime(cleaned, tzOffset);
   if (loose) return loose;
   return null;
@@ -1736,7 +1797,7 @@ function pendingMatchesAccount(pending, account) {
 export async function dispatchPendingForAccount(accountId) {
   const runtime = await readRuntime();
   const account = runtime.accounts.find((item) => item.id === accountId);
-  if (!account || account.enabled === false || account.sessionStatus !== "ready") {
+  if (!account || account.enabled === false || account.sessionStatus !== "ready" || activeQuotaLock(account)) {
     return { runtime, dispatched: 0 };
   }
   const pending = (runtime.pendingRuns || []).filter((item) => pendingMatchesAccount(item, account));

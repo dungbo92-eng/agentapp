@@ -573,3 +573,12 @@ NEXT_TASK.md 템플릿 확정: agent-next 생성물을 Required Reads, Execution
 - Git: commit dab5f22 pushed; release commit 0f3393f and tag v0.2.2 pushed
 - Decisions: none
 - Next: Claude/Gemini authenticated cycle 재검증
+
+## 2026-05-13T09:25:14.737Z
+
+- Status: completed
+- Summary: Claude quota reset 문자열 May 18, 6am Asia/Seoul 파싱을 정확히 처리하고, active quota lock은 재감지/준비 전환/pending 자동 시작으로 풀리지 않게 수정했습니다. 설치 앱 로컬 상태도 Claude 잠금 2026-05-18 06:00 KST, Codex dungbo92 로컬 예산 ok로 보정했습니다.
+- Verification: pnpm validate; pnpm dashboard:build; parseQuotaReset sample => 2026-05-17T21:00:00.000Z
+- Git: not recorded
+- Decisions: none
+- Next: commit/push/release
