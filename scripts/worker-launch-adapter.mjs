@@ -41,18 +41,26 @@ const LOGIN_PATTERNS_BY_PROVIDER = {
     /\bauthentication (?:failed|required|error)\b/i,
     /\bunauthori[sz]ed\b/i,
     /\bmissing credential/i,
+    /refresh token (?:was|is|has been) revoked/i,
+    /access token could not be refreshed/i,
+    /(?:please )?log out and sign in/i,
+    /token (?:expired|revoked|invalid)/i,
+    /401 unauthori[sz]ed/i,
   ],
   claude: [
     /please run\s+`?claude\s+login/i,
     /not logged in to claude/i,
     /claude\.ai\/login/i,
     /anthropic api key/i,
+    /credentials? (?:are )?invalid/i,
   ],
   codex: [
     /openai_api_key/i,
     /openai api key/i,
     /please run\s+`?codex\s+login/i,
     /chatgpt account/i,
+    /refresh token .* revoked/i,
+    /access token could not be refreshed/i,
   ],
   gemini: [
     /please run\s+`?gemini\s+auth/i,
@@ -1306,7 +1314,18 @@ async function launchCommandWorker(run, files, adapter, promptText) {
   const detection = detectInterruption(run.workerId, result.combinedOutput);
   if (detection.kind === "needs-login") {
     await updateAccountSession(run.routing?.accountId || "", "needs-login");
-    await appendRunEvent(run.id, { level: "warn", message: detection.reason });
+    // OAuth 토큰이 revoke 됐을 가능성이 높으므로 actualAuthEmail 도 초기화.
+    // 다음 로그인에서 사용자가 정확한 계정으로 OAuth 를 다시 끝내야 한다.
+    try {
+      const { clearAccountAuthIdentity } = await import("./dashboard-runtime.mjs");
+      if (run.routing?.accountId) await clearAccountAuthIdentity(run.routing.accountId);
+    } catch {
+      // best-effort
+    }
+    await appendRunEvent(run.id, {
+      level: "error",
+      message: `${detection.reason} — 사이드바에서 이 계정의 '로그인' 을 다시 눌러 OAuth 를 새로 완료하세요.`,
+    });
     await finishRunRecord(
       run.id,
       {
@@ -1316,6 +1335,7 @@ async function launchCommandWorker(run, files, adapter, promptText) {
           mode: adapter.mode,
           pid: result.pid,
           exitCode: result.code,
+          summary: detection.reason,
           logPath: relativePath(files.launchLogPath),
           promptPath: relativePath(files.promptPath),
           sessionDir: relativePath(adapter.sessionDir),
@@ -1326,6 +1346,24 @@ async function launchCommandWorker(run, files, adapter, promptText) {
         handoffReason: "missing_credentials",
       },
     );
+    // 토큰 revoke 도 한도 도달과 동일하게 처리 — 같은 worker 의 다른 ready
+    // 계정으로 자동 이어 시도. 모든 계정이 fail 이면 자동 중지.
+    try {
+      const { tryQuotaRetry } = await import("./dashboard-runtime.mjs");
+      const retried = await tryQuotaRetry(run);
+      if (retried) {
+        await appendRunEvent(run.id, {
+          level: "info",
+          message: `▶ 인증 실패 — ${retried.routing?.accountId || "다른 계정"} 으로 자동 재시도 (attempt ${retried.retryCount}).`,
+        });
+        await launchDashboardWorker(retried);
+      }
+    } catch (error) {
+      await appendRunEvent(run.id, {
+        level: "warn",
+        message: `재시도 시도 중 오류: ${error instanceof Error ? error.message : String(error)}`,
+      });
+    }
     return;
   }
   if (detection.kind === "quota") {

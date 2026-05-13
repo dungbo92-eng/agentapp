@@ -1314,6 +1314,23 @@ export async function applyQuotaLockout(accountId, resetAtIso, reason = "") {
   return resetAtIso;
 }
 
+export async function clearAccountAuthIdentity(accountId) {
+  if (!accountId) return null;
+  const id = normalizeId(accountId);
+  const runtime = await readRuntime();
+  runtime.accounts = runtime.accounts.map((account) =>
+    account.id === id
+      ? {
+          ...account,
+          actualAuthEmail: "",
+          sessionStatus: "needs-login",
+          sessionDetectionReason: "OAuth 토큰이 만료/취소됐습니다. '로그인' 을 다시 눌러 인증을 새로 완료하세요.",
+        }
+      : account,
+  );
+  return writeRuntime(runtime);
+}
+
 export async function updateAccountSession(accountId, sessionStatus) {
   const runtime = await readRuntime();
   const id = normalizeId(accountId);
