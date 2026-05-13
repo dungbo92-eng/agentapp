@@ -39,6 +39,7 @@
     "desktop:all": "pnpm dashboard:build && electron-builder --win portable nsis --x64",
     "desktop:artifact": "node scripts/desktop-artifact-info.mjs",
     "desktop:release": "node scripts/desktop-release.mjs",
+    "desktop:publish": "node scripts/desktop-publish.mjs",
     "claude:pull": "node scripts/claude-sync.mjs --pull --verbose",
     "claude:push": "node scripts/claude-sync.mjs --push --verbose",
     "claude:sync": "node scripts/claude-sync.mjs --auto --verbose",
