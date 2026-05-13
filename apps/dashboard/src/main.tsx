@@ -993,6 +993,7 @@ function App() {
   const [prompt, setPrompt] = React.useState("");
   const [complexity, setComplexity] = React.useState("standard");
   const [modelOverride, setModelOverride] = React.useState("auto");
+  const [showAdvancedModel, setShowAdvancedModel] = React.useState(false);
   const [selectedWorker, setSelectedWorker] = React.useState("codex");
   const [selectedProject, setSelectedProject] = React.useState("current");
   const [projectMeta, setProjectMeta] = React.useState<{
@@ -1019,8 +1020,7 @@ function App() {
   const [accountErrors, setAccountErrors] = React.useState<string[]>([]);
   const [projectErrors, setProjectErrors] = React.useState<string[]>([]);
   const [runError, setRunError] = React.useState("");
-  const [editingBudgetId, setEditingBudgetId] = React.useState<string | null>(null);
-  const [budgetDraft, setBudgetDraft] = React.useState<{ remaining: string; weekly: string }>({ remaining: "", weekly: "" });
+  // 수동 사용량 편집은 제거됨 — 한도는 worker stderr 패턴 + quota lockout 으로 자동 추적.
   const [now, setNow] = React.useState<number>(Date.now());
   const [activeSection, setActiveSection] = React.useState("run");
   const [showMetaPanels, setShowMetaPanels] = React.useState<boolean>(() => {
@@ -1573,33 +1573,6 @@ function App() {
     void updateRuntime(runtimeRequest("accounts/enabled", { ...account, enabled: !account.enabled }));
   }
 
-  function openBudgetEditor(account: ManagedAccount) {
-    setEditingBudgetId(account.id);
-    setBudgetDraft({ remaining: String(account.remainingUnits), weekly: String(account.weeklyUnits) });
-  }
-
-  async function saveBudget(account: ManagedAccount) {
-    const remaining = Number(budgetDraft.remaining);
-    const weekly = Number(budgetDraft.weekly);
-    if (!Number.isFinite(weekly) || weekly <= 0 || !Number.isFinite(remaining) || remaining < 0) {
-      setToast({ kind: "warn", message: "주간 예산은 1 이상, 남은 사용량은 0 이상이어야 합니다." });
-      return;
-    }
-    if (remaining > weekly) {
-      setToast({ kind: "warn", message: "남은 사용량은 주간 예산보다 클 수 없습니다." });
-      return;
-    }
-    try {
-      const next = await runtimeRequest("accounts/budget", { id: account.id, remainingUnits: remaining, weeklyUnits: weekly });
-      setRuntime(next);
-      setLastRuntimeSyncAt(new Date().toLocaleTimeString("ko-KR"));
-      setEditingBudgetId(null);
-      setToast({ kind: "success", message: `'${account.displayName || account.id}' 사용량을 ${remaining}/${weekly} 로 저장했습니다.` });
-    } catch (caught) {
-      setToast({ kind: "warn", message: caught instanceof Error ? caught.message : "사용량 저장에 실패했습니다" });
-    }
-  }
-
   async function startLogin(account: ManagedAccount) {
     try {
       const next = await runtimeRequest("accounts/login", { id: account.id });
@@ -1865,46 +1838,9 @@ function App() {
                   {account.sessionDetectionReason ? (
                     <small className="detectionReason">{account.sessionDetectionReason}</small>
                   ) : null}
-                  {editingBudgetId === account.id ? (
-                    <div className="budgetEditor">
-                      <label>
-                        남은
-                        <input
-                          inputMode="numeric"
-                          value={budgetDraft.remaining}
-                          onChange={(event) => setBudgetDraft({ ...budgetDraft, remaining: event.target.value })}
-                        />
-                      </label>
-                      <label>
-                        주간
-                        <input
-                          inputMode="numeric"
-                          value={budgetDraft.weekly}
-                          onChange={(event) => setBudgetDraft({ ...budgetDraft, weekly: event.target.value })}
-                        />
-                      </label>
-                      <div className="budgetActions">
-                        <button className="segButton" type="button" onClick={() => saveBudget(account)}>저장</button>
-                        <button className="segButton" type="button" onClick={() => setEditingBudgetId(null)}>취소</button>
-                      </div>
-                    </div>
-                  ) : (
-                    <div className="budgetRow">
-                      <small>
-                        남은 사용량 <strong>{numberFormatter.format(account.remainingUnits)}</strong> / 주간 예산 {numberFormatter.format(account.weeklyUnits)} / {planLabel(account.plan)}
-                      </small>
-                      {account.source === "local" ? (
-                        <button
-                          className="linkButton"
-                          type="button"
-                          title="잔여 사용량을 수정합니다. 외부 API 에서 실제 사용량을 가져올 수 없어 사용자 입력으로만 업데이트됩니다."
-                          onClick={() => openBudgetEditor(account)}
-                        >
-                          수정
-                        </button>
-                      ) : null}
-                    </div>
-                  )}
+                  <small className="budgetRow">
+                    {planLabel(account.plan)} · 한도 도달 시 자동 잠금
+                  </small>
                   <ProgressBar value={percent} />
                 </article>
               );
@@ -2039,6 +1975,15 @@ function App() {
           </div>
         ) : null}
 
+        <div className="syncBanner" role="note" aria-label="공통 관리 동기화 대상">
+          <strong>🔄 공통 관리 (모든 에이전트가 함께 동기화)</strong>
+          <span>
+            <code>git</code> · <code>.claude-sync/memory/</code> · <code>.claude-sync/plans/</code> ·
+            <code>tools/agent-orchestrator/handoff/{`{NEXT_TASK,RUN_STATUS,DECISIONS_REQUIRED}.md`}</code>
+          </span>
+          <small>모든 worker prompt 에 이 규칙이 명시되어 시작 시 자동 숙지됩니다. 작업 끝 + commit 시 동기화 hook 이 자동 갱신.</small>
+        </div>
+
         <section className="overview">
           <Stat
             label="로드맵"
@@ -2095,22 +2040,24 @@ function App() {
                 ))}
               </select>
             </label>
-            <label>
-              모델
-              <select
-                title="자동 선택을 유지하거나 특정 모델로 고정할 수 있습니다"
-                value={modelOverride}
-                onChange={(event) => setModelOverride(event.target.value)}
-              >
-                <option value="auto">자동</option>
-                <option value="gpt-5.5">GPT-5.5</option>
-                <option value="gpt-5.4">GPT-5.4</option>
-                <option value="gpt-5.4-mini">GPT-5.4 Mini</option>
-                <option value="opus">Claude Opus</option>
-                <option value="sonnet">Claude Sonnet</option>
-                <option value="best_available">가능한 최고 품질</option>
-              </select>
-            </label>
+            {showAdvancedModel ? (
+              <label>
+                모델 (수동)
+                <select
+                  title="자동 선택을 무시하고 특정 모델로 고정합니다"
+                  value={modelOverride}
+                  onChange={(event) => setModelOverride(event.target.value)}
+                >
+                  <option value="auto">자동 (권장)</option>
+                  <option value="gpt-5.5">GPT-5.5</option>
+                  <option value="gpt-5.4">GPT-5.4</option>
+                  <option value="gpt-5.4-mini">GPT-5.4 Mini</option>
+                  <option value="opus">Claude Opus</option>
+                  <option value="sonnet">Claude Sonnet</option>
+                  <option value="best_available">가능한 최고 품질</option>
+                </select>
+              </label>
+            ) : null}
             <label>
               난이도
               <select
@@ -2141,6 +2088,19 @@ function App() {
                 ))}
               </select>
             </label>
+          </div>
+          <div className="advancedToggle">
+            <button
+              className="linkButton"
+              type="button"
+              onClick={() => setShowAdvancedModel((value) => !value)}
+              title="기본은 자동 라우팅. 특정 모델을 강제로 쓰고 싶을 때만 펼치세요."
+            >
+              {showAdvancedModel ? "▼ 모델 자동 선택으로 돌아가기" : "▸ 모델 수동 선택"}
+            </button>
+            {!showAdvancedModel ? (
+              <small>모델은 계정 사용량/한도 상태를 보고 자동으로 골고루 분배됩니다.</small>
+            ) : null}
           </div>
 
           <label className="promptBox">

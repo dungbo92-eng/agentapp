@@ -752,6 +752,52 @@ textarea:focus {
   overflow-wrap: anywhere;
 }
 
+.syncBanner {
+  display: grid;
+  gap: 4px;
+  margin-bottom: 12px;
+  padding: 10px 14px;
+  border-radius: 8px;
+  background: #ecfdf5;
+  border-left: 3px solid #059669;
+  color: #064e3b;
+  font-size: 0.78rem;
+}
+
+.syncBanner strong {
+  color: #047857;
+  font-weight: 700;
+}
+
+.syncBanner code {
+  display: inline-block;
+  padding: 1px 6px;
+  margin: 0 2px;
+  border-radius: 4px;
+  background: rgba(255, 255, 255, 0.75);
+  color: #064e3b;
+  font-size: 0.72rem;
+  overflow-wrap: anywhere;
+}
+
+.syncBanner small {
+  color: #065f46;
+  font-size: 0.72rem;
+}
+
+.advancedToggle {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 10px;
+  margin-top: 6px;
+}
+
+.advancedToggle small {
+  color: #6b7280;
+  font-size: 0.74rem;
+}
+
 .topActions {
   display: flex;
   align-items: center;

@@ -986,15 +986,25 @@ function routeScore(candidate, complexity) {
   const profile = candidate.profile;
   const account = candidate.account;
   const modelRank = MODEL_RANK[profile.model] || 1;
+  const weekly = Math.max(1, Number(account.weeklyUnits || 1));
   const remaining = Number(account.remainingUnits || 0);
+  const remainingRatio = Math.max(0, Math.min(1, remaining / weekly)); // 0..1
   const estimated = Number(profile.estimatedUnits || ESTIMATED_UNITS[complexity] || 8);
   const lastUsed = account.lastUsedAt ? Date.parse(account.lastUsedAt) : 0;
-  const idleMinutes = lastUsed > 0 ? Math.max(0, (Date.now() - lastUsed) / 60000) : 60 * 24;
-  const loadBonus = Math.min(idleMinutes, 120) / 120;
+  // 24 시간 윈도에서 균등 분배 가중 (오래 안 쓴 계정 우선).
+  const idleHours = lastUsed > 0 ? Math.max(0, (Date.now() - lastUsed) / 3600000) : 48;
+  const loadBalance = Math.min(idleHours, 24) / 24; // 0..1, 24h+ 이면 만점
 
-  if (complexity === "routine") return remaining * 2 - estimated * 10 - modelRank + loadBonus * 3;
-  if (complexity === "standard") return modelRank * 20 + remaining - estimated * 2 + loadBonus * 5;
-  return modelRank * 100 + remaining - estimated + loadBonus * 8;
+  // 균등 분배 + 잔여 비율을 1순위, 모델 품질을 2순위로.
+  // 한도 락아웃된 계정은 호출부에서 이미 제외되므로 여기서는 ready 계정만 들어옴.
+  if (complexity === "routine") {
+    return remainingRatio * 40 + loadBalance * 30 - estimated * 2 - modelRank;
+  }
+  if (complexity === "standard") {
+    return remainingRatio * 35 + loadBalance * 25 + modelRank * 8 - estimated;
+  }
+  // complex / critical: 모델 품질을 더 크게 가산하되 균등 분배는 유지.
+  return remainingRatio * 25 + loadBalance * 15 + modelRank * 20 - estimated;
 }
 
 export function selectRoute(accounts, request) {

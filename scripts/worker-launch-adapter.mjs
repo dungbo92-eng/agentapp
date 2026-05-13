@@ -209,18 +209,36 @@ function substituteRuntimePaths(text) {
     .replace(/[A-Za-z]:\\agentApp/g, replacement);
 }
 
+const SHARED_SYNC_PREAMBLE = `[AgentApp 공통 관리 — 모든 에이전트 공통 숙지]
+
+다음 항목은 모든 worker (Codex/Claude Code/Cursor/Gemini)가 공유하는 동기화 대상이다.
+작업 시작 전 한 번 읽고, 의미 있는 진행이 발생하면 같은 파일을 갱신한 뒤 종료한다.
+
+- git: 현재 branch 의 working tree. 의미 있는 변경은 작은 단위로 commit. push 는 remote 가 명확할 때만.
+- \`.claude-sync/memory/project_state.md\`: 현재 상태와 다음 작업 후보. 진행 시 갱신.
+- \`.claude-sync/plans/agent-orchestrator-roadmap.md\` 등 plans: 단계 완료/방향 전환 시 체크박스 갱신.
+- \`tools/agent-orchestrator/handoff/NEXT_TASK.md\`: 다음 작업 1순위. 시작 시 확인.
+- \`tools/agent-orchestrator/handoff/RUN_STATUS.md\`: 작업 종료 시 \`pnpm agent:report\` 로 한 줄 남김.
+- \`tools/agent-orchestrator/handoff/DECISIONS_REQUIRED.md\`: 사용자 결정 필요 항목만 여기에.
+
+자동 라우팅은 각 계정의 한도/사용량/세션 ready 상태를 보고 골고루 분배한다.
+한도 초과는 worker stderr 패턴으로 자동 감지 → 해당 계정 잠금. 수동 입력 없음.
+
+`;
+
 async function writeLaunchPrompt(run, files) {
   const userPrompt = String(run.prompt || "").trim();
   // 사용자가 입력한 프롬프트가 있으면 그것만 그대로 전달 (chat 모드).
   // 비어 있을 때만 워커 핸드오프 템플릿을 사용 (NEXT_TASK 자동 진행 모드).
   let body;
   if (userPrompt) {
-    body = userPrompt;
+    body = `${SHARED_SYNC_PREAMBLE}\n---\n${userPrompt}`;
   } else {
     const workerPrompt = await readWorkerPrompt(run.workerId);
-    body = workerPrompt
+    const inner = workerPrompt
       ? workerPrompt
       : "Continue from tools/agent-orchestrator/handoff/NEXT_TASK.md.";
+    body = `${SHARED_SYNC_PREAMBLE}\n---\n${inner}`;
   }
 
   await mkdir(files.runDir, { recursive: true });
