@@ -22,25 +22,17 @@ import { spawn } from "node:child_process";
 
 const REPO_ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 
-function quoteArg(arg) {
-  if (process.platform !== "win32") return arg;
-  if (!/[\s"&<>|^]/.test(arg)) return arg;
-  return `"${arg.replace(/"/g, '\\"')}"`;
-}
-
 function run(command, args) {
   return new Promise((resolve, reject) => {
-    let child;
-    if (process.platform === "win32") {
-      const line = [command, ...args].map(quoteArg).join(" ");
-      child = spawn(process.env.ComSpec || "cmd.exe", ["/d", "/s", "/c", line], {
-        cwd: REPO_ROOT,
-        stdio: "inherit",
-        windowsVerbatimArguments: true,
-      });
-    } else {
-      child = spawn(command, args, { cwd: REPO_ROOT, stdio: "inherit" });
-    }
+    // command 가 .exe / 절대 경로면 shell 우회하고 직접 실행 (Node spawn 이
+    // 알아서 quoting 처리). .cmd / .bat 처럼 shell 가 필요한 경우에만 shell:true.
+    const isWin = process.platform === "win32";
+    const needsShell = isWin && /\.(cmd|bat)$/i.test(command);
+    const child = spawn(command, args, {
+      cwd: REPO_ROOT,
+      stdio: "inherit",
+      shell: needsShell,
+    });
     child.on("error", reject);
     child.on("close", (code) => (code === 0 ? resolve() : reject(new Error(`exit ${code}`))));
   });

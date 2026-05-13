@@ -46,35 +46,18 @@ function parseArgs(argv) {
   return args;
 }
 
-// Windows 의 cmd.exe shell 이 ' '/특수문자가 든 인자를 다시 토큰화하지 않도록
-// 직접 quote 하고 cmd /d /s /c "..." 로 wrap. .cmd / .bat 파일도 정상 호출.
-function quoteArg(arg) {
-  if (process.platform !== "win32") return arg;
-  // 인자에 공백/특수문자 없으면 그대로
-  if (!/[\s"&<>|^]/.test(arg)) return arg;
-  // 내부 큰따옴표 escape, 전체를 "..." 로 감쌈
-  return `"${arg.replace(/"/g, '\\"')}"`;
-}
-
 function run(command, args, options = {}) {
   return new Promise((resolve, reject) => {
-    let child;
-    if (process.platform === "win32") {
-      // shell 우회: 직접 cmd.exe /d /s /c 로 wrap 하고 모든 인자를 수동 quoting.
-      const line = [command, ...args].map(quoteArg).join(" ");
-      child = spawn(process.env.ComSpec || "cmd.exe", ["/d", "/s", "/c", line], {
-        cwd: REPO_ROOT,
-        stdio: "inherit",
-        windowsVerbatimArguments: true,
-        ...options,
-      });
-    } else {
-      child = spawn(command, args, {
-        cwd: REPO_ROOT,
-        stdio: "inherit",
-        ...options,
-      });
-    }
+    // command 가 .exe / 절대경로면 shell 우회 (Node spawn 이 알아서 quoting).
+    // .cmd / .bat 파일만 shell:true 필요.
+    const isWin = process.platform === "win32";
+    const needsShell = isWin && /\.(cmd|bat)$/i.test(command);
+    const child = spawn(command, args, {
+      cwd: REPO_ROOT,
+      stdio: "inherit",
+      shell: needsShell,
+      ...options,
+    });
     child.on("error", reject);
     child.on("close", (code) => {
       if (code === 0) resolve();
