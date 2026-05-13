@@ -32,6 +32,22 @@
 
 ## 대기
 
+### DEC-20260513-001 — GitHub Release 도구 점검
+
+- Status: pending
+- Priority: high
+- Category: deployment
+- Requested by: agent
+- Blocks: 코드 변경 push 후 자동 업데이트용 GitHub Release 발행
+- Context: 대시보드/worker 런타임 변경을 main에 push했으나 이 PC에서 `gh` CLI를 찾을 수 없어 `gh auth status`가 실행되지 않았다. 규칙상 GitHub Release 자동 발행은 건너뛰고 토큰/CLI 점검 항목으로 남긴다.
+- Options:
+  - A: GitHub CLI를 설치하고 정상 인증한 뒤 릴리즈 명령을 다시 실행한다.
+  - B: 이번 배포를 의도적으로 보류한다.
+- Recommended: A. 설치된 데스크탑 앱 자동 업데이트는 GitHub Release의 `latest.yml`에 의존하므로 릴리즈 도구를 복구해야 한다.
+- Decision needed: 이 PC에 GitHub CLI를 설치/인증해 자동 릴리즈를 진행할까?
+- After decision: `gh auth status` 확인 후 `pnpm desktop:release -- --bump patch`를 실행한다.
+- Created: 2026-05-13
+
 ### DEC-20260509-003 — 주간 사용량 입력 방식
 
 - Status: pending

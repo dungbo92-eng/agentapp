@@ -528,3 +528,12 @@ NEXT_TASK.md 템플릿 확정: agent-next 생성물을 Required Reads, Execution
 - Git: pending
 - Decisions: none
 - Next: 현재 변경 검토 후 commit/push, 릴리즈 트리거 여부 확인
+
+## 2026-05-13T08:37:50.301Z
+
+- Status: completed
+- Summary: 자동 라우팅 provider fallback 수정은 검증 후 commit/push 완료했습니다. 릴리즈 트리거 대상 변경이지만 이 PC에 gh CLI가 없어 GitHub Release 발행은 보류했고 DEC-20260513-001에 도구 점검을 기록했습니다.
+- Verification: pnpm validate; pnpm --dir apps/dashboard exec tsc --noEmit; pnpm dashboard:build; pnpm agent:doctor; pnpm agent:progress; pnpm agent:next; pnpm agent:sync; pnpm agent:status; selectRoute/startRun 시뮬레이션; git push origin main
+- Git: commit befa6d7 pushed to origin/main
+- Decisions: DEC-20260513-001 pending: gh CLI missing, release skipped
+- Next: gh CLI 설치/인증 후 pnpm desktop:release -- --bump patch 실행
