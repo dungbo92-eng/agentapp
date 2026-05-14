@@ -209,6 +209,17 @@ type RunRecord = {
   completedAt?: string;
   handoffPath?: string;
   currentStatus?: string; // [STATUS] 마커가 마지막으로 보고한 현재 작업
+  interruptedWorktree?: {
+    path: string;
+    dirty: boolean;
+    branch?: string;
+    fileCount: number;
+    files: string[];
+    statusText?: string;
+    diffStat?: string;
+    reason?: string;
+    detectedAt?: string;
+  };
   retryCount?: number;
   chainDepth?: number;
   chainDoneOverrides?: number; // CHAIN_DONE 안전망 override 누적 횟수
@@ -2650,6 +2661,12 @@ function App() {
                           || run.adapter?.lastError
                           || run.routing?.reason
                           || "차단 사유 정보 없음"}
+                      </small>
+                    ) : null}
+                    {run.interruptedWorktree?.dirty ? (
+                      <small className="blockedReason">
+                        중단된 변경 {run.interruptedWorktree.fileCount}개 남음: {run.interruptedWorktree.files.slice(0, 4).join(", ")}
+                        {run.interruptedWorktree.fileCount > 4 ? ` 외 ${run.interruptedWorktree.fileCount - 4}개` : ""}
                       </small>
                     ) : null}
                     {run.adapter?.launchLogTail ? (

@@ -1,6 +1,7 @@
 #!/usr/bin/env node
 
 import { mkdir, rm, writeFile } from "node:fs/promises";
+import { spawnSync } from "node:child_process";
 import os from "node:os";
 import path from "node:path";
 
@@ -207,6 +208,59 @@ try {
     throw new Error("stale active run was not completed from last-message");
   }
   console.log("[validate-quota-parser] ok stale active run cleanup");
+
+  const dirtyRepo = path.join(tempDir, "dirty-repo");
+  await mkdir(dirtyRepo, { recursive: true });
+  spawnSync("git", ["init"], { cwd: dirtyRepo, stdio: "ignore" });
+  await writeFile(path.join(dirtyRepo, "leftover.txt"), "partial\n", "utf8");
+  const dirtyLastMessagePath = path.join(tempDir, "dirty-last-message.txt");
+  await writeFile(dirtyLastMessagePath, "CHAIN_DONE\n", "utf8");
+  await writeFile(runtimeFile, JSON.stringify({
+    version: 1,
+    accounts: [],
+    projects: [{ id: "dirty-project", name: "dirty", path: dirtyRepo }],
+    activeRun: {
+      id: "dirty-stale-run",
+      status: "running",
+      workerId: "codex",
+      projectId: "dirty-project",
+      startedAt: "2026-05-13T00:00:00.000Z",
+      adapter: {
+        status: "running",
+        pid: 999999,
+        lastMessagePath: dirtyLastMessagePath,
+      },
+      events: [],
+    },
+    runHistory: [
+      {
+        id: "dirty-stale-run",
+        status: "running",
+        workerId: "codex",
+        projectId: "dirty-project",
+        startedAt: "2026-05-13T00:00:00.000Z",
+        adapter: {
+          status: "running",
+          pid: 999999,
+          lastMessagePath: dirtyLastMessagePath,
+        },
+        events: [],
+      },
+    ],
+    pendingRuns: [],
+    settings: {},
+  }, null, 2), "utf8");
+
+  const afterDirtyStale = await readRuntime();
+  const dirtyStaleRun = afterDirtyStale.runHistory.find((run) => run.id === "dirty-stale-run");
+  if (
+    afterDirtyStale.activeRun
+    || dirtyStaleRun?.status !== "needs_user"
+    || dirtyStaleRun?.interruptedWorktree?.fileCount !== 1
+  ) {
+    throw new Error("dirty stale active run was not marked for review");
+  }
+  console.log("[validate-quota-parser] ok dirty stale run needs review");
 } finally {
   Date.now = realDateNow;
   await rm(tempDir, { recursive: true, force: true });

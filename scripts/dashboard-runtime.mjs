@@ -372,6 +372,114 @@ function processIsAlive(pid) {
   }
 }
 
+function projectPathForRun(runtime, run) {
+  const project = (runtime.projects || []).find((item) => item.id === run?.projectId);
+  return String(project?.path || "").trim();
+}
+
+function trimCapture(text, limit = 4096) {
+  const value = String(text || "");
+  return value.length <= limit ? value : value.slice(-limit);
+}
+
+async function captureCommand(command, args, options = {}) {
+  return new Promise((resolve) => {
+    let settled = false;
+    let stdout = "";
+    let stderr = "";
+    const child = spawn(command, args, {
+      cwd: options.cwd || REPO_ROOT,
+      windowsHide: true,
+      stdio: ["ignore", "pipe", "pipe"],
+    });
+    const finish = (result) => {
+      if (settled) return;
+      settled = true;
+      resolve({
+        ...result,
+        stdout: trimCapture(stdout),
+        stderr: trimCapture(stderr),
+      });
+    };
+    const timer = setTimeout(() => {
+      try { child.kill("SIGKILL"); } catch { /* already gone */ }
+      finish({ code: 124, timedOut: true });
+    }, Math.max(1000, Number(options.timeoutMs || 5000)));
+    child.stdout?.on("data", (chunk) => { stdout += chunk.toString("utf8"); });
+    child.stderr?.on("data", (chunk) => { stderr += chunk.toString("utf8"); });
+    child.on("error", (error) => {
+      clearTimeout(timer);
+      finish({ code: 1, error: error instanceof Error ? error.message : String(error) });
+    });
+    child.on("close", (code) => {
+      clearTimeout(timer);
+      finish({ code: Number(code || 0), timedOut: false });
+    });
+  });
+}
+
+export async function inspectRunWorktree(runtime, run) {
+  const cwd = projectPathForRun(runtime, run);
+  if (!cwd) return null;
+  try {
+    const info = await stat(cwd);
+    if (!info.isDirectory()) return null;
+  } catch {
+    return null;
+  }
+
+  const status = await captureCommand("git", ["status", "--short"], { cwd, timeoutMs: 5000 });
+  if (status.code !== 0) {
+    return {
+      path: cwd,
+      dirty: false,
+      branch: "",
+      files: [],
+      fileCount: 0,
+      statusText: "",
+      error: status.stderr || status.error || "git status failed",
+    };
+  }
+
+  const branch = await captureCommand("git", ["branch", "--show-current"], { cwd, timeoutMs: 3000 });
+  const diffStat = await captureCommand("git", ["diff", "--stat"], { cwd, timeoutMs: 5000 });
+  const lines = status.stdout.split(/\r?\n/).map((line) => line.trimEnd()).filter(Boolean);
+  const files = lines.map((line) => line.replace(/^.. ?/, "").trim()).filter(Boolean);
+  return {
+    path: cwd,
+    dirty: lines.length > 0,
+    branch: branch.code === 0 ? branch.stdout.trim() : "",
+    files: files.slice(0, 30),
+    fileCount: lines.length,
+    statusText: lines.slice(0, 50).join("\n"),
+    diffStat: diffStat.code === 0 ? diffStat.stdout.trim() : "",
+  };
+}
+
+function dirtyWorktreeEvent(snapshot, reason) {
+  if (!snapshot?.dirty) return null;
+  const sample = snapshot.files.slice(0, 6).join(", ");
+  const suffix = snapshot.fileCount > 6 ? ` 외 ${snapshot.fileCount - 6}개` : "";
+  const reasonText = reason === "stale_pid_missing"
+    ? "worker PID가 사라졌습니다"
+    : "worker가 실패 종료했습니다";
+  return `중단 감지: ${reasonText}. ${snapshot.path}에 미커밋 변경 ${snapshot.fileCount}개가 남아 있습니다: ${sample}${suffix}`;
+}
+
+export async function buildInterruptedWorktreePatch(run, reason = "worker_failed") {
+  const runtime = await readRuntime();
+  const snapshot = await inspectRunWorktree(runtime, run);
+  if (!snapshot?.dirty) return {};
+  return {
+    interruptedWorktree: {
+      ...snapshot,
+      reason,
+      detectedAt: nowIso(),
+    },
+    currentStatus: `작업 중단: 미커밋 변경 ${snapshot.fileCount}개 남음`,
+  };
+}
+
 async function reconcileStaleActiveRun(runtime) {
   const active = runtime.activeRun;
   if (!active || active.status !== "running" || !active.adapter?.pid) {
@@ -383,14 +491,27 @@ async function reconcileStaleActiveRun(runtime) {
 
   const finishedAt = nowIso();
   const lastMessageText = (await readInlineText(active.adapter.lastMessagePath)).trim();
-  const completed = Boolean(lastMessageText);
+  const worktree = await inspectRunWorktree(runtime, active);
+  const dirtyAfterExit = Boolean(worktree?.dirty);
+  const completed = Boolean(lastMessageText) && !dirtyAfterExit;
+  const status = completed ? "completed" : lastMessageText ? "needs_user" : "failed";
+  const adapterStatus = completed ? "completed" : lastMessageText ? "interrupted-dirty-worktree" : "failed";
+  const dirtyEvent = dirtyWorktreeEvent(worktree, "stale_pid_missing");
   const nextRun = {
     ...active,
-    status: completed ? "completed" : "failed",
+    status,
+    currentStatus: dirtyAfterExit ? `작업 중단: 미커밋 변경 ${worktree.fileCount}개 남음` : active.currentStatus,
+    interruptedWorktree: dirtyAfterExit
+      ? {
+          ...worktree,
+          reason: "stale_pid_missing",
+          detectedAt: finishedAt,
+        }
+      : active.interruptedWorktree,
     stoppedAt: active.stoppedAt || finishedAt,
     adapter: {
       ...(active.adapter || {}),
-      status: completed ? "completed" : "failed",
+      status: adapterStatus,
       exitCode: completed ? 0 : 1,
       lastMessageText,
     },
@@ -402,6 +523,20 @@ async function reconcileStaleActiveRun(runtime) {
         : "stale activeRun 정리: worker PID가 종료됐고 최종 메시지가 없어 실패 처리했습니다.",
     }),
   };
+  if (lastMessageText && dirtyAfterExit) {
+    nextRun.events = cappedEvents(nextRun.events, {
+      at: finishedAt,
+      level: "warn",
+      message: "최종 메시지는 있으나 작업 폴더에 미커밋 변경이 남아 검토 필요 상태로 처리했습니다.",
+    });
+  }
+  if (dirtyEvent) {
+    nextRun.events = cappedEvents(nextRun.events, {
+      at: finishedAt,
+      level: "warn",
+      message: dirtyEvent,
+    });
+  }
   const history = Array.isArray(runtime.runHistory) ? runtime.runHistory : [];
   const found = history.some((item) => item.id === nextRun.id);
   const runHistory = (found
@@ -1274,6 +1409,7 @@ export function selectRoute(accounts, request) {
 function dashboardRunState(run, status, reason) {
   const now = new Date().toISOString();
   const validationResult = run.validation?.status === "passed" ? "passed" : run.validation?.status === "failed" ? "failed" : run.validation?.status === "running" ? "partial" : "not_run";
+  const interruptedWorktree = run.interruptedWorktree || null;
   return {
     version: 1,
     run_id: run.id,
@@ -1308,6 +1444,7 @@ function dashboardRunState(run, status, reason) {
       summary: run.validation?.summary || "",
       log_path: run.validation?.logPath || "",
     },
+    interrupted_worktree: interruptedWorktree,
     adapter: {
       mode: run.adapter?.mode || "pending",
       status: run.adapter?.status || "pending",
@@ -1335,10 +1472,11 @@ function dashboardRunState(run, status, reason) {
       ],
     },
     git: {
-      branch: "main",
+      branch: interruptedWorktree?.branch || "main",
       commit: "not_created",
       pushed: false,
-      dirty: true,
+      dirty: Boolean(interruptedWorktree?.dirty),
+      dirty_files: interruptedWorktree?.files || [],
     },
     safety: {
       contains_secrets: false,
@@ -1350,6 +1488,9 @@ function dashboardRunState(run, status, reason) {
 }
 
 function dashboardRunMarkdown(state) {
+  const dirtyFiles = state.interrupted_worktree?.dirty
+    ? `\n## 중단된 변경 파일\n\n- 작업 경로: ${state.interrupted_worktree.path}\n- 변경 파일: ${state.interrupted_worktree.fileCount}개\n\n\`\`\`text\n${state.interrupted_worktree.statusText || state.interrupted_worktree.files.join("\n")}\n\`\`\`\n`
+    : "";
   return `# DASHBOARD_RUN
 
 - 생성 시각: ${state.timestamps.updated_at}
@@ -1369,6 +1510,7 @@ ${state.handoff.summary}
 ## 다음 단계
 
 ${state.handoff.next_step}
+${dirtyFiles}
 `;
 }
 
@@ -2435,6 +2577,7 @@ export async function startRun(input) {
     ? (routing.status === "recommended" ? (workerForProvider(routing.provider) || "claude-code") : "auto")
     : requestedWorker;
 
+  const worktreeBefore = await inspectRunWorktree(runtime, { projectId });
   const id = `run-${Date.now()}`;
   const run = {
     id,
@@ -2455,6 +2598,12 @@ export async function startRun(input) {
     chainDoneOverrides: Number(input.chainDoneOverrides || 0),
     startedAt: new Date().toISOString(),
     routing,
+    worktreeBefore: worktreeBefore
+      ? {
+          ...worktreeBefore,
+          capturedAt: nowIso(),
+        }
+      : null,
     validation: {
       status: "not_run",
       command: "pnpm validate",

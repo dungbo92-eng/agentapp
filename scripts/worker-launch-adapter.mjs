@@ -10,6 +10,7 @@ import {
   DATA_DIR,
   REPO_ROOT,
   appendRunEvent,
+  buildInterruptedWorktreePatch,
   finishRunRecord,
   patchRunRecord,
   readRuntime,
@@ -1448,9 +1449,21 @@ async function launchCommandWorker(run, files, adapter, promptText) {
     return;
   }
 
+  const interruptedPatch = await buildInterruptedWorktreePatch(run, "worker_failed");
+  if (interruptedPatch.interruptedWorktree) {
+    const files = interruptedPatch.interruptedWorktree.files.slice(0, 6).join(", ");
+    const suffix = interruptedPatch.interruptedWorktree.fileCount > 6
+      ? ` 외 ${interruptedPatch.interruptedWorktree.fileCount - 6}개`
+      : "";
+    await appendRunEvent(run.id, {
+      level: "warn",
+      message: `작업 실패 후 미커밋 변경 ${interruptedPatch.interruptedWorktree.fileCount}개가 남아 있습니다: ${files}${suffix}`,
+    });
+  }
   await finishRunRecord(
     run.id,
     {
+      ...interruptedPatch,
       status: "failed",
       adapter: {
         status: "failed",
