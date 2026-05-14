@@ -1378,6 +1378,7 @@ const PROVIDER_QUOTA_PATTERNS = {
   //   "Usage limit reached, resets tomorrow 6pm (Asia/Seoul)"
   claude: {
     hint: /(you'?ve hit your (?:limit|weekly limit|daily limit|usage)|hit your (?:limit|weekly|daily)|usage limit (?:reached|hit)|weekly limit (?:reached|hit)|approaching (?:your )?(?:weekly|daily) limit|reset(?:s)?\s+(?:\d|[a-z]{3,9}\s+\d))/i,
+    fallback: /(you'?ve hit your (?:limit|weekly limit|daily limit|usage)|hit your (?:limit|weekly|daily)|usage limit (?:reached|hit)|weekly limit (?:reached|hit))/i,
     reset: [
       /\breset(?:s)?\s+([a-z]{3,9}\s+\d{1,2}(?:,?\s*20\d{2})?(?:,?\s*(?:at\s*)?\d{1,2}(?::\d{2})?\s*(?:am|pm)?)?[^.\n)·•|]*?)(?=[.\n)·•|]|$)/i,
       /\breset(?:s)?\s+((?:today|tomorrow)?\s*[0-9][^.\n)·•|]+?)(?=[.\n)·•|]|$)/i,
@@ -1390,7 +1391,8 @@ const PROVIDER_QUOTA_PATTERNS = {
   //   "429 Too Many Requests; please retry after 60s"
   //   "You've reached your usage limit. Try again at 2026-05-14T10:00:00Z."
   codex: {
-    hint: /(rate.?limit(?:_exceeded)?|429|too many requests|you'?ve (?:used|reached) .*limit|usage limit|out of (?:credit|quota)|insufficient_quota|quota.*exceeded|retry.after|resets? in)/i,
+    hint: /(rate[_\s-]?limit(?:ed|[_\s-]?(?:exceeded|reached))|rate_limit_exceeded|429|too many requests|you'?ve (?:used|reached) .*limit|usage limit|out of (?:credit|quota)|insufficient_quota|quota.*exceeded|retry.after|resets? in)/i,
+    fallback: /(rate[_\s-]?limit(?:ed|[_\s-]?(?:exceeded|reached))|rate_limit_exceeded|429|too many requests|you'?ve (?:used|reached) .*limit|usage limit|out of (?:credit|quota)|insufficient_quota|quota.*exceeded)/i,
     reset: [
       // "Resets in 2h 30m", "try again in 45 seconds", "retry after 60s"
       /(?:resets?|try again|retry|wait)\s+(?:in|after)\s+([0-9][^.\n)·•|]*?)(?=[.\n)·•|]|$)/i,
@@ -1408,6 +1410,7 @@ const PROVIDER_QUOTA_PATTERNS = {
   //   "You have exceeded your quota. Try again in 45 minutes."
   gemini: {
     hint: /(resource[_\s]exhausted|quota exceeded|exceeded your quota|429|rate.?limit|retry.?delay|please retry|quota metric)/i,
+    fallback: /(resource[_\s]exhausted|quota exceeded|exceeded your quota|429|rate[_\s-]?limit(?:ed|[_\s-]?(?:exceeded|reached))|quota metric)/i,
     reset: [
       // "retryDelay: '60s'" / "retry-delay: 60s"
       /retry.?delay[:\s'"]+([0-9]+\s*(?:s|sec|seconds|m|min|minutes|h|hr|hours)?)/i,
@@ -1421,6 +1424,7 @@ const PROVIDER_QUOTA_PATTERNS = {
   //   "Free tier limit reached. Renews in 5 days."
   cursor: {
     hint: /(usage limit|rate.?limit|quota|too many requests|429|exceeded|monthly limit|used all|fast requests|premium requests|tier limit|renews?)/i,
+    fallback: /(usage limit|quota.*exceeded|too many requests|429|monthly limit|used all|tier limit)/i,
     reset: [
       /\b(?:reset(?:s)?|renews?|available)\s+(?:on|at|in|by)\s+([^.\n)·•|]+?)(?=[.\n)·•|]|$)/i,
       /\breset(?:s)?\s+((?:today|tomorrow)?\s*[0-9][^.\n)·•|]+?)(?=[.\n)·•|]|$)/i,
@@ -1658,7 +1662,10 @@ export function parseQuotaReset(rawLine, providerHint = "") {
       }
       // hint 는 맞았지만 reset 시각 추출 실패 → 기본 잠금 윈도우 (1시간) 적용해
       // 같은 메시지에서 무한 재시도를 막는다. provider 가 시간을 안 알려 줄 때 안전판.
-      return new Date(Date.now() + 60 * 60 * 1000).toISOString();
+      if (providerEntry.fallback?.test(rawLine)) {
+        return new Date(Date.now() + 60 * 60 * 1000).toISOString();
+      }
+      return null;
     }
     // provider hint 가 안 맞으면 generic 으로 폴백 (오탐 방지)
   }
@@ -1758,7 +1765,7 @@ export async function probeAccountLockout(accountId, options = {}) {
       "--skip-git-repo-check",
       "--dangerously-bypass-approvals-and-sandbox",
       "-m",
-      "gpt-4o-mini",
+      account.modelProfiles?.routine?.model || "gpt-5.4-mini",
       "ok",
     ];
     configEnv = "CODEX_HOME";
@@ -1837,7 +1844,7 @@ export async function probeAccountLockout(accountId, options = {}) {
     child.on("close", (code) => {
       clearTimeout(timer);
       // 출력에 quota / unauthorized 패턴이 있으면 still locked.
-      if (/quota|rate.?limit|too many requests|usage limit|429|hit your (?:usage|limit)|exceeded/i.test(combined)) {
+      if (/(quota.*(?:exceeded|reached)|rate[_\s-]?limit(?:ed|[_\s-]?(?:exceeded|reached))|rate_limit_exceeded|too many requests|usage limit|429|hit your (?:usage|limit)|exceeded your quota|insufficient_quota)/i.test(combined)) {
         finish(false, "still_locked");
         return;
       }

@@ -591,3 +591,12 @@ NEXT_TASK.md 템플릿 확정: agent-next 생성물을 Required Reads, Execution
 - Git: commit b76d469 pushed; release commit 7967461 and tag v0.2.3 pushed
 - Decisions: none
 - Next: Claude/Gemini authenticated cycle 재검증
+
+## 2026-05-14T01:58:59.362Z
+
+- Status: completed
+- Summary: Codex dungbo92 계정의 오탐 quota lock을 해제했고, 작업/문서의 'API Rate Limit' 문구만으로 Codex 계정이 1시간 fallback 잠금되지 않도록 파서와 worker 종료 분류를 강화했습니다. 잠금 점검 probe도 Codex routine 모델을 사용하도록 바꿨습니다.
+- Verification: pnpm validate; pnpm dashboard:build; parseQuotaReset soft API Rate Limit => null; c4 quotaResetAt cleared
+- Git: not recorded
+- Decisions: none
+- Next: commit/push/release

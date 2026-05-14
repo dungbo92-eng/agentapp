@@ -109,7 +109,8 @@ function killChildTree(pid) {
 // 분류돼야 finishRunRecord(quota_limited) + tryQuotaRetry 가 호출돼 다른
 // 계정으로 자동 이어진다. provider 별 실제 출력 형태를 모두 잡도록 확장.
 const QUOTA_PATTERNS = [
-  /rate ?limit(?:ed)?/i,
+  /rate[_\s-]?limit(?:ed|[_\s-]?(?:exceeded|reached))/i,
+  /rate_limit_exceeded/i,
   /quota (?:exceeded|reached)/i,
   /usage (?:limit|exceeded)/i,
   /you have reached your/i,
@@ -150,7 +151,7 @@ function providerKeyFor(workerId) {
   return "";
 }
 
-function detectInterruption(workerId, output) {
+export function detectInterruption(workerId, output) {
   if (!output) return { kind: "", reason: "" };
   const provider = providerKeyFor(workerId);
   const loginPatterns = [

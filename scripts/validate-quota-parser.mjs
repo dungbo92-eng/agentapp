@@ -17,6 +17,7 @@ const {
   readRuntime,
   setAccountSession,
 } = await import("./dashboard-runtime.mjs");
+const { detectInterruption } = await import("./worker-launch-adapter.mjs");
 
 Date.now = () => fixedNow;
 
@@ -39,6 +40,24 @@ const cases = [
     provider: "claude",
     expected: "2026-05-14T09:00:00.000Z",
   },
+  {
+    name: "codex hard fallback reset",
+    line: "ERROR: rate_limit_exceeded",
+    provider: "codex",
+    expected: "2026-05-13T01:00:00.000Z",
+  },
+  {
+    name: "codex doc rate-limit phrase ignored",
+    line: "- API Rate Limit applied, retry/backoff needed",
+    provider: "codex",
+    expected: null,
+  },
+  {
+    name: "generic doc rate-limit phrase ignored",
+    line: "- API Rate Limit applied, retry/backoff needed",
+    provider: "",
+    expected: null,
+  },
 ];
 
 try {
@@ -51,6 +70,19 @@ try {
   }
 
   const runtimeFile = path.join(tempDir, "dashboard-runtime.json");
+
+  const softInterruption = detectInterruption("codex", "- API Rate Limit applied, retry/backoff needed");
+  if (softInterruption.kind !== "") {
+    throw new Error(`codex doc rate-limit phrase was classified as ${softInterruption.kind}`);
+  }
+  console.log("[validate-quota-parser] ok worker ignores doc rate-limit phrase");
+
+  const hardInterruption = detectInterruption("codex", "ERROR: rate_limit_exceeded");
+  if (hardInterruption.kind !== "quota") {
+    throw new Error(`codex hard rate limit was classified as ${hardInterruption.kind || "none"}`);
+  }
+  console.log("[validate-quota-parser] ok worker detects hard rate-limit error");
+
   await writeFile(runtimeFile, JSON.stringify({
     version: 1,
     accounts: [
