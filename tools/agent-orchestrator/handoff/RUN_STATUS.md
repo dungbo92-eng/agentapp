@@ -618,3 +618,12 @@ NEXT_TASK.md 템플릿 확정: agent-next 생성물을 Required Reads, Execution
 - Git: not recorded
 - Decisions: none
 - Next: commit/push/release
+
+## 2026-05-14T06:35:29.560Z
+
+- Status: completed
+- Summary: stale activeRun 복구 패치를 v0.2.9로 릴리즈했습니다. run-1778736452149는 완료 처리되어 activeRun이 비었고, 다음 에이전트 실행을 막지 않습니다.
+- Verification: pnpm validate; pnpm dashboard:build; gh release view v0.2.9; activeRun null
+- Git: commit 754015f pushed; release commit 45c1e53 and tag v0.2.9 pushed
+- Decisions: none
+- Next: D:\\sytleOsjang 변경 13개 파일 검증/커밋 또는 다음 에이전트 인계
