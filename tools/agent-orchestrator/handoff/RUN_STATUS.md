@@ -600,3 +600,12 @@ NEXT_TASK.md 템플릿 확정: agent-next 생성물을 Required Reads, Execution
 - Git: not recorded
 - Decisions: none
 - Next: commit/push/release
+
+## 2026-05-14T02:02:05.085Z
+
+- Status: completed
+- Summary: Codex quota false-positive fix를 v0.2.7로 릴리즈했습니다. c4 Codex dungbo92 계정의 잘못된 자동 잠금은 해제된 상태입니다.
+- Verification: pnpm validate; pnpm dashboard:build; gh release view v0.2.7
+- Git: commit 21e1c22 pushed; release commit 1e520de and tag v0.2.7 pushed
+- Decisions: none
+- Next: Claude/Gemini authenticated cycle 재검증
