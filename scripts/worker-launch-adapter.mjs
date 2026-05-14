@@ -1329,8 +1329,8 @@ async function launchCommandWorker(run, files, adapter, promptText) {
             level: "info",
             message: `▶ autoChain: ${chained.workerId} 로 자동 이어 시작했습니다 (run ${chained.id})${depthSuffix}${overrideSuffix}.`,
           });
-          const { launchDashboardWorker } = await import("./worker-launch-adapter.mjs");
-          await launchDashboardWorker(chained);
+          // startRun 이 내부에서 이미 launchDashboardWorker 를 호출했으므로
+          // 여기서 다시 launch 하면 같은 run 에 worker 가 두 개 spawn 된다.
         } else {
           await appendRunEvent(run.id, {
             level: "info",
@@ -1392,7 +1392,7 @@ async function launchCommandWorker(run, files, adapter, promptText) {
           level: "info",
           message: `▶ 인증 실패 — ${retried.routing?.accountId || "다른 계정"} 으로 자동 재시도 (attempt ${retried.retryCount}).`,
         });
-        await launchDashboardWorker(retried);
+        // startRun 이 내부에서 이미 launchDashboardWorker 를 호출했으므로 중복 호출 금지.
       }
     } catch (error) {
       await appendRunEvent(run.id, {
@@ -1432,8 +1432,7 @@ async function launchCommandWorker(run, files, adapter, promptText) {
           level: "info",
           message: `▶ 한도 도달 — ${retried.routing?.accountId || "다른 계정"} 으로 자동 재시도 시작 (attempt ${retried.retryCount}).`,
         });
-        const { launchDashboardWorker } = await import("./worker-launch-adapter.mjs");
-        await launchDashboardWorker(retried);
+        // startRun 이 내부에서 이미 launchDashboardWorker 를 호출했으므로 중복 호출 금지.
       } else {
         await appendRunEvent(run.id, {
           level: "error",
@@ -1653,7 +1652,48 @@ export async function executeRun(runId) {
   await launchCommandWorker(run, files, adapter, promptText);
 }
 
+// 같은 run 에 대해 launch / execute 가 중복 진입되지 않게 막는 가드.
+// retry / autoChain / pending-dispatch / HTTP 더블 클릭 등 여러 경로에서 호출될
+// 수 있어, 한 프로세스 안에서는 in-memory 잠금으로 즉시 차단한다.
+const RUN_LAUNCH_LOCKS = new Set();
+
+function isPidAlive(pid) {
+  const value = Number(pid || 0);
+  if (!Number.isInteger(value) || value <= 0) return false;
+  try {
+    process.kill(value, 0);
+    return true;
+  } catch (error) {
+    return error?.code === "EPERM";
+  }
+}
+
 export async function launchDashboardWorker(run) {
+  if (!run || !run.id) return;
+  if (RUN_LAUNCH_LOCKS.has(run.id)) {
+    await appendRunEvent(run.id, {
+      level: "warn",
+      message: `중복 launch 요청 무시 — 같은 run 에 이미 실행 어댑터가 준비 중입니다 (pid ${process.pid}).`,
+    });
+    return;
+  }
+  // adapter 가 이미 running 또는 launching 상태면 중복 호출.
+  // 이전 프로세스가 남긴 상태일 수도 있어 PID 가 살아있을 때만 가드한다.
+  try {
+    const existing = await resolveRun(run.id);
+    const status = existing?.adapter?.status || "";
+    const pid = Number(existing?.adapter?.pid || 0);
+    if ((status === "running" || status === "launching") && pid > 0 && isPidAlive(pid)) {
+      await appendRunEvent(run.id, {
+        level: "warn",
+        message: `중복 launch 요청 무시 — 이미 어댑터 pid ${pid} 가 ${status} 상태입니다.`,
+      });
+      return;
+    }
+  } catch {
+    // 가드 실패는 무시하고 일반 흐름으로 진행.
+  }
+  RUN_LAUNCH_LOCKS.add(run.id);
   if (process.versions.electron && !process.env.ELECTRON_RUN_AS_NODE) {
     await patchRunRecord(run.id, {
       adapter: {
@@ -1668,30 +1708,34 @@ export async function launchDashboardWorker(run) {
       message: `작업 실행 어댑터를 앱 메인 프로세스에서 백그라운드로 시작했습니다 (pid ${process.pid}).`,
     });
     setImmediate(() => {
-      executeRun(run.id).catch(async (error) => {
-        const message = error instanceof Error ? error.message : String(error);
-        await finishRunRecord(
-          run.id,
-          {
-            status: "blocked",
-            adapter: {
+      executeRun(run.id)
+        .catch(async (error) => {
+          const message = error instanceof Error ? error.message : String(error);
+          await finishRunRecord(
+            run.id,
+            {
               status: "blocked",
-              mode: "runner",
-              runnerPid: process.pid,
-              inlineRunner: true,
+              adapter: {
+                status: "blocked",
+                mode: "runner",
+                runnerPid: process.pid,
+                inlineRunner: true,
+              },
+              events: cappedRunEvents(run.events || [], {
+                at: nowIso(),
+                level: "error",
+                message: `작업 실행 어댑터 시작 실패: ${message}`,
+              }),
             },
-            events: cappedRunEvents(run.events || [], {
-              at: nowIso(),
-              level: "error",
-              message: `작업 실행 어댑터 시작 실패: ${message}`,
-            }),
-          },
-          {
-            handoffStatus: "blocked",
-            handoffReason: "runner_failed",
-          },
-        );
-      });
+            {
+              handoffStatus: "blocked",
+              handoffReason: "runner_failed",
+            },
+          );
+        })
+        .finally(() => {
+          RUN_LAUNCH_LOCKS.delete(run.id);
+        });
     });
     return;
   }
@@ -1761,6 +1805,10 @@ export async function launchDashboardWorker(run) {
     level: "info",
     message: `작업 실행 어댑터를 백그라운드에서 시작했습니다 (pid ${child.pid}).`,
   });
+  // 자식 노드 프로세스가 detached 로 인계됐으니, 부모 프로세스에서는 잠금을 풀어
+  // 같은 run 의 후속 patch / log 호출이 막히지 않도록 한다. 자식 안의 중복 호출은
+  // 자식 자체의 RUN_LAUNCH_LOCKS 가 다시 막는다.
+  RUN_LAUNCH_LOCKS.delete(run.id);
 }
 
 async function killPid(pid) {
