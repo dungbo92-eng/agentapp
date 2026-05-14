@@ -609,3 +609,12 @@ NEXT_TASK.md 템플릿 확정: agent-next 생성물을 Required Reads, Execution
 - Git: commit 21e1c22 pushed; release commit 1e520de and tag v0.2.7 pushed
 - Decisions: none
 - Next: Claude/Gemini authenticated cycle 재검증
+
+## 2026-05-14T06:33:04.942Z
+
+- Status: completed
+- Summary: stale activeRun 복구를 추가했습니다. worker PID가 사라졌고 last-message가 있으면 dashboard가 자동으로 run을 완료 처리해 다음 에이전트 실행을 막지 않습니다. 현재 멈춘 run-1778736452149도 완료 처리했습니다.
+- Verification: pnpm validate; pnpm dashboard:build; run-1778736452149 activeRun cleared
+- Git: not recorded
+- Decisions: none
+- Next: commit/push/release

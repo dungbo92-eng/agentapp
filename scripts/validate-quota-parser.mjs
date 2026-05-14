@@ -162,6 +162,51 @@ try {
     throw new Error("pending work was removed for active quota account");
   }
   console.log("[validate-quota-parser] ok active quota blocks pending dispatch");
+
+  const lastMessagePath = path.join(tempDir, "last-message.txt");
+  await writeFile(lastMessagePath, "CHAIN_DONE\n", "utf8");
+  await writeFile(runtimeFile, JSON.stringify({
+    version: 1,
+    accounts: [],
+    projects: [],
+    activeRun: {
+      id: "stale-run",
+      status: "running",
+      workerId: "codex",
+      projectId: "current",
+      startedAt: "2026-05-13T00:00:00.000Z",
+      adapter: {
+        status: "running",
+        pid: 999999,
+        lastMessagePath,
+      },
+      events: [],
+    },
+    runHistory: [
+      {
+        id: "stale-run",
+        status: "running",
+        workerId: "codex",
+        projectId: "current",
+        startedAt: "2026-05-13T00:00:00.000Z",
+        adapter: {
+          status: "running",
+          pid: 999999,
+          lastMessagePath,
+        },
+        events: [],
+      },
+    ],
+    pendingRuns: [],
+    settings: {},
+  }, null, 2), "utf8");
+
+  const afterStale = await readRuntime();
+  const staleRun = afterStale.runHistory.find((run) => run.id === "stale-run");
+  if (afterStale.activeRun || staleRun?.status !== "completed" || staleRun?.adapter?.lastMessageText !== "CHAIN_DONE") {
+    throw new Error("stale active run was not completed from last-message");
+  }
+  console.log("[validate-quota-parser] ok stale active run cleanup");
 } finally {
   Date.now = realDateNow;
   await rm(tempDir, { recursive: true, force: true });

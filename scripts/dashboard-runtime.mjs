@@ -361,6 +361,63 @@ async function enrichRunRecord(run) {
   };
 }
 
+function processIsAlive(pid) {
+  const value = Number(pid || 0);
+  if (!Number.isInteger(value) || value <= 0) return false;
+  try {
+    process.kill(value, 0);
+    return true;
+  } catch (error) {
+    return error?.code === "EPERM";
+  }
+}
+
+async function reconcileStaleActiveRun(runtime) {
+  const active = runtime.activeRun;
+  if (!active || active.status !== "running" || !active.adapter?.pid) {
+    return { runtime, changed: false };
+  }
+  if (processIsAlive(active.adapter.pid)) {
+    return { runtime, changed: false };
+  }
+
+  const finishedAt = nowIso();
+  const lastMessageText = (await readInlineText(active.adapter.lastMessagePath)).trim();
+  const completed = Boolean(lastMessageText);
+  const nextRun = {
+    ...active,
+    status: completed ? "completed" : "failed",
+    stoppedAt: active.stoppedAt || finishedAt,
+    adapter: {
+      ...(active.adapter || {}),
+      status: completed ? "completed" : "failed",
+      exitCode: completed ? 0 : 1,
+      lastMessageText,
+    },
+    events: cappedEvents(active.events, {
+      at: finishedAt,
+      level: completed ? "info" : "warn",
+      message: completed
+        ? "stale activeRun 정리: worker PID가 종료됐고 최종 메시지가 있어 완료 처리했습니다."
+        : "stale activeRun 정리: worker PID가 종료됐고 최종 메시지가 없어 실패 처리했습니다.",
+    }),
+  };
+  const history = Array.isArray(runtime.runHistory) ? runtime.runHistory : [];
+  const found = history.some((item) => item.id === nextRun.id);
+  const runHistory = (found
+    ? history.map((item) => (item.id === nextRun.id ? nextRun : item))
+    : [nextRun, ...history]
+  ).slice(0, 20);
+  return {
+    runtime: {
+      ...runtime,
+      activeRun: null,
+      runHistory,
+    },
+    changed: true,
+  };
+}
+
 async function enrichRuntime(runtime) {
   const next = { ...runtime };
   if (runtime.activeRun) {
@@ -420,6 +477,12 @@ export async function readRuntime() {
   }
 
   try {
+    const reconciled = await reconcileStaleActiveRun(normalized);
+    normalized = reconciled.runtime;
+    if (reconciled.changed) {
+      await mkdir(DATA_DIR, { recursive: true });
+      await writeFile(RUNTIME_FILE, `${JSON.stringify(normalized, null, 2)}\n`, "utf8");
+    }
     return await enrichRuntime(normalized);
   } catch (error) {
     process.stderr.write(`[runtime] enrich failed: ${error instanceof Error ? error.message : String(error)}\n`);
