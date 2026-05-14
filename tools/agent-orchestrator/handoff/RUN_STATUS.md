@@ -636,3 +636,12 @@ NEXT_TASK.md 템플릿 확정: agent-next 생성물을 Required Reads, Execution
 - Git: AgentApp main pushed: 754015f, 45c1e53, 8446764. sytleOsjang main pushed: c11dcdd.
 - Decisions: none
 - Next: AgentApp 다음 제품 작업: Claude/Gemini CLI authenticated cycle 재검증. sytleOsjang 다음 작업: i18n 잔여 화면 브라우저 런타임 확인 및 문구 품질 보정.
+
+## 2026-05-14T07:37:58.292Z
+
+- Status: completed
+- Summary: Codex run-1778742204233은 프로세스가 exitCode 1로 종료되고 최종 메시지를 남기지 않아 실패 처리됐습니다. quota/auth 증거는 없고, 로그상 누락된 handoff 파일 조회와 PowerShell parser error 이후 i18n 검색 중 종료됐습니다. 실패/강종 후 미커밋 변경이 남으면 run에 interruptedWorktree를 기록하고 대시보드에 파일 수/목록을 표시하도록 v0.2.10 릴리즈했습니다.
+- Verification: pnpm validate; pnpm dashboard:build; gh release view v0.2.10; run-1778742204233 interruptedWorktree fileCount=6
+- Git: commit 75430d9 pushed; release commit d14858a and tag v0.2.10 pushed
+- Decisions: none
+- Next: D:\\sytleOsjang에 남은 6개 변경 파일을 검토해 이어서 완료/커밋하거나 폐기 판단
