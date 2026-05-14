@@ -627,3 +627,12 @@ NEXT_TASK.md 템플릿 확정: agent-next 생성물을 Required Reads, Execution
 - Git: commit 754015f pushed; release commit 45c1e53 and tag v0.2.9 pushed
 - Decisions: none
 - Next: D:\\sytleOsjang 변경 13개 파일 검증/커밋 또는 다음 에이전트 인계
+
+## 2026-05-14T06:47:09.520Z
+
+- Status: completed
+- Summary: stale activeRun 복구 릴리즈(v0.2.9) 후 stuck run-1778736452149를 완료 처리했고, 이어받은 D:\\sytleOsjang 쇼퍼 i18n 변경을 보정해 c11dcdd로 commit/push했습니다.
+- Verification: AgentApp: pnpm validate; pnpm dashboard:build; gh release view v0.2.9; activeRun null. sytleOsjang: pnpm typecheck; git diff --check.
+- Git: AgentApp main pushed: 754015f, 45c1e53, 8446764. sytleOsjang main pushed: c11dcdd.
+- Decisions: none
+- Next: AgentApp 다음 제품 작업: Claude/Gemini CLI authenticated cycle 재검증. sytleOsjang 다음 작업: i18n 잔여 화면 브라우저 런타임 확인 및 문구 품질 보정.
