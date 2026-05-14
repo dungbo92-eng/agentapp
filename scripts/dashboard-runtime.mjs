@@ -2173,7 +2173,14 @@ export async function tryQuotaRetry(failedRun) {
 
 // run 이 completed 로 끝났을 때 autoChain 설정이 켜져 있으면 NEXT_TASK 를 자동으로 픽업해서
 // 같은 worker/project 로 다음 run 시작. 외부 프로젝트는 그 프로젝트의 NEXT_TASK, AgentApp 자체는 repo 의 NEXT_TASK.
-export async function tryAutoChain(prevRun) {
+//
+// opts.chainDoneSignaled: worker 의 마지막 줄이 'CHAIN_DONE' 이었으면 true.
+// 단, 신호가 있어도 진행률이 100% 가 아니거나 NEXT_TASK 에 실제 항목이 남아
+// 있으면 한 단계만 끝낸 오판으로 보고 override 해서 이어 진행한다. 무한
+// override 를 막기 위해 chainDoneOverrides 횟수를 cap.
+const CHAIN_DONE_OVERRIDE_CAP = 3;
+
+export async function tryAutoChain(prevRun, opts = {}) {
   const runtime = await readRuntime();
   const settings = normalizeSettings(runtime.settings);
   if (!settings.autoChainEnabled) return null;
@@ -2184,20 +2191,30 @@ export async function tryAutoChain(prevRun) {
     return { skipped: true, reason: `autoChain max depth ${settings.autoChainMaxDepth} 도달` };
   }
 
-  // 외부 프로젝트면 그 프로젝트의 next_task 를 사용.
+  // 외부 프로젝트면 그 프로젝트의 next_task + 진행률을, AgentApp 자체는 repo
+  // 의 NEXT_TASK + roadmap phases 진행률을 읽는다.
   let nextTitle = "";
+  let progressPercent = null;
   try {
     if (prevRun.projectId && prevRun.projectId !== "current") {
       const project = runtime.projects.find((p) => p.id === prevRun.projectId);
       if (project) {
         const meta = await readProjectMeta({ path: project.path });
         nextTitle = meta?.next_task?.title || "";
+        progressPercent = Number.isFinite(meta?.progress?.percent) ? meta.progress.percent : null;
       }
     } else {
       const nextTaskPath = path.join(HANDOFF_DIR, "NEXT_TASK.md");
       const body = await readFile(nextTaskPath, "utf8").catch(() => "");
       const match = body.match(/Selected task:\s*(.+)/i);
       nextTitle = match ? match[1].trim() : "";
+      try {
+        const phases = await readPlanPhases(REPO_ROOT);
+        const prog = await computeProgressFromPhases(phases);
+        progressPercent = Number.isFinite(prog?.percent) ? prog.percent : null;
+      } catch {
+        progressPercent = null;
+      }
     }
   } catch {
     nextTitle = "";
@@ -2208,15 +2225,55 @@ export async function tryAutoChain(prevRun) {
   // 갱신하지 않은 상태에서도 다음 단계로 자율 진행된다.
   const prevPrompt = String(prevRun.prompt || "").trim();
   const hasNewTask = nextTitle && !/^none$/i.test(nextTitle) && nextTitle.trim() !== prevPrompt;
+
+  // CHAIN_DONE 안전망 — worker 가 종료 신호를 보냈더라도 진행률이 100% 가
+  // 아니거나 NEXT_TASK 에 실제 항목이 남아 있으면 한 단계만 끝낸 오판으로
+  // 보고 override 해서 이어 진행. 같은 자리에서 무한 override 하지 않도록 cap.
+  const chainDoneSignaled = Boolean(opts.chainDoneSignaled);
+  const prevOverrides = Number(prevRun.chainDoneOverrides || 0);
+  let chainDoneOverride = false;
+  if (chainDoneSignaled) {
+    const progressIncomplete = Number.isFinite(progressPercent) && progressPercent < 100;
+    const hasRemainingWork = hasNewTask || progressIncomplete;
+    if (!hasRemainingWork) {
+      return {
+        stopped: true,
+        reason: "worker 가 CHAIN_DONE 을 보냈고 남은 작업도 없어 사이클을 종료합니다.",
+      };
+    }
+    if (prevOverrides >= CHAIN_DONE_OVERRIDE_CAP) {
+      return {
+        stopped: true,
+        reason: `worker 가 CHAIN_DONE 을 ${CHAIN_DONE_OVERRIDE_CAP}회 연속 보냈습니다 (진행률 ${
+          Number.isFinite(progressPercent) ? `${progressPercent}%` : "미상"
+        }). 무한 루프 방지를 위해 종료 — 남은 작업은 수동으로 확인하세요.`,
+      };
+    }
+    chainDoneOverride = true;
+  }
+
   // 진행 상황 가시화 — worker 가 큰 단계 진입/완료 시 '[STATUS] ...' 형식의
   // 한 줄을 출력하면 dashboard 가 그 라인을 'currently doing' 으로 표면화한다.
-  // 체인이 길어질 때 사용자가 지금 뭘 하고 있는지 한눈에 알기 위해 모든 체인
-  // 프롬프트 끝에 동일 지시문을 덧붙인다.
-  const STATUS_MARKER_HINT = "\n\n[중요] 단계마다 한 줄로 `[STATUS] <지금 하고 있는 일>` 을 출력해 주세요. dashboard 가 이 라인을 현재 작업으로 표면화합니다. 예) `[STATUS] 모델 라우팅 코드 리팩토링 중`. 작업 종료 신호는 `CHAIN_DONE` 한 줄.";
-  const basePrompt = hasNewTask
-    ? nextTitle
-    : "이전 작업을 완료한 상태입니다. 메모리/계획/핸드오프 파일을 참고해 다음에 진행할 항목을 스스로 판단하고 이어서 진행해 주세요. 더 이상 진행할 작업이 없으면 'CHAIN_DONE' 한 줄만 응답해 주세요.";
-  const chainPrompt = basePrompt + STATUS_MARKER_HINT;
+  const STATUS_MARKER_HINT = "\n\n[STATUS 규칙] 단계마다 한 줄로 `[STATUS] <지금 하고 있는 일>` 을 출력하세요. dashboard 가 이 라인을 현재 작업으로 표면화합니다. 예) `[STATUS] 모델 라우팅 코드 리팩토링 중`.";
+  // CHAIN_DONE 오·남용 방지 규칙 — 한 단계 끝낸 것과 전체 완료를 구분시킨다.
+  const CHAIN_DONE_RULE =
+    "\n\n[CHAIN_DONE 규칙] CHAIN_DONE 은 roadmap/plan 의 **모든** 작업이 끝나고 진행률이 100% 일 때만, 다른 텍스트 없이 단독 한 줄로 보냅니다. 방금 한 단계만 끝낸 것이라면 절대 CHAIN_DONE 을 보내지 말고, memory/plan/NEXT_TASK 의 다음 항목을 스스로 골라 계속 진행하세요. 코드·설명과 같은 응답에 CHAIN_DONE 을 섞으면 무시됩니다.";
+
+  let basePrompt;
+  if (chainDoneOverride) {
+    const progressNote = Number.isFinite(progressPercent)
+      ? `현재 진행률은 ${progressPercent}% 입니다. `
+      : "";
+    const taskNote = hasNewTask
+      ? `NEXT_TASK 에 '${nextTitle}' 항목이 아직 남아 있습니다. 이 항목부터 진행하세요. `
+      : "memory/plan/NEXT_TASK 를 다시 확인해 남은 작업을 이어서 진행하세요. ";
+    basePrompt = `직전 실행이 CHAIN_DONE 을 보냈지만 아직 작업이 남아 있습니다. ${progressNote}${taskNote}한 단계를 끝낸 것은 CHAIN_DONE 이 아닙니다 — 정말로 모든 작업이 끝나 진행률이 100% 일 때만 CHAIN_DONE 을 보내세요.`;
+  } else {
+    basePrompt = hasNewTask
+      ? nextTitle
+      : "이전 작업을 완료한 상태입니다. 메모리/계획/핸드오프 파일을 참고해 다음에 진행할 항목을 스스로 판단하고 이어서 진행해 주세요.";
+  }
+  const chainPrompt = basePrompt + STATUS_MARKER_HINT + CHAIN_DONE_RULE;
   const nextWorkerId = prevRun.workerAuto ? "auto" : prevRun.workerId;
 
   const result = await startRun({
@@ -2226,8 +2283,13 @@ export async function tryAutoChain(prevRun) {
     complexity: "auto",
     modelOverride: prevRun.modelOverride || "auto",
     autoChain: true,
+    chainDoneOverrides: chainDoneOverride ? prevOverrides + 1 : 0,
     chainDepth: prevDepth + 1,
-    chainReason: hasNewTask ? "next_task_picked" : "generic_continuation",
+    chainReason: chainDoneOverride
+      ? "chain_done_override"
+      : hasNewTask
+        ? "next_task_picked"
+        : "generic_continuation",
   });
   return result.activeRun || null;
 }
@@ -2327,6 +2389,7 @@ export async function startRun(input) {
     autoChain: Boolean(input.autoChain),
     chainDepth: Number(input.chainDepth || 0),
     chainReason: String(input.chainReason || ""),
+    chainDoneOverrides: Number(input.chainDoneOverrides || 0),
     startedAt: new Date().toISOString(),
     routing,
     validation: {

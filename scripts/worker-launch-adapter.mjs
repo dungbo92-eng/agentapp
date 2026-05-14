@@ -1296,25 +1296,37 @@ async function launchCommandWorker(run, files, adapter, promptText) {
     // 자동 이어 진행 (autoChain) — settings.autoChainEnabled 가 true 일 때만 발동.
     try {
       const responseText = String(lastMessage || "").trim();
-      const stopSignal = /^CHAIN_DONE\s*$/im.test(responseText);
-      if (stopSignal) {
-        await appendRunEvent(run.id, {
-          level: "info",
-          message: "▣ autoChain 종료 — worker 가 CHAIN_DONE 신호를 보냈습니다.",
-        });
-      } else {
+      // CHAIN_DONE 은 worker 의 '정말 끝남' 신호다. 출력 중간이나 코드 사이에
+      // 섞인 CHAIN_DONE 으로 오작동하지 않도록, **마지막 비어있지 않은 줄**이
+      // 정확히 CHAIN_DONE 일 때만 신호로 인정한다. 신호가 맞더라도 멈출지
+      // 여부는 tryAutoChain 이 진행률/NEXT_TASK 를 보고 한 번 더 판단한다
+      // (남은 작업이 있으면 override 해서 이어감).
+      const lines = responseText.split(/\r?\n/).map((l) => l.trim()).filter(Boolean);
+      const lastLine = lines.length > 0 ? lines[lines.length - 1] : "";
+      const chainDoneSignaled = /^CHAIN_DONE[.!\s]*$/i.test(lastLine);
+
+      {
         const { tryAutoChain } = await import("./dashboard-runtime.mjs");
-        const chained = await tryAutoChain(run);
-        if (chained && chained.skipped) {
+        const chained = await tryAutoChain(run, { chainDoneSignaled });
+        if (chained && chained.stopped) {
+          await appendRunEvent(run.id, {
+            level: "info",
+            message: `▣ autoChain 종료 — ${chained.reason}`,
+          });
+        } else if (chained && chained.skipped) {
           await appendRunEvent(run.id, {
             level: "info",
             message: `▣ autoChain 중단 — ${chained.reason || "한도 도달"}.`,
           });
         } else if (chained) {
           const depthSuffix = chained.chainDepth ? ` (depth ${chained.chainDepth})` : "";
+          const overrideSuffix =
+            chained.chainReason === "chain_done_override"
+              ? " — worker 가 CHAIN_DONE 을 보냈지만 남은 작업이 있어 이어감"
+              : "";
           await appendRunEvent(run.id, {
             level: "info",
-            message: `▶ autoChain: ${chained.workerId} 로 자동 이어 시작했습니다 (run ${chained.id})${depthSuffix}.`,
+            message: `▶ autoChain: ${chained.workerId} 로 자동 이어 시작했습니다 (run ${chained.id})${depthSuffix}${overrideSuffix}.`,
           });
           const { launchDashboardWorker } = await import("./worker-launch-adapter.mjs");
           await launchDashboardWorker(chained);

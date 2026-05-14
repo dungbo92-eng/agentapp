@@ -211,6 +211,8 @@ type RunRecord = {
   currentStatus?: string; // [STATUS] 마커가 마지막으로 보고한 현재 작업
   retryCount?: number;
   chainDepth?: number;
+  chainDoneOverrides?: number; // CHAIN_DONE 안전망 override 누적 횟수
+  chainReason?: string;
   events?: { at: string; level: "info" | "warn" | "error"; message: string }[];
   validation?: {
     status?: string;
