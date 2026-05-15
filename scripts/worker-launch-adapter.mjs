@@ -105,6 +105,21 @@ function killChildTree(pid) {
   }
 }
 
+// 조직 정책 거절 — Anthropic 엔터프라이즈 등 조직 정책으로 특정 도메인
+// (예: "C# 외 거절") 작업이 거절될 때 출력되는 안내문 패턴. 이 출력이
+// 보이면 quota 도 needs-login 도 아닌 별도 분류로 처리해 같은 계정에
+// 재시도하지 않도록 정책 잠금을 건다. 사용자가 수동으로 해제할 때까지
+// 그 계정은 routing 후보에서 제외된다.
+const ORG_POLICY_PATTERNS = [
+  /본 조직은 .{0,80}(?:Claude|claude|AI|모델)/i,
+  /C#\s*(?:코드|개발)\s*(?:만|외)|T-SQL|스키마|에러 분석/,
+  /일반 도구를 사용해주세요/,
+  /사용 정책이 확장되면/,
+  /(?:^|\s)조직 정책(?:에|으로|상)/,
+  /enterprise\s+(?:policy|usage policy)/i,
+  /not\s+permitted\s+by\s+(?:your\s+)?organization/i,
+];
+
 // Worker 종료 후 combinedOutput 을 한 번 더 훑어 quota 로 분류하는 패턴.
 // onLine 단계에서 parseQuotaReset 가 잠금까지 마쳤더라도 여기서 'quota' 로
 // 분류돼야 finishRunRecord(quota_limited) + tryQuotaRetry 가 호출돼 다른
@@ -163,6 +178,18 @@ export function detectInterruption(workerId, output) {
     const match = output.match(pattern);
     if (match) {
       return { kind: "needs-login", reason: `${provider || "도구"} 가 로그인이 필요하다고 보고했습니다: "${match[0]}"` };
+    }
+  }
+  // 조직 정책 거절은 quota 보다 먼저 분류. quota 패턴이 정책 거절 메시지의
+  // 부분 문구(예: "사용 정책") 와 충돌해 quota 로 잘못 잡히는 걸 막는다.
+  for (const pattern of ORG_POLICY_PATTERNS) {
+    const match = output.match(pattern);
+    if (match) {
+      const snippet = match[0].length > 120 ? `${match[0].slice(0, 120)}...` : match[0];
+      return {
+        kind: "policy_blocked",
+        reason: `${provider || "도구"} 가 조직 정책으로 작업을 거절했습니다: "${snippet}"`,
+      };
     }
   }
   for (const pattern of QUOTA_PATTERNS) {
@@ -1308,7 +1335,7 @@ async function launchCommandWorker(run, files, adapter, promptText) {
 
       {
         const { tryAutoChain } = await import("./dashboard-runtime.mjs");
-        const chained = await tryAutoChain(run, { chainDoneSignaled });
+        const chained = await tryAutoChain(run, { chainDoneSignaled, lastMessage: responseText });
         if (chained && chained.stopped) {
           await appendRunEvent(run.id, {
             level: "info",
@@ -1398,6 +1425,69 @@ async function launchCommandWorker(run, files, adapter, promptText) {
       await appendRunEvent(run.id, {
         level: "warn",
         message: `재시도 시도 중 오류: ${error instanceof Error ? error.message : String(error)}`,
+      });
+    }
+    return;
+  }
+  if (detection.kind === "policy_blocked") {
+    await appendRunEvent(run.id, { level: "error", message: detection.reason });
+    // 정책 거절은 한도 도달처럼 그 계정을 자동 잠금 (재시도하지 않게).
+    // 24시간 동안 routing 후보에서 제외. 사용자가 사이드바 '강제 해제' 로
+    // 풀 수 있고, 그 계정에 정책이 풀리거나 작업 도메인이 정책 안에 들어가면
+    // 그때 다시 시도 가능.
+    try {
+      const { applyQuotaLockout } = await import("./dashboard-runtime.mjs");
+      if (run.routing?.accountId) {
+        const resetAt = new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString();
+        await applyQuotaLockout(
+          run.routing.accountId,
+          resetAt,
+          `조직 정책으로 작업 거절 — 24h 자동 잠금. 다른 계정 사용 또는 사이드바 '강제 해제' 후 재시도.`,
+        );
+      }
+    } catch {
+      // best-effort
+    }
+    await finishRunRecord(
+      run.id,
+      {
+        status: "policy_blocked",
+        adapter: {
+          status: "policy-blocked",
+          mode: adapter.mode,
+          pid: result.pid,
+          exitCode: result.code,
+          summary: detection.reason,
+          logPath: relativePath(files.launchLogPath),
+          promptPath: relativePath(files.promptPath),
+          sessionDir: relativePath(adapter.sessionDir),
+        },
+      },
+      {
+        handoffStatus: "policy_blocked",
+        handoffReason: "org_policy_refusal",
+      },
+    );
+    // 다른 ready 계정 (다른 provider 포함) 으로 failover. quota retry 와
+    // 동일 경로를 사용 — 이미 잠긴 이 계정은 selectRoute 에서 자동 제외됨.
+    try {
+      const { tryQuotaRetry } = await import("./dashboard-runtime.mjs");
+      const retried = await tryQuotaRetry(run);
+      if (retried) {
+        await appendRunEvent(run.id, {
+          level: "info",
+          message: `▶ 정책 거절 — ${retried.routing?.accountId || "다른 계정"} 으로 자동 전환 (attempt ${retried.retryCount}).`,
+        });
+      } else {
+        await appendRunEvent(run.id, {
+          level: "error",
+          message: "정책 거절 — 다른 사용 가능한 계정이 없습니다. 사이드바에서 다른 계정을 준비하거나 작업 내용을 정책에 맞게 조정한 뒤 다시 시작하세요.",
+        });
+      }
+    } catch (error) {
+      await appendRunEvent(run.id, {
+        level: "warn",
+        message: `policy retry 시도 중 오류: ${error instanceof Error ? error.message : String(error)}`,
       });
     }
     return;

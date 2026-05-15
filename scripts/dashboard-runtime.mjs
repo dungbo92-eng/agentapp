@@ -2431,13 +2431,40 @@ export async function tryAutoChain(prevRun, opts = {}) {
   const prevPrompt = String(prevRun.prompt || "").trim();
   const hasNewTask = nextTitle && !/^none$/i.test(nextTitle) && nextTitle.trim() !== prevPrompt;
 
-  // CHAIN_DONE 안전망 — worker 가 종료 신호를 보냈더라도 진행률이 100% 가
-  // 아니거나 NEXT_TASK 에 실제 항목이 남아 있으면 한 단계만 끝낸 오판으로
-  // 보고 override 해서 이어 진행. 같은 자리에서 무한 override 하지 않도록 cap.
+  // CHAIN_DONE 안전망 — worker 가 종료 신호를 보냈을 때:
+  //   1) 메시지에 "사용자 결정/방향 대기", "DECISIONS_REQUIRED", "actionable item 없음"
+  //      류 신호가 있으면 무조건 stop. 사용자 입력이 필요한 상태이므로 토큰 소진
+  //      방지 위해 override 하지 않는다 (최우선).
+  //   2) 진행률 100% 이고 NEXT_TASK 도 비어 있으면 stop.
+  //   3) 그 외에는 한 단계만 끝낸 오판일 수 있으니 override 해서 이어 진행.
+  //   4) 같은 자리에서 무한 override 하지 않도록 cap.
   const chainDoneSignaled = Boolean(opts.chainDoneSignaled);
+  const lastMessageText = String(opts.lastMessage || "");
+  const WAIT_FOR_USER_PATTERNS = [
+    /사용자\s*(?:방향성|결정|지시|입력|확인|선택)\s*(?:대기|필요|없)/,
+    /사용자\s+방향/,
+    /wait(?:ing)?\s+for\s+user/i,
+    /no\s+actionable\s+(?:next\s+)?item/i,
+    /actionable\s+(?:next\s+)?item\s*(?:이|가)?\s*없/,
+    /DECISIONS?_REQUIRED/i,
+    /자율(?:적|로|으로)?\s*(?:인|적인)?\s*(?:진행할|작업|진행)\s*(?:수\s+)?(?:이|은|는|도)?\s*없/,
+    /추가(?:로|적으로)?\s*(?:할|진행할|손댈)?\s*(?:일|작업|항목)?\s*(?:이|는|도)?\s*없/,
+    /임의\s*(?:로|자동)?\s*(?:자동\s+)?진행하지\s+않/,
+    /escalation된?\s+상태/,
+    /게이팅(?:되어|돼)\s+있/,
+  ];
+  const isWaitingForUser = chainDoneSignaled
+    && WAIT_FOR_USER_PATTERNS.some((re) => re.test(lastMessageText));
+
   const prevOverrides = Number(prevRun.chainDoneOverrides || 0);
   let chainDoneOverride = false;
   if (chainDoneSignaled) {
+    if (isWaitingForUser) {
+      return {
+        stopped: true,
+        reason: "worker 가 사용자 결정 대기를 보고하고 CHAIN_DONE 을 보냈습니다. 토큰 소진 방지를 위해 자동 진행 중지 — 사용자 입력 필요.",
+      };
+    }
     const progressIncomplete = Number.isFinite(progressPercent) && progressPercent < 100;
     const hasRemainingWork = hasNewTask || progressIncomplete;
     if (!hasRemainingWork) {
