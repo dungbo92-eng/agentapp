@@ -1,5 +1,13 @@
 # RUN_STATUS
 
+## 2026-05-16T_loopback_url_when_lan_bind
+
+v0.5.0 / v0.5.1 에서 사용자가 "모바일 접속" 토글을 켠 뒤 재시작하면 빈 화면만 뜨는 회귀. 원인: dashboard-server 가 bind host 와 client URL 을 같은 변수로 만들어, host=0.0.0.0 일 때 `http://0.0.0.0:<port>/` 라는 connect 불가 URL 을 반환. Electron renderer 가 그걸 그대로 loadURL → did-fail-load → 빈 화면.
+
+수정: `createDashboardServer` 가 bind host 와 별개로 client URL 의 host 를 도출. 0.0.0.0 / :: 면 127.0.0.1 으로 강제. LAN IP 는 detectLanIps 가 networkInterfaces 로 별도 수집하므로 영향 없음.
+
+검증: 0.0.0.0 bind 시 host 는 그대로 0.0.0.0, url 만 http://127.0.0.1:<port>/. validate 통과.
+
 ## 2026-05-16T_tailscale_label
 
 v0.5.0 의 LAN 접속은 0.0.0.0 으로 바인딩해 모든 IPv4 인터페이스를 받아주기 때문에 PC 에 Tailscale 만 설치하면 이미 동작. UX 만 보강:

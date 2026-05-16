@@ -371,9 +371,14 @@ export async function createDashboardServer(options = {}) {
 
   const address = server.address();
   const actualPort = typeof address === "object" && address ? address.port : port;
+  // 클라이언트 (Electron renderer, 또는 같은 PC 의 다른 fetch) 가 접속할 때 쓸 URL.
+  // host 가 0.0.0.0 / :: (모든 인터페이스) 면 그 주소로는 connect 가 불가능하므로
+  // 로컬 클라이언트 URL 은 무조건 127.0.0.1 으로. (LAN 접속은 detectLanIps 가 별도로
+  // 실제 인터페이스 IP 를 뽑아 사용함.)
+  const clientHost = host === "0.0.0.0" || host === "::" ? "127.0.0.1" : host;
   return {
     server,
-    url: `http://${host}:${actualPort}/`,
+    url: `http://${clientHost}:${actualPort}/`,
     staticDir,
     host,
     port: actualPort,
