@@ -1,8 +1,14 @@
 // Renderer 와 main 사이에서 윈도우 모드 토글, 트레이 숨김 같은 OS-side
 // 동작만 노출하는 좁은 IPC bridge. dashboard runtime API 는 그대로
 // fetch 로 쓰면 되므로 여기서는 윈도우 컨트롤만 다룬다.
-
-const { contextBridge, ipcRenderer } = require("electron");
+//
+// 파일 확장자가 .mjs 라 Electron 28+ 는 이 preload 를 ESM 으로 해석한다.
+// ESM 에는 require() 가 정의돼 있지 않아 `const { contextBridge } = require("electron")`
+// 로 쓰면 ReferenceError 로 preload 가 silently 실패 → window.agentapp 미정의 →
+// renderer 의 desktopApi 가 undefined 가 되어 버전 pill, 트레이로 버튼, 컴팩트 모드 IPC
+// 호출이 모두 동작 안 함. 반드시 ESM import 문을 사용한다 (sandbox=false 가 main.mjs
+// 의 webPreferences 에 이미 적용돼 있어야 import 가 동작).
+import { contextBridge, ipcRenderer } from "electron";
 
 function onChannel(channel, handler) {
   const subscription = (_event, payload) => {

@@ -1,5 +1,17 @@
 # RUN_STATUS
 
+## 2026-05-16T_preload_esm_fix
+
+v0.4.3 재설치 후에도 버전 pill / 트레이로 버튼 / 컴팩트 모드 IPC 가 동작하지 않는 회귀 분석.
+
+원인: `apps/desktop/preload.mjs` 가 `const { contextBridge, ipcRenderer } = require("electron")` 로 시작하는데, 확장자가 `.mjs` 라 Electron 28+ 가 이 preload 를 ESM 으로 해석한다. ESM 에는 `require()` 가 정의돼 있지 않아 첫 줄에서 ReferenceError 로 preload 가 silently 실패 → `window.agentapp` 미정의 → renderer 의 `desktopApi === undefined` → IPC 의존 UI 가 전부 사라지고 컴팩트 모드 클릭이 main 프로세스로 전달되지 않음.
+
+수정:
+- `import { contextBridge, ipcRenderer } from "electron";` 로 전환. sandbox 는 main.mjs 의 webPreferences 에서 이미 false 라 ESM import 가 동작.
+- preload 상단 주석에 원인/주의사항 명시.
+
+`node --check` 통과, dashboard build 통과. 사용자 환경에서는 v0.4.4 설치 후 IPC 가 살아나야 함.
+
 ## 2026-05-16T_repeat_account_breakout
 
 사용자 worker-launches 로그 분석에서 발견한 4 가지 회귀 보완:
