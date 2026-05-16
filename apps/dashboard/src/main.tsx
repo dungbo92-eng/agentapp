@@ -267,6 +267,7 @@ type RuntimeSettings = {
   idleKillMs: number;
   autoChainEnabled?: boolean;
   autoChainMaxDepth?: number;
+  autoChainOverrideOnChainDone?: boolean;
   quotaRetryEnabled?: boolean;
   quotaRetryMaxAttempts?: number;
 };
@@ -279,6 +280,7 @@ type RuntimeState = {
   runHistory: RunRecord[];
   pendingRuns?: PendingRun[];
   handoff?: { status: string; targetAccountId?: string; reason: string };
+  startRejected?: { reason: string; message: string; activeRunId?: string };
   settings?: RuntimeSettings;
 };
 
@@ -835,7 +837,8 @@ function RuntimeSettingsPanel({
   const [warnInput, setWarnInput] = React.useState<string>(String(warnMin));
   const [killInput, setKillInput] = React.useState<string>(String(killMin));
   const [autoChain, setAutoChain] = React.useState<boolean>(settings?.autoChainEnabled !== false);
-  const [chainDepthInput, setChainDepthInput] = React.useState<string>(String(settings?.autoChainMaxDepth ?? 30));
+  const [chainDepthInput, setChainDepthInput] = React.useState<string>(String(settings?.autoChainMaxDepth ?? 8));
+  const [overrideChainDone, setOverrideChainDone] = React.useState<boolean>(Boolean(settings?.autoChainOverrideOnChainDone));
   const [quotaRetry, setQuotaRetry] = React.useState<boolean>(settings?.quotaRetryEnabled !== false);
   const [saving, setSaving] = React.useState(false);
 
@@ -844,10 +847,11 @@ function RuntimeSettingsPanel({
       setWarnInput(String(Math.round(settings.idleWarnMs / 60000)));
       setKillInput(String(Math.round(settings.idleKillMs / 60000)));
       setAutoChain(settings.autoChainEnabled !== false);
-      setChainDepthInput(String(settings.autoChainMaxDepth ?? 30));
+      setChainDepthInput(String(settings.autoChainMaxDepth ?? 8));
+      setOverrideChainDone(Boolean(settings.autoChainOverrideOnChainDone));
       setQuotaRetry(settings.quotaRetryEnabled !== false);
     }
-  }, [settings?.idleWarnMs, settings?.idleKillMs, settings?.autoChainEnabled, settings?.autoChainMaxDepth, settings?.quotaRetryEnabled]);
+  }, [settings?.idleWarnMs, settings?.idleKillMs, settings?.autoChainEnabled, settings?.autoChainMaxDepth, settings?.autoChainOverrideOnChainDone, settings?.quotaRetryEnabled]);
 
   return (
     <section className="sidebarBlock">
@@ -893,20 +897,30 @@ function RuntimeSettingsPanel({
           <span>▶ 자동 이어 진행 (사이클 완료 후 다음 작업 자동 픽업)</span>
         </label>
         {autoChain ? (
-          <label className="toggleRow inline">
-            <span>최대 반복</span>
-            <input
-              className="inlineNumber"
-              type="number"
-              min={1}
-              max={500}
-              step={1}
-              value={chainDepthInput}
-              onChange={(event) => setChainDepthInput(event.target.value)}
-              title="이 횟수만큼 자동 이어 진행 후 멈춥니다. 무한 루프 방지용."
-            />
-            <span className="settingsHintInline">사이클 (이후 멈춤)</span>
-          </label>
+          <>
+            <label className="toggleRow inline">
+              <span>최대 반복</span>
+              <input
+                className="inlineNumber"
+                type="number"
+                min={1}
+                max={500}
+                step={1}
+                value={chainDepthInput}
+                onChange={(event) => setChainDepthInput(event.target.value)}
+                title="이 횟수만큼 자동 이어 진행 후 멈춥니다. 무한 루프 방지용. 기본 8."
+              />
+              <span className="settingsHintInline">사이클 (이후 멈춤)</span>
+            </label>
+            <label className="toggleRow" title="worker 가 CHAIN_DONE 신호를 보냈을 때, 진행률이 100%가 아니거나 NEXT_TASK 에 다음 항목이 남아 있으면 무시하고 한 번 더 강제로 이어 시작합니다. 기본은 꺼져 있어 토큰을 절약합니다 — worker 가 끝났다고 하면 그 신호를 존중.">
+              <input
+                type="checkbox"
+                checked={overrideChainDone}
+                onChange={(event) => setOverrideChainDone(event.target.checked)}
+              />
+              <span>⚠ CHAIN_DONE 무시하고 진행률/NEXT_TASK 기반으로 강제 이어가기</span>
+            </label>
+          </>
         ) : null}
         <label className="toggleRow" title="worker 가 한도(quota) 도달로 종료되면 다른 ready 계정으로 자동 재시도합니다. 자동 선택으로 시작한 작업은 다른 도구까지 후보로 열고, 수동 도구 선택은 그 도구 안에서 재시도합니다.">
           <input
@@ -926,12 +940,13 @@ function RuntimeSettingsPanel({
           const killMs = Math.max(0, Number(killInput) * 60000) || 0;
           setSaving(true);
           try {
-            const depth = Math.max(1, Math.min(500, Number(chainDepthInput) || 30));
+            const depth = Math.max(1, Math.min(500, Number(chainDepthInput) || 8));
             await onSave({
               idleWarnMs: warnMs,
               idleKillMs: killMs,
               autoChainEnabled: autoChain,
               autoChainMaxDepth: depth,
+              autoChainOverrideOnChainDone: overrideChainDone,
               quotaRetryEnabled: quotaRetry,
             });
           } finally {
@@ -1695,7 +1710,7 @@ function App() {
     setProjectForm({ name: "", path: "" });
   }
 
-  function startRun() {
+  async function startRun() {
     const text = prompt.trim() || nextTaskTitle;
     if (!localRecommendation) {
       const message = routeBlockMessage(accounts, selectedWorker);
@@ -1703,16 +1718,32 @@ function App() {
       setToast({ kind: "warn", message });
       return;
     }
+    if (activeRun && activeRun.status === "running") {
+      const message = "이미 실행 중인 작업이 있습니다. 먼저 중지하거나 '다른 계정으로 이어가기' 를 사용하세요.";
+      setRunError(message);
+      setToast({ kind: "warn", message });
+      return;
+    }
     setRunError("");
-    void updateRuntime(
-      runtimeRequest("runs/start", {
+    try {
+      const next = (await runtimeRequest("runs/start", {
         workerId: selectedWorker,
         projectId: selectedProjectRecord.id,
         prompt: text,
         complexity,
         modelOverride,
-      }),
-    );
+      })) as RuntimeState & { startRejected?: { reason: string; message: string } };
+      setRuntime(next);
+      setLastRuntimeSyncAt(new Date().toLocaleTimeString("ko-KR"));
+      if (next.startRejected) {
+        setRunError(next.startRejected.message);
+        setToast({ kind: "warn", message: next.startRejected.message });
+      }
+    } catch (caught) {
+      const message = caught instanceof Error ? caught.message : "작업 시작에 실패했습니다";
+      setRunError(message);
+      setToast({ kind: "warn", message });
+    }
   }
 
   function stopRun() {

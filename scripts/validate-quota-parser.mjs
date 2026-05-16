@@ -17,6 +17,8 @@ const {
   parseQuotaReset,
   readRuntime,
   setAccountSession,
+  startRun,
+  tryAutoChain,
 } = await import("./dashboard-runtime.mjs");
 const { detectInterruption } = await import("./worker-launch-adapter.mjs");
 
@@ -261,6 +263,83 @@ try {
     throw new Error("dirty stale active run was not marked for review");
   }
   console.log("[validate-quota-parser] ok dirty stale run needs review");
+
+  // ---- startRun activeRun 가드 ----
+  // 살아 있는 activeRun 위에 일반 startRun 이 또 들어오면 거절돼야 한다.
+  // continuation flag (autoChain/retryCount/pendingId/handoffFrom/autoDispatched)
+  // 가 없는 호출만 가드 대상.
+  await writeFile(runtimeFile, JSON.stringify({
+    version: 1,
+    accounts: [
+      {
+        id: "ready-claude",
+        provider: "claude",
+        plan: "pro",
+        loginLabel: "ready",
+        sessionStatus: "ready",
+        remainingUnits: 50,
+        weeklyUnits: 100,
+      },
+    ],
+    projects: [],
+    activeRun: {
+      id: "running-run",
+      status: "running",
+      workerId: "claude-code",
+      projectId: "current",
+      prompt: "long task",
+      startedAt: "2026-05-13T00:00:00.000Z",
+      // 살아 있는 PID 가 필요하다 (readRuntime 의 reconcileStaleActiveRun 이
+      // 죽은 PID 면 activeRun 을 자동 정리해 가드가 작동할 기회조차 없어진다).
+      adapter: { status: "running", pid: process.pid, mode: "runner" },
+      routing: { status: "recommended", accountId: "ready-claude", provider: "claude" },
+    },
+    runHistory: [],
+    pendingRuns: [],
+    settings: {},
+  }, null, 2), "utf8");
+
+  const rejectAttempt = await startRun({
+    workerId: "claude-code",
+    projectId: "current",
+    prompt: "concurrent attempt",
+    complexity: "standard",
+  });
+  if (!rejectAttempt.startRejected || rejectAttempt.startRejected.reason !== "active_run_running") {
+    throw new Error("startRun did not block concurrent run on live activeRun");
+  }
+  if (rejectAttempt.activeRun?.id !== "running-run") {
+    throw new Error("startRun guard mutated activeRun");
+  }
+  console.log("[validate-quota-parser] ok startRun blocks concurrent run on live activeRun");
+
+  // ---- CHAIN_DONE 기본 동작 = stop ----
+  // settings.autoChainOverrideOnChainDone 가 꺼져 있으면 진행률이 99% 라도
+  // CHAIN_DONE 신호를 받으면 무조건 stop.
+  await writeFile(runtimeFile, JSON.stringify({
+    version: 1,
+    accounts: [],
+    projects: [],
+    activeRun: null,
+    runHistory: [],
+    pendingRuns: [],
+    settings: { autoChainEnabled: true, autoChainOverrideOnChainDone: false },
+  }, null, 2), "utf8");
+  const chainResult = await tryAutoChain(
+    {
+      id: "done-run",
+      workerId: "claude-code",
+      projectId: "current",
+      prompt: "earlier task",
+      chainDepth: 0,
+      chainDoneOverrides: 0,
+    },
+    { chainDoneSignaled: true, lastMessage: "작업 완료했습니다.\nCHAIN_DONE" },
+  );
+  if (!chainResult || !chainResult.stopped) {
+    throw new Error("CHAIN_DONE was not honored by default (override flag off)");
+  }
+  console.log("[validate-quota-parser] ok CHAIN_DONE honored by default");
 } finally {
   Date.now = realDateNow;
   await rm(tempDir, { recursive: true, force: true });

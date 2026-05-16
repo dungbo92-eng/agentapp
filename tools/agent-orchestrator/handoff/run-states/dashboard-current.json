@@ -1,49 +1,50 @@
 {
   "version": 1,
-  "run_id": "run-1778484697511",
-  "worker_id": "cursor",
-  "worker_kind": "cursor",
-  "workspace": "D:\\agentApp",
+  "run_id": "run-1778630400000",
+  "worker_id": "claude-code",
+  "worker_kind": "claude",
+  "workspace": "E:\\agentApp",
   "task": {
     "id": "dashboard-run",
     "title": "대시보드 시작 요청",
     "source": "dashboard"
   },
-  "status": "interrupted",
-  "reason": "user_stopped",
+  "status": "running",
+  "reason": "in_progress",
   "timestamps": {
-    "started_at": "2026-05-11T07:31:37.511Z",
-    "updated_at": "2026-05-11T07:32:39.363Z"
+    "started_at": "2026-05-16T01:46:10.051Z",
+    "updated_at": "2026-05-16T01:46:10.052Z"
   },
   "usage": {
-    "provider": "cursor",
+    "provider": "claude",
     "account_id": "local-account",
     "login_label": "local-account",
     "session_profile": "local-account",
     "auth_method": "google",
-    "model_tier": "efficient",
-    "reasoning_effort": "medium",
-    "estimated_units": 3,
+    "model_tier": "sonnet",
+    "reasoning_effort": "high",
+    "estimated_units": 7,
     "budget_status": "reserved"
   },
   "verification": {
     "commands": [
       "pnpm validate"
     ],
-    "result": "passed",
-    "summary": "사전 검증 통과",
-    "log_path": "data/worker-launches/run-1778484697511/validate.log"
+    "result": "not_run",
+    "summary": "사전 검증 대기 중",
+    "log_path": ""
   },
+  "interrupted_worktree": null,
   "adapter": {
-    "mode": "open-window",
-    "status": "stopped",
-    "prompt_path": "data/worker-launches/run-1778484697511/launch-prompt.md",
-    "log_path": "data/worker-launches/run-1778484697511/worker.log",
-    "session_dir": "data/session-profiles/cursor/local-account"
+    "mode": "pending",
+    "status": "queued",
+    "prompt_path": "",
+    "log_path": "",
+    "session_dir": ""
   },
   "handoff": {
-    "summary": "대시보드가 cursor 작업의 상태를 interrupted 로 기록했습니다. 프롬프트 본문은 data/dashboard-runtime.json 에만 저장됩니다.",
-    "next_step": "로컬 실행 기록을 확인하고 NEXT_TASK.md 에서 이어가거나 새 작업을 시작하세요.",
+    "summary": "대시보드가 claude-code 작업을 local-account / sonnet 조합으로 시작했습니다. 어댑터 pending 상태는 queued 입니다. 프롬프트 본문은 data/dashboard-runtime.json 에만 저장됩니다.",
+    "next_step": "대시보드에서 실행 상태, 검증 결과, 어댑터 로그를 확인하세요. 인수인계가 필요하면 여기서 중지하면 됩니다.",
     "files": [
       "data/dashboard-runtime.json",
       "tools/agent-orchestrator/handoff/DASHBOARD_RUN.md",
@@ -54,7 +55,8 @@
     "branch": "main",
     "commit": "not_created",
     "pushed": false,
-    "dirty": true
+    "dirty": false,
+    "dirty_files": []
   },
   "safety": {
     "contains_secrets": false,

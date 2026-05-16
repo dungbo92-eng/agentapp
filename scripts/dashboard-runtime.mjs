@@ -26,9 +26,18 @@ const DEFAULT_RUNTIME = {
     idleWarnMs: 90 * 1000,
     idleKillMs: 30 * 60 * 1000,
     autoChainEnabled: true,
-    autoChainMaxDepth: 30,
+    // 기본을 30 → 8 로 낮춤. 30 은 사용자 환경에서 토큰 폭주의 주범.
+    // 사용자가 명시적으로 늘릴 수 있게 settings 로 노출 유지.
+    autoChainMaxDepth: 8,
+    // CHAIN_DONE 을 worker 가 보냈는데도 진행률 등을 이유로 무시하고 다시
+    // 강제 실행하는 동작은 기본 OFF. 워커가 명시적으로 끝났다고 했을 때는
+    // 그 신호를 존중한다. 토큰 절약 우선. 사용자가 켜고 싶으면 settings 에서.
+    autoChainOverrideOnChainDone: false,
     quotaRetryEnabled: true,
-    quotaRetryMaxAttempts: 3,
+    // 한도 도달 시 다른 ready 계정으로 시도. 같은 prompt 를 3 번까지 다른
+    // 계정으로 돌리는 동작도 사용자 입장에선 토큰 폭주로 보일 수 있어
+    // 2 로 축소.
+    quotaRetryMaxAttempts: 2,
   },
 };
 
@@ -39,12 +48,22 @@ function normalizeSettings(raw) {
   const autoChainEnabled = source.autoChainEnabled === undefined ? true : Boolean(source.autoChainEnabled);
   const autoChainMaxDepth = Number.isFinite(Number(source.autoChainMaxDepth))
     ? Math.max(1, Math.min(500, Number(source.autoChainMaxDepth)))
-    : 30;
+    : 8;
+  const autoChainOverrideOnChainDone =
+    source.autoChainOverrideOnChainDone === undefined ? false : Boolean(source.autoChainOverrideOnChainDone);
   const quotaRetryEnabled = source.quotaRetryEnabled === undefined ? true : Boolean(source.quotaRetryEnabled);
   const quotaRetryMaxAttempts = Number.isFinite(Number(source.quotaRetryMaxAttempts))
     ? Math.max(0, Math.min(10, Number(source.quotaRetryMaxAttempts)))
-    : 3;
-  return { idleWarnMs, idleKillMs, autoChainEnabled, autoChainMaxDepth, quotaRetryEnabled, quotaRetryMaxAttempts };
+    : 2;
+  return {
+    idleWarnMs,
+    idleKillMs,
+    autoChainEnabled,
+    autoChainMaxDepth,
+    autoChainOverrideOnChainDone,
+    quotaRetryEnabled,
+    quotaRetryMaxAttempts,
+  };
 }
 
 export async function getRuntimeSettings() {
@@ -2242,30 +2261,50 @@ function pendingMatchesAccount(pending, account) {
   return provider === account.provider;
 }
 
-export async function dispatchPendingForAccount(accountId) {
-  const runtime = await readRuntime();
-  const account = runtime.accounts.find((item) => item.id === accountId);
-  if (!account || account.enabled === false || account.sessionStatus !== "ready" || activeQuotaLock(account)) {
-    return { runtime, dispatched: 0 };
-  }
-  const pending = (runtime.pendingRuns || []).filter((item) => pendingMatchesAccount(item, account));
-  if (pending.length === 0) return { runtime, dispatched: 0 };
+// 같은 account 에 대해 dispatchPendingForAccount 가 동시에 호출돼도
+// 한 pending 이 두 번 dispatch 되지 않도록 in-memory 직렬화.
+// detectAndUpdateAccount + setAccountSession + login 완료 콜백 등에서
+// 같은 시점에 ready 로 바뀌면 race 발생할 수 있음.
+const DISPATCH_LOCKS = new Set();
 
-  const next = pending[0];
-  await writeRuntime({
-    ...runtime,
-    pendingRuns: runtime.pendingRuns.filter((item) => item.id !== next.id),
-  });
-  const after = await startRun({
-    workerId: next.workerId,
-    projectId: next.projectId,
-    prompt: next.prompt,
-    complexity: next.complexity,
-    modelOverride: next.modelOverride,
-    autoDispatched: true,
-    pendingId: next.id,
-  });
-  return { runtime: after, dispatched: 1 };
+export async function dispatchPendingForAccount(accountId) {
+  const lockKey = String(accountId || "");
+  if (DISPATCH_LOCKS.has(lockKey)) {
+    return { runtime: await readRuntime(), dispatched: 0, skipped: "concurrent_dispatch" };
+  }
+  DISPATCH_LOCKS.add(lockKey);
+  try {
+    const runtime = await readRuntime();
+    const account = runtime.accounts.find((item) => item.id === accountId);
+    if (!account || account.enabled === false || account.sessionStatus !== "ready" || activeQuotaLock(account)) {
+      return { runtime, dispatched: 0 };
+    }
+    // 이미 실행 중인 run 이 있으면 dispatch 하지 않는다. 사용자 입장에서
+    // "백그라운드에서 여러 개가 동시에 도는" 문제의 직접 원인.
+    if (runtime.activeRun && runtime.activeRun.status === "running") {
+      return { runtime, dispatched: 0, skipped: "active_run_present" };
+    }
+    const pending = (runtime.pendingRuns || []).filter((item) => pendingMatchesAccount(item, account));
+    if (pending.length === 0) return { runtime, dispatched: 0 };
+
+    const next = pending[0];
+    await writeRuntime({
+      ...runtime,
+      pendingRuns: runtime.pendingRuns.filter((item) => item.id !== next.id),
+    });
+    const after = await startRun({
+      workerId: next.workerId,
+      projectId: next.projectId,
+      prompt: next.prompt,
+      complexity: next.complexity,
+      modelOverride: next.modelOverride,
+      autoDispatched: true,
+      pendingId: next.id,
+    });
+    return { runtime: after, dispatched: 1 };
+  } finally {
+    DISPATCH_LOCKS.delete(lockKey);
+  }
 }
 
 export async function quickHandoff(input = {}) {
@@ -2371,7 +2410,11 @@ export async function tryQuotaRetry(failedRun) {
     modelOverride: failedRun.modelOverride || "auto",
     retryCount: attempts,
     retryReason: `quota_exhausted_attempt_${attempts}_to_${routing.provider}`,
-    autoChain: Boolean(failedRun.autoChain),
+    // quota retry 후속 run 에서는 autoChain 을 끈다. retry 가 또 chain 을 타고
+    // 다시 quota 를 만나는 곱셈 폭주 (max 3 retry × max 8 chain = 최대 24 회
+    // 추가 spawn) 를 방지. 사용자는 "한도 도달 → 다른 계정으로 같은 작업 1 회만
+    // 더 시도" 를 기대.
+    autoChain: false,
   });
   return result.activeRun || null;
 }
@@ -2383,7 +2426,10 @@ export async function tryQuotaRetry(failedRun) {
 // 단, 신호가 있어도 진행률이 100% 가 아니거나 NEXT_TASK 에 실제 항목이 남아
 // 있으면 한 단계만 끝낸 오판으로 보고 override 해서 이어 진행한다. 무한
 // override 를 막기 위해 chainDoneOverrides 횟수를 cap.
-const CHAIN_DONE_OVERRIDE_CAP = 3;
+// override 모드를 사용자가 켰을 때도 1 회만 허용. 같은 prompt 를 두 번 우긴
+// 다음에도 worker 가 또 CHAIN_DONE 을 보내면 그 시점에서는 사용자 판단이
+// 필요하다.
+const CHAIN_DONE_OVERRIDE_CAP = 1;
 
 export async function tryAutoChain(prevRun, opts = {}) {
   const runtime = await readRuntime();
@@ -2459,18 +2505,31 @@ export async function tryAutoChain(prevRun, opts = {}) {
   const prevOverrides = Number(prevRun.chainDoneOverrides || 0);
   let chainDoneOverride = false;
   if (chainDoneSignaled) {
+    // 사용자 대기 신호가 있으면 무조건 stop (기존 동작 유지)
     if (isWaitingForUser) {
       return {
         stopped: true,
         reason: "worker 가 사용자 결정 대기를 보고하고 CHAIN_DONE 을 보냈습니다. 토큰 소진 방지를 위해 자동 진행 중지 — 사용자 입력 필요.",
       };
     }
-    const progressIncomplete = Number.isFinite(progressPercent) && progressPercent < 100;
-    const hasRemainingWork = hasNewTask || progressIncomplete;
-    if (!hasRemainingWork) {
+    // 기본 정책: CHAIN_DONE = 절대 stop. worker 가 명시적으로 끝났다고 했으면
+    // app 이 진행률 같은 간접 정보로 뒤집지 않는다. 사용자가 settings 에서
+    // autoChainOverrideOnChainDone=true 로 명시했을 때만 기존의 진행률/NEXT_TASK
+    // 기반 override 가 동작한다.
+    if (!settings.autoChainOverrideOnChainDone) {
       return {
         stopped: true,
-        reason: "worker 가 CHAIN_DONE 을 보냈고 남은 작업도 없어 사이클을 종료합니다.",
+        reason: "worker 가 CHAIN_DONE 을 보냈습니다. 토큰 소진 방지를 위해 자동 진행 중지 (override 비활성). settings.autoChainOverrideOnChainDone 을 켜면 진행률 기반 override 가 다시 동작합니다.",
+      };
+    }
+    const progressIncomplete = Number.isFinite(progressPercent) && progressPercent < 100;
+    // override 허용 모드에서도 hasNewTask (NEXT_TASK 에 실제 다음 항목이 있고
+    // 그게 직전 작업과 다름) 만 신뢰. progressPercent 가 99% 에서 멈춘 상태로
+    // 영구 override 되는 패턴 제거.
+    if (!hasNewTask) {
+      return {
+        stopped: true,
+        reason: "worker 가 CHAIN_DONE 을 보냈고 NEXT_TASK 에도 새 항목이 없어 사이클을 종료합니다.",
       };
     }
     if (prevOverrides >= CHAIN_DONE_OVERRIDE_CAP) {
@@ -2554,8 +2613,54 @@ export function classifyComplexity(promptText) {
   return "standard";
 }
 
+// 살아 있는 worker PID 가 있는 activeRun 인지 확인. dashboard-server 의
+// /runs/start 가 다중 호출됐을 때 (네트워크 재시도, 더블 클릭, 다중 탭, 외부
+// dispatch + 사용자 수동 시작 충돌) 중복 spawn 을 막는다.
+function isAliveActiveRun(activeRun) {
+  if (!activeRun) return false;
+  if (activeRun.status !== "running") return false;
+  const adapter = activeRun.adapter || {};
+  const status = String(adapter.status || "");
+  // launching / running / preflight 인 동안만 살아 있다고 본다.
+  if (!["launching", "running", "preflight"].includes(status)) return false;
+  const pid = Number(adapter.pid || adapter.runnerPid || 0);
+  if (!Number.isInteger(pid) || pid <= 0) {
+    // PID 가 아직 안 잡힌 launching 단계도 살아 있다고 본다 (방금 startRun 직후).
+    return true;
+  }
+  try {
+    process.kill(pid, 0);
+    return true;
+  } catch (error) {
+    return error?.code === "EPERM";
+  }
+}
+
 export async function startRun(input) {
   const runtime = await readRuntime();
+
+  // activeRun 가드 — 정상 종료 경로 (autoChain, quota retry, pending dispatch,
+  // quickHandoff) 가 아닌 호출이 살아있는 activeRun 위에 새 run 을 덮어쓰는
+  // 것을 차단. 그렇지 않으면 이전 worker 가 종료되지 않고 두 개가 동시에
+  // 토큰을 소비한다.
+  const isContinuation =
+    Boolean(input.autoChain) ||
+    Number(input.retryCount || 0) > 0 ||
+    Boolean(input.pendingId) ||
+    Boolean(input.autoDispatched) ||
+    Boolean(input.handoffFrom) ||
+    Boolean(input.allowConcurrent);
+  if (!isContinuation && isAliveActiveRun(runtime.activeRun)) {
+    return {
+      ...runtime,
+      startRejected: {
+        reason: "active_run_running",
+        message: `이미 ${runtime.activeRun?.workerId || "worker"} (${runtime.activeRun?.id || "?"}) 가 실행 중입니다. 먼저 중지하거나 '다른 계정으로 이어가기' 를 사용하세요.`,
+        activeRunId: runtime.activeRun?.id || "",
+      },
+    };
+  }
+
   // complexity="auto" 또는 미지정이면 prompt 텍스트로 자동 분류.
   const requestedComplexity = String(input.complexity || "auto").toLowerCase();
   const resolvedComplexity =
