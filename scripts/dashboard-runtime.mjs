@@ -2784,10 +2784,20 @@ export async function tryAutoChain(prevRun, opts = {}) {
 export function classifyTaskDomain(promptText) {
   const text = String(promptText || "");
   if (!text.trim()) return "general";
-  // 명시 태그 — 사용자가 회사 정책상 허용됨을 직접 알린 신호 (최우선)
+  // 명시 태그 — 사용자가 회사 정책상 허용됨을 직접 알린 신호 (최우선).
+  // 오류/에러, 분석/디버그/디버깅 등 동의어 변형을 모두 흡수해서 "에러분석" /
+  // "오류분석" / "에러 분석" 처럼 사용자가 띄어쓰기 없이 쓰거나 일부 단어만
+  // 써도 동일하게 인식한다.
   const explicitTagPatterns = [
-    /\[\s*(?:오류\s*분석|에러\s*분석|버그\s*수정|디버그|디버깅|검증|프로세스\s*분석|코드\s*리뷰|로그\s*분석|스키마\s*분석)\s*\]/i,
-    /\[\s*(?:error\s*analysis|bug\s*fix|debug|validation|process\s*analysis|code\s*review)\s*\]/i,
+    /\[\s*(?:오류|에러)\s*(?:분석|진단|디버그|디버깅|수정)\s*\]/i,
+    /\[\s*(?:버그|bug)\s*(?:수정|fix|분석)\s*\]/i,
+    /\[\s*(?:디버그|디버깅|debug(?:ging)?)\s*\]/i,
+    /\[\s*(?:검증|validation|verify)\s*\]/i,
+    /\[\s*(?:프로세스|process)\s*(?:분석|analysis)\s*\]/i,
+    /\[\s*(?:코드|code)\s*(?:리뷰|review)\s*\]/i,
+    /\[\s*(?:로그|log)\s*(?:분석|analysis)\s*\]/i,
+    /\[\s*(?:스키마|schema)\s*(?:분석|analysis|검토)?\s*\]/i,
+    /\[\s*(?:error\s*analysis|bug\s*fix|process\s*analysis|code\s*review)\s*\]/i,
   ];
   for (const pattern of explicitTagPatterns) {
     if (pattern.test(text)) return "maintenance";
@@ -2984,8 +2994,67 @@ export async function startRun(input) {
       : "";
 
   // 실패 계정/provider 제외 — tryPolicyRetry 가 명시 전달. 명시 안 됐으면 빈 배열.
-  const excludeAccountIds = Array.isArray(input.excludeAccountIds) ? input.excludeAccountIds : [];
+  const explicitExcludeAccountIds = Array.isArray(input.excludeAccountIds) ? input.excludeAccountIds : [];
   const excludeProviders = Array.isArray(input.excludeProviders) ? input.excludeProviders : [];
+
+  // 반복 spawn 자동 감지 — 사용자가 같은 prompt 를 짧은 시간에 반복 입력하거나,
+  // autoChain 이 같은 자리를 도는 패턴을 막는다. 최근 30 분 내 runHistory 에서
+  // 같은 prompt (정규화 후) + 같은 accountId 로 spawn 된 run 이 2 회 이상이면
+  // 그 계정을 자동 제외 후보로 본다. 회사 정책으로 거절된 작업이 같은 계정으로
+  // 계속 라우팅되는 패턴의 핵심 차단 지점.
+  //
+  // 제외 조건:
+  // (1) 같은 prompt + 같은 계정으로 2 회 이상 spawn 됐고, 그 중 하나라도
+  //     policy_blocked/quota_limited/failed 였다면 → 제외 (실패 이력 명확)
+  // (2) 또는 같은 prompt + 같은 계정으로 3 회 이상 spawn 됐다면 → 제외
+  //     (반복 자체가 신호, status 무관)
+  //
+  // 명시 호출자(tryPolicyRetry 등)가 이미 excludeAccountIds 를 넘기는 경로는
+  // 그대로 합집합으로 처리.
+  const autoExcludeAccountIds = [];
+  const REPEAT_WINDOW_MS = 30 * 60 * 1000;
+  const inputPromptNormalized = String(input.prompt || "")
+    .toLowerCase()
+    .replace(/\[[^\]]*\]/g, " ")
+    .replace(/[\p{P}\p{S}]+/gu, " ")
+    .replace(/\s+/g, " ")
+    .trim();
+  if (inputPromptNormalized) {
+    const cutoff = Date.now() - REPEAT_WINDOW_MS;
+    const sameByAccount = new Map();
+    for (const item of runtime.runHistory || []) {
+      const startedAtMs = Date.parse(item.startedAt || "") || 0;
+      if (startedAtMs < cutoff) continue;
+      const accountIdItem = String(item.routing?.accountId || "").toLowerCase();
+      if (!accountIdItem) continue;
+      const itemPrompt = String(item.prompt || "")
+        .toLowerCase()
+        .replace(/\[[^\]]*\]/g, " ")
+        .replace(/[\p{P}\p{S}]+/gu, " ")
+        .replace(/\s+/g, " ")
+        .trim();
+      if (!itemPrompt) continue;
+      const isSame = itemPrompt === inputPromptNormalized
+        || itemPrompt.includes(inputPromptNormalized)
+        || inputPromptNormalized.includes(itemPrompt);
+      if (!isSame) continue;
+      const entry = sameByAccount.get(accountIdItem) || { count: 0, hadFailure: false };
+      entry.count += 1;
+      const status = String(item.status || "").toLowerCase();
+      if (status === "policy_blocked" || status === "quota_limited" || status === "failed") {
+        entry.hadFailure = true;
+      }
+      sameByAccount.set(accountIdItem, entry);
+    }
+    for (const [accountIdLower, entry] of sameByAccount.entries()) {
+      const failureWithRepeat = entry.count >= 2 && entry.hadFailure;
+      const repeatOnly = entry.count >= 3;
+      if (failureWithRepeat || repeatOnly) {
+        autoExcludeAccountIds.push(accountIdLower);
+      }
+    }
+  }
+  const excludeAccountIds = Array.from(new Set([...explicitExcludeAccountIds, ...autoExcludeAccountIds]));
 
   // 1차 라우팅 — modelOverride='auto' 로 보내 selectRoute 가 후보 자유 선택.
   const firstPass = selectRoute(runtime.accounts, {

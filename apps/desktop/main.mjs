@@ -1,4 +1,5 @@
 import { app, BrowserWindow, shell, globalShortcut, Tray, Menu, ipcMain, screen, nativeImage } from "electron";
+import { readFileSync, writeFileSync } from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 
@@ -8,6 +9,36 @@ let tray;
 let windowMode = "full"; // "full" | "compact"
 let isQuitting = false;
 let savedFullBounds = null;
+
+// 컴팩트/풀 모드 사용자 선호도를 재시작 후에도 유지하기 위한 영속 저장.
+// userData/window-mode.json 에 { mode: "compact"|"full" } 형태로 기록.
+function windowModeFile() {
+  try {
+    return path.join(app.getPath("userData"), "window-mode.json");
+  } catch {
+    return "";
+  }
+}
+function loadPersistedWindowMode() {
+  const file = windowModeFile();
+  if (!file) return "full";
+  try {
+    const raw = readFileSync(file, "utf8");
+    const parsed = JSON.parse(raw);
+    return parsed?.mode === "compact" ? "compact" : "full";
+  } catch {
+    return "full";
+  }
+}
+function savePersistedWindowMode(mode) {
+  const file = windowModeFile();
+  if (!file) return;
+  try {
+    writeFileSync(file, JSON.stringify({ mode: mode === "compact" ? "compact" : "full" }), "utf8");
+  } catch {
+    // best-effort — 영속 저장 실패해도 동작은 그대로.
+  }
+}
 
 const PRELOAD_PATH = path.join(path.dirname(fileURLToPath(import.meta.url)), "preload.mjs");
 
@@ -72,14 +103,21 @@ async function createMainWindow() {
   process.env.AGENTAPP_DATA_DIR = path.join(app.getPath("userData"), "data");
   process.env.AGENTAPP_HANDOFF_DIR = path.join(app.getPath("userData"), "handoff");
 
+  // 사용자가 직전 세션에서 선택한 창 모드를 복원한다. 재시작 시 항상 full 로
+  // 돌아가던 회귀를 막아 트레이/버튼 동기화의 source of truth 와 영속 상태가
+  // 일치하게 한다.
+  windowMode = loadPersistedWindowMode();
+  const initialDims = windowMode === "compact" ? COMPACT_WINDOW : FULL_WINDOW;
+
   const { createDashboardServer } = await import("../../scripts/dashboard-server.mjs");
   dashboardServer = await createDashboardServer();
 
   mainWindow = new BrowserWindow({
-    width: FULL_WINDOW.width,
-    height: FULL_WINDOW.height,
-    minWidth: FULL_WINDOW.minWidth,
-    minHeight: FULL_WINDOW.minHeight,
+    width: initialDims.width,
+    height: initialDims.height,
+    minWidth: initialDims.minWidth,
+    minHeight: initialDims.minHeight,
+    alwaysOnTop: windowMode === "compact",
     title: "AgentApp",
     backgroundColor: "#eef1f4",
     autoHideMenuBar: true,
@@ -138,6 +176,27 @@ async function createMainWindow() {
   }
 
   await mainWindow.loadURL(dashboardServer.url);
+
+  // 컴팩트 모드로 복원된 경우 우하단 위치로 이동 + alwaysOnTop floating 적용.
+  // BrowserWindow 의 width/height 만으로는 위치가 가운데로 가서 컴팩트 모드의
+  // 사용자 기대(우하단 작은 창) 와 어긋난다.
+  if (windowMode === "compact") {
+    try {
+      const display = screen.getDisplayNearestPoint(screen.getCursorScreenPoint());
+      const area = display?.workArea || { x: 0, y: 0, width: 1280, height: 800 };
+      const margin = 16;
+      mainWindow.setBounds({
+        x: area.x + area.width - COMPACT_WINDOW.width - margin,
+        y: area.y + area.height - COMPACT_WINDOW.height - margin,
+        width: COMPACT_WINDOW.width,
+        height: COMPACT_WINDOW.height,
+      });
+      mainWindow.setAlwaysOnTop(true, "floating");
+    } catch {
+      // best-effort — 위치 적용 실패해도 windowMode 자체는 유지.
+    }
+  }
+
   await bootstrapTray();
   void bootstrapAutoUpdater();
   void bootstrapAccountProbe();
@@ -258,6 +317,7 @@ function setWindowMode(nextMode) {
   }
 
   windowMode = target;
+  savePersistedWindowMode(windowMode);
   rebuildTrayMenu();
   if (!mainWindow.webContents.isDestroyed()) {
     mainWindow.webContents.send("agentapp:window-mode-changed", windowMode);

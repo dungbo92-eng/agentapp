@@ -126,6 +126,13 @@ const ORG_POLICY_PATTERNS = [
   /(?:^|\s)조직 정책(?:에|으로|상)/,
   /enterprise\s+(?:policy|usage policy)/i,
   /not\s+permitted\s+by\s+(?:your\s+)?organization/i,
+  // 실제 회사 거절문에서 자주 등장하는 표현. "도입 초기 단계" + Claude/AI 컨텍스트.
+  /도입\s*초기\s*단계/,
+  // "순수 개발 작업에만 응답 가능", "개발 작업에 한해 답변" 같은 화이트리스트 안내.
+  /순수\s*(?:개발|코딩)\s*작업/,
+  /(?:개발\s*작업|코딩\s*작업)\s*에(?:만|\s*한해)/,
+  // "추후 정책이 확장되면 안내" — 거절문 마무리 상투 문구.
+  /추후\s*(?:사용\s*)?정책이?\s*확장되면/,
 ];
 
 // Worker 종료 후 combinedOutput 을 한 번 더 훑어 quota 로 분류하는 패턴.

@@ -1,5 +1,22 @@
 # RUN_STATUS
 
+## 2026-05-16T_repeat_account_breakout
+
+사용자 worker-launches 로그 분석에서 발견한 4 가지 회귀 보완:
+
+1. **`[에러분석]` 태그 미인식** — 코드는 `[오류분석]` 만 maintenance 로 인식하던 패턴이라 사용자가 `[에러분석]` 으로 쓰면 분류가 general 로 떨어져 회사 계정 우선 라우팅이 작동하지 않았다. classifyTaskDomain 의 명시 태그 정규식을 동의어 변형(오류/에러 × 분석/진단/디버그/디버깅/수정, 단독 디버그, 검증, 프로세스 분석, 코드 리뷰, 로그 분석, 스키마)으로 확장.
+2. **새로운 거절문 형태 미감지** — 실제 회사 계정 거절문 `"현재 본 조직은 Claude를 ... 도입 초기 단계입니다. C# 코드, T-SQL, 스키마, 에러 분석 등 순수 개발 작업에만 응답 가능합니다. ... 추후 사용 정책이 확장되면 별도 안내드립니다."` 가 기존 ORG_POLICY_PATTERNS 일부만 매칭하던 상태. `/도입\s*초기\s*단계/`, `/순수\s*(?:개발|코딩)\s*작업/`, `/(?:개발\s*작업|코딩\s*작업)\s*에(?:만|\s*한해)/`, `/추후\s*(?:사용\s*)?정책이?\s*확장되면/` 4 개 패턴 추가. 실제 거절문 7 개 패턴 매칭 + 정상 응답 false positive 0 확인.
+3. **같은 prompt + 같은 계정 반복 spawn 자동 감지** — startRun 에 30 분 윈도 dedupe 로직 추가. runHistory 에서 prompt 정규화(태그/구두점/대소문자 제거 후 포함 관계) 일치 + 같은 accountId 가 (a) 2 회 이상이고 그 중 하나라도 policy_blocked/quota_limited/failed 였거나, (b) 3 회 이상이면 그 계정을 자동으로 `excludeAccountIds` 에 추가. 사용자가 같은 prompt 를 반복 입력하거나 autoChain 이 같은 자리를 돌 때 회사 계정에 같은 거절을 계속 받던 핵심 패턴을 dashboard 레벨에서 차단.
+4. **컴팩트 모드 영속성** — 기존엔 windowMode 가 메모리에만 존재해 재시작 시 항상 "full" 로 복귀. `apps/desktop/main.mjs` 에 `loadPersistedWindowMode()`/`savePersistedWindowMode(mode)` 추가, `userData/window-mode.json` 에 `{ mode }` 기록. `createMainWindow` 가 시작 시 로드해 BrowserWindow width/height/alwaysOnTop 을 그에 맞춰 만들고, compact 면 우하단 위치까지 적용. `setWindowMode` 에서 변경 시 저장. 트레이 메뉴 ↔ UI 버튼 ↔ 영속 상태가 단일 source of truth (windowMode) 로 일치.
+
+검증:
+- classifyTaskDomain 9 케이스 (`[에러분석]`, `[오류분석]`, `[에러 분석]`, `[디버그]`, `[버그수정]`, `[검증]`, `[프로세스분석]`, general 2 건) 모두 통과.
+- ORG_POLICY_PATTERNS 실제 거절문 매칭 7 패턴 / 정상 응답 false positive 0.
+- pnpm validate 통과.
+
+사용자 환경 참고:
+- 현재 worker-launches 로그상 launch-prompt 에 NEXT_STEPS 규칙이 없어 v0.4.0 미적용 상태로 보임. 앱 재시작 시 electron-updater 가 v0.4.X 를 자동 설치하면 NEXT_STEPS/반복 감지/컴팩트 영속성이 한꺼번에 적용된다.
+
 ## 2026-05-16T_next_steps_marker
 
 worker 가 작업을 끝낼 때 다음 작업 후보를 일관된 형식으로 출력하는 마커 규칙 도입. 기존 흐름은 worker 가 NEXT_TASK.md 를 갱신하지 않으면 dashboard 가 generic_continuation 으로 같은 자리를 돌거나, CHAIN_DONE 신호 오용 (한 단계 끝남을 전체 끝남으로) 으로 무한 chain 이 끊기는 패턴이 있었음.
