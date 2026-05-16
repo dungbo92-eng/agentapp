@@ -791,3 +791,12 @@ NEXT_TASK.md 템플릿 확정: agent-next 생성물을 Required Reads, Execution
 - Git: not recorded
 - Decisions: DEC-20260516-002 pending(Gemini 인증+등록), DEC-20260516-003 pending(Claude 잠금 일치성)
 - Next: DEC-20260516-002/003 사용자 결정 후 cycle-test 재실행
+
+## 2026-05-16T11:36:15.694Z
+
+- Status: completed
+- Summary: Dashboard 현재 실행 패널을 selectedProject 기준으로 필터링하도록 수정. activeRun.projectId === selectedProjectRecord.id 인 경우만 ChatConversation/pendingRuns/runHistory 노출. 다른 프로젝트가 글로벌 슬롯을 점유 중이면 사용자에게 명시 메시지 표시. topbar nowDoing/StatusPill 도 선택된 프로젝트 기준.
+- Verification: pnpm dashboard:build; pnpm validate
+- Git: not recorded
+- Decisions: none
+- Next: 사용자 환경에서 실제로 프로젝트 전환 시 현재 실행 패널이 비워지는지 시각 확인

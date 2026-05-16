@@ -1613,6 +1613,18 @@ function App() {
     projects[0] ||
     placeholderProject;
   const activeRun = runtime.activeRun;
+  // 현재 실행 패널은 선택된 프로젝트 기준으로만 active run / pending / history 를
+  // 표시해야 한다. runtime.activeRun 은 글로벌 단일 슬롯이라 다른 프로젝트가 실행
+  // 중일 때 그대로 노출하면 "선택된 프로젝트의 현재 실행" 이라는 사용자 멘탈모델과
+  // 어긋난다. compact view 의 필터링과 동일한 규칙을 적용한다.
+  const activeRunForSelectedProject =
+    activeRun && activeRun.projectId === selectedProjectRecord.id ? activeRun : null;
+  const pendingRunsForSelectedProject = (runtime.pendingRuns || []).filter(
+    (pending) => pending.projectId === selectedProjectRecord.id,
+  );
+  const runHistoryForSelectedProject = runtime.runHistory.filter(
+    (run) => run.projectId === selectedProjectRecord.id,
+  );
   const approvalCount = snapshot.approval_queue.pending_decisions.length + snapshot.approval_queue.held_tasks.length;
   // 선택된 프로젝트가 외부 프로젝트면 그 프로젝트의 NEXT_TASK 만 사용.
   // (없으면 chip 자체를 숨기기 위해 빈 문자열 유지 — AgentApp 자체 NEXT_TASK 로 폴백하면
@@ -2464,15 +2476,15 @@ function App() {
           <div>
             <p>{selectedProjectRecord.path}</p>
             <h1>{selectedProjectRecord.name}</h1>
-            {activeRun?.currentStatus ? (
+            {activeRunForSelectedProject?.currentStatus ? (
               <div className="nowDoing" title="worker 가 [STATUS] 마커로 보고한 현재 작업">
                 <span className="nowDoingDot" aria-hidden="true" />
-                <span>{activeRun.currentStatus}</span>
+                <span>{activeRunForSelectedProject.currentStatus}</span>
               </div>
             ) : null}
           </div>
           <div className="topActions">
-            <StatusPill status={activeRun?.status || "ready"} />
+            <StatusPill status={activeRunForSelectedProject?.status || "ready"} />
             <button
               className="metaToggleBtn"
               type="button"
@@ -2746,21 +2758,25 @@ function App() {
               <h2>현재 실행</h2>
               <CircleStop aria-hidden="true" size={17} />
             </div>
-            {activeRun ? (
+            {activeRunForSelectedProject ? (
               <ChatConversation
-                run={activeRun}
+                run={activeRunForSelectedProject}
                 now={now}
                 onQuickSwitch={(targetId) => void quickSwitchAccount(targetId)}
                 readyAccounts={readyLocalAccounts}
               />
+            ) : activeRun ? (
+              <p className="empty">
+                선택한 프로젝트에 진행 중인 작업이 없습니다. 다른 프로젝트에서 실행 중인 작업이 있어 글로벌 슬롯은 점유 중입니다.
+              </p>
             ) : (
               <p className="empty">실행 중인 작업이 없습니다.</p>
             )}
-            {(runtime.pendingRuns || []).length > 0 ? (
+            {pendingRunsForSelectedProject.length > 0 ? (
               <div className="pendingList">
                 <h3>준비 대기 중인 작업</h3>
                 <p className="emptyState">자동 선택 작업은 아무 ready 계정이나 준비되면 시작되고, 수동 도구 작업은 해당 도구 계정이 준비되면 시작됩니다.</p>
-                {(runtime.pendingRuns || []).map((pending) => (
+                {pendingRunsForSelectedProject.map((pending) => (
                   <article key={pending.id} className="pendingItem">
                     <StatusPill status="queued" />
                     <div>
@@ -2774,8 +2790,8 @@ function App() {
               </div>
             ) : null}
             <div className="historyList">
-              {runtime.runHistory.length === 0 ? <p className="emptyState">아직 실행 기록이 없습니다.</p> : null}
-              {runtime.runHistory.slice(0, 4).map((run) => (
+              {runHistoryForSelectedProject.length === 0 ? <p className="emptyState">아직 실행 기록이 없습니다.</p> : null}
+              {runHistoryForSelectedProject.slice(0, 4).map((run) => (
                 <article key={run.id}>
                   <StatusPill status={run.status} />
                   <div>
