@@ -800,3 +800,12 @@ NEXT_TASK.md 템플릿 확정: agent-next 생성물을 Required Reads, Execution
 - Git: not recorded
 - Decisions: none
 - Next: 사용자 환경에서 실제로 프로젝트 전환 시 현재 실행 패널이 비워지는지 시각 확인
+
+## 2026-05-16T11:42:00.978Z
+
+- Status: blocked
+- Summary: v0.4.5 현재 실행 패널 프로젝트 전환 검증: 소스에서 selectedProject 기준 activeRun 필터와 다른 프로젝트 글로벌 슬롯 안내 문구 존재를 확인했고 pnpm validate/pnpm dashboard:build 통과. 설치된 앱에서 프로젝트 A Start 후 프로젝트 B 전환 시 실제 안내 노출 여부는 사용자 시각 확인 결과가 필요함.
+- Verification: pnpm validate; pnpm dashboard:build
+- Git: not recorded
+- Decisions: none
+- Next: 사용자 환경에서 v0.4.5 설치 앱 프로젝트 전환 시 '다른 프로젝트에서 실행 중인 작업이 있어 글로벌 슬롯은 점유 중입니다.' 안내 노출 여부를 알려주면 완료/회귀 처리

@@ -1,5 +1,5 @@
 {
-  "generated_at": "2026-05-16T11:35:32.736Z",
+  "generated_at": "2026-05-16T11:42:33.374Z",
   "repo_root": "E:\\agentApp",
   "progress": {
     "percent": 99,
@@ -376,7 +376,7 @@
     ]
   },
   "next_task": {
-    "generated": "2026-05-14T06:38:14.733Z",
+    "generated": "2026-05-16T11:42:08.632Z",
     "title": "Claude/Gemini CLI 설치 후 실제 authenticated cycle 재검증",
     "source": "roadmap",
     "id": "n/a",
@@ -397,11 +397,11 @@
     }
   ],
   "latest_run": {
-    "at": "2026-05-16T02:42:11.328Z",
+    "at": "2026-05-16T11:42:00.978Z",
     "status": "blocked",
-    "summary": "Claude/Gemini CLI 설치/인증 재검증: Claude CLI 직접 호출은 정상이나 dashboard runtime이 두 Claude 계정 모두 quota-lock으로 제외; Gemini CLI는 미인증·dashboard 미등록",
-    "verification": "claude --print 직접 호출=정상응답; gemini -p=Auth method missing; agent:cycle-test --worker claude-code --execute=blocked(라우팅 후보 0); agent:cycle-test --worker gemini-cli=blocked(활성 계정 없음); pnpm agent:doctor=ready(2 warnings)",
-    "next": "DEC-20260516-002/003 사용자 결정 후 cycle-test 재실행"
+    "summary": "v0.4.5 현재 실행 패널 프로젝트 전환 검증: 소스에서 selectedProject 기준 activeRun 필터와 다른 프로젝트 글로벌 슬롯 안내 문구 존재를 확인했고 pnpm validate/pnpm dashboard:build 통과. 설치된 앱에서 프로젝트 A Start 후 프로젝트 B 전환 시 실제 안내 노출 여부는 사용자 시각 확인 결과가 필요함.",
+    "verification": "pnpm validate; pnpm dashboard:build",
+    "next": "사용자 환경에서 v0.4.5 설치 앱 프로젝트 전환 시 '다른 프로젝트에서 실행 중인 작업이 있어 글로벌 슬롯은 점유 중입니다.' 안내 노출 여부를 알려주면 완료/회귀 처리"
   },
   "approval_queue": {
     "pending_decisions": [
@@ -541,10 +541,10 @@
       "heading": "NEXT_TASK",
       "status": "roadmap",
       "next": "Claude/Gemini CLI 설치 후 실제 authenticated cycle 재검증",
-      "generated": "2026-05-14T06:38:14.733Z",
+      "generated": "2026-05-16T11:42:08.632Z",
       "decision_count": 0,
       "line_count": 490,
-      "excerpt": "# NEXT_TASK\n\n- Generated: 2026-05-14T06:38:14.733Z\n- Selected task: Claude/Gemini CLI 설치 후 실제 authenticated cycle 재검증\n- Selection source: roadmap\n- Task id: n/a\n- Task priority: n/a\n- Workspace: D:\\agentApp\n- Policy: tools/agent-orchestrator/approval-policy.yaml\n\n## Required Reads\n\n1. AGENTS.md\n2. .claude-sync/memory/project_state.md\n3. .claude-sync/plans/agent-orchestrator-roadmap.md\n4. tools/agent-orchestrator/approval-policy.yaml\n5. docs/usage-budget-model-routing.md\n6. docs/handoff-completion-protocol.md\n7. tools/agent-orchestrator/task-queue.json\n8. tools/agent-orchestrator/workers.example.yaml\n\n## Agent Prompt\n\n위 Required Reads를 먼저 읽고 시작한다.\n\n다음 작업을 진행한다:\n\n> Claude/Gemini CLI 설치 후 실제 authenticated cycle 재검증\n\n## Execution Rules\n\n- `auto_allowed`에 해당하는 로컬 작업은 바로 진행한다.\n- `hold_for_user` 또는 `user_required`에 해당하는 작업은 실행하지 말고 DECISIONS_REQUIRED.md에 남긴다.\n- `deny`에 해당하는 작업은 구현하지 않는다.\n- 비밀값, 계정 정보, 토큰, 쿠키, 운영 인증 정보는 파일/로그/문서에 남기지 않는다.\n- 작업 범위가 섞여 있으면 안전한 로컬 부분만 완료하고 보류 항목을 기록한다.\n- 개발 구현, 문서화, 테스트, 로컬 검증, handoff 갱신, commit/push는 추가 확인 없이 계속 진행한다.\n\n## Completion Checklist\n\n- pnpm validate\n- pnpm agent:doctor\n- pnpm agent:progress\n- pnpm agent:next\n- pnpm agent:sync\n- git status 확인\n- 검증된 변경 commit\n- 승인된 remote가 있으면 push\n\n## Handoff Updates\n\n- tools/agent-orchestrator/handoff/RUN_STATUS.md: 수행 내용과 검증 결과 추가\n- tools/agent-orchestrator/handoff/DECISIONS_REQUIRED.md: 사용자 결정 필요 항목 추가/해결 처리\n- .claude-sync/memory/project_state.md: 의미 있는 진행 반영\n- .claude-sync/plans/agent-orchestrator-roadmap.md: 완료된 roadmap 체크박스 갱신\n\n## Context Snapshot\n\n### Project State\n\n```md\n# Project State\n\nLast updated: 2026-05-11\n\n## 프로젝트 한 줄\n\nAgentApp은 여러 AI 개발 에이전트가 같은 memory/plan/handoff를 공유하며 안전한 작업을 이어받게 하는 멀티 에이전트 개발 오케스트레이터다.\n\n## 현재 상태\n\n- `AGENTS.md`, `CLAUDE.md` 공통 규칙 초안 생성.\n- `.claude-sync` memory/plan 동기화 구조 생성.\n- `scripts/claude-sync.mjs`, `install-hooks.mjs` 생성.\n- `scripts/agent-doctor.mjs`, `agent-next.mjs`, `agent-progress.mjs`, `agent-report.mjs` 생성.\n- `tools/agent-orchestrator` 아래 승인 정책, worker 예시, handoff 초안 생성.\n- `git init`, `pnpm install`, hook 설치 완료.\n- `pnpm validate`, `pnpm agent:doctor`, `pnpm agent:progress`, `pnpm agent:next`, `pnpm agent:status` 검증 완료.\n- 새 PC/새 에이전트 세션에서 `pnpm age..."
+      "excerpt": "# NEXT_TASK\n\n- Generated: 2026-05-16T11:42:08.632Z\n- Selected task: Claude/Gemini CLI 설치 후 실제 authenticated cycle 재검증\n- Selection source: roadmap\n- Task id: n/a\n- Task priority: n/a\n- Workspace: E:\\agentApp\n- Policy: tools/agent-orchestrator/approval-policy.yaml\n\n## Required Reads\n\n1. AGENTS.md\n2. .claude-sync/memory/project_state.md\n3. .claude-sync/plans/agent-orchestrator-roadmap.md\n4. tools/agent-orchestrator/approval-policy.yaml\n5. docs/usage-budget-model-routing.md\n6. docs/handoff-completion-protocol.md\n7. tools/agent-orchestrator/task-queue.json\n8. tools/agent-orchestrator/workers.example.yaml\n\n## Agent Prompt\n\n위 Required Reads를 먼저 읽고 시작한다.\n\n다음 작업을 진행한다:\n\n> Claude/Gemini CLI 설치 후 실제 authenticated cycle 재검증\n\n## Execution Rules\n\n- `auto_allowed`에 해당하는 로컬 작업은 바로 진행한다.\n- `hold_for_user` 또는 `user_required`에 해당하는 작업은 실행하지 말고 DECISIONS_REQUIRED.md에 남긴다.\n- `deny`에 해당하는 작업은 구현하지 않는다.\n- 비밀값, 계정 정보, 토큰, 쿠키, 운영 인증 정보는 파일/로그/문서에 남기지 않는다.\n- 작업 범위가 섞여 있으면 안전한 로컬 부분만 완료하고 보류 항목을 기록한다.\n- 개발 구현, 문서화, 테스트, 로컬 검증, handoff 갱신, commit/push는 추가 확인 없이 계속 진행한다.\n\n## Completion Checklist\n\n- pnpm validate\n- pnpm agent:doctor\n- pnpm agent:progress\n- pnpm agent:next\n- pnpm agent:sync\n- git status 확인\n- 검증된 변경 commit\n- 승인된 remote가 있으면 push\n\n## Handoff Updates\n\n- tools/agent-orchestrator/handoff/RUN_STATUS.md: 수행 내용과 검증 결과 추가\n- tools/agent-orchestrator/handoff/DECISIONS_REQUIRED.md: 사용자 결정 필요 항목 추가/해결 처리\n- .claude-sync/memory/project_state.md: 의미 있는 진행 반영\n- .claude-sync/plans/agent-orchestrator-roadmap.md: 완료된 roadmap 체크박스 갱신\n\n## Context Snapshot\n\n### Project State\n\n```md\n# Project State\n\nLast updated: 2026-05-11\n\n## 프로젝트 한 줄\n\nAgentApp은 여러 AI 개발 에이전트가 같은 memory/plan/handoff를 공유하며 안전한 작업을 이어받게 하는 멀티 에이전트 개발 오케스트레이터다.\n\n## 현재 상태\n\n- `AGENTS.md`, `CLAUDE.md` 공통 규칙 초안 생성.\n- `.claude-sync` memory/plan 동기화 구조 생성.\n- `scripts/claude-sync.mjs`, `install-hooks.mjs` 생성.\n- `scripts/agent-doctor.mjs`, `agent-next.mjs`, `agent-progress.mjs`, `agent-report.mjs` 생성.\n- `tools/agent-orchestrator` 아래 승인 정책, worker 예시, handoff 초안 생성.\n- `git init`, `pnpm install`, hook 설치 완료.\n- `pnpm validate`, `pnpm agent:doctor`, `pnpm agent:progress`, `pnpm agent:next`, `pnpm agent:status` 검증 완료.\n- 새 PC/새 에이전트 세션에서 `pnpm age..."
     },
     {
       "id": "run-status",
@@ -552,11 +552,11 @@
       "path": "tools/agent-orchestrator/handoff/RUN_STATUS.md",
       "heading": "RUN_STATUS",
       "status": "blocked",
-      "next": "DEC-20260516-002/003 사용자 결정 후 cycle-test 재실행",
-      "generated": "2026-05-16T02:42:11.328Z",
+      "next": "사용자 환경에서 v0.4.5 설치 앱 프로젝트 전환 시 '다른 프로젝트에서 실행 중인 작업이 있어 글로벌 슬롯은 점유 중입니다.' 안내 노출 여부를 알려주면 완료/회귀 처리",
+      "generated": "2026-05-16T11:42:00.978Z",
       "decision_count": 0,
-      "line_count": 603,
-      "excerpt": "...204233 interruptedWorktree fileCount=6\n- Git: commit 75430d9 pushed; release commit d14858a and tag v0.2.10 pushed\n- Decisions: none\n- Next: D:\\\\sytleOsjang에 남은 6개 변경 파일을 검토해 이어서 완료/커밋하거나 폐기 판단\n\n## 2026-05-16T17:30:00.000Z\n\n- Status: completed\n- Summary: 사용자 환경에서 보고된 토큰 폭주 3대 원인 차단 + Claude Code 라이브 타임라인. (1) startRun 에 살아있는 activeRun 가드, dispatchPendingForAccount 에 in-memory account-lock 으로 백그라운드 다중 실행 차단. (2) tryAutoChain 의 CHAIN_DONE 처리 기본 = stop, override 는 settings 명시 시에만 + cap 3→1, autoChainMaxDepth 30→8. (3) tryQuotaRetry 후속 run 에 autoChain:false 강제, quotaRetryMaxAttempts 3→2 — quota×chain 곱셈 폭주 차단. (4) Claude 어댑터에 --output-format stream-json --verbose 적용, interpretClaudeStreamLine 가 NDJSON 을 💬/🔧/🤔/↳/⚠/▶/▣ 한 줄로 변환해 event log 실시간 표시; lastMessage 는 result.finalText 로 저장. v0.3.0 릴리즈 발행.\n- Verification: pnpm validate (validate-quota-parser 15 케이스 통과 — token-drain 가드 2 + stream-json 파서 6 신규 포함); pnpm dashboard:build; pnpm desktop:release -- --bump minor; gh release view v0.3.0; AgentApp-Setup-0.3.0-x64.exe + latest.yml 업로드 확인.\n- Git: commits 0a10bbd (token-drain fix), 13b2304 (Claude stream-json), 79bbd7d (release v0.3.0), 93d3912/(이번 commit)(decisions doc) pushed; tag v0.3.0 pushed.\n- Decisions: DEC-20260516-001 resolved (gh CLI 설치 + OAuth 인증 후 release 발행 완료)\n- Next: 다음 작업은 사용자 지시 대기. 보류 항목 DEC-20260509-003 (주간 사용량 입력 방식) 만 남음.\n\n## 2026-05-16T02:37:47.857Z\n\n- Status: completed\n- Summary: 데스크탑 단일 인스턴스 잠금 + 트레이/창 컴팩트 모드 양방향 동기화 마무리\n- Verification: pnpm validate && pnpm dashboard:build\n- Git: not recorded\n- Decisions: none\n- Next: See tools/agent-orchestrator/handoff/NEXT_TASK.md\n\n## 2026-05-16T02:42:11.328Z\n\n- Status: blocked\n- Summary: Claude/Gemini CLI 설치/인증 재검증: Claude CLI 직접 호출은 정상이나 dashboard runtime이 두 Claude 계정 모두 quota-lock으로 제외; Gemini CLI는 미인증·dashboard 미등록\n- Verification: claude --print 직접 호출=정상응답; gemini -p=Auth method missing; agent:cycle-test --worker claude-code --execute=blocked(라우팅 후보 0); agent:cycle-test --worker gemini-cli=blocked(활성 계정 없음); pnpm agent:doctor=ready(2 warnings)\n- Git: not recorded\n- Decisions: DEC-20260516-002 pending(Gemini 인증+등록), DEC-20260516-003 pending(Claude 잠금 일치성)\n- Next: DEC-20260516-002/003 사용자 결정 후 cycle-test 재실행"
+      "line_count": 617,
+      "excerpt": "...m-json 파서 6 신규 포함); pnpm dashboard:build; pnpm desktop:release -- --bump minor; gh release view v0.3.0; AgentApp-Setup-0.3.0-x64.exe + latest.yml 업로드 확인.\n- Git: commits 0a10bbd (token-drain fix), 13b2304 (Claude stream-json), 79bbd7d (release v0.3.0), 93d3912/(이번 commit)(decisions doc) pushed; tag v0.3.0 pushed.\n- Decisions: DEC-20260516-001 resolved (gh CLI 설치 + OAuth 인증 후 release 발행 완료)\n- Next: 다음 작업은 사용자 지시 대기. 보류 항목 DEC-20260509-003 (주간 사용량 입력 방식) 만 남음.\n\n## 2026-05-16T02:37:47.857Z\n\n- Status: completed\n- Summary: 데스크탑 단일 인스턴스 잠금 + 트레이/창 컴팩트 모드 양방향 동기화 마무리\n- Verification: pnpm validate && pnpm dashboard:build\n- Git: not recorded\n- Decisions: none\n- Next: See tools/agent-orchestrator/handoff/NEXT_TASK.md\n\n## 2026-05-16T02:42:11.328Z\n\n- Status: blocked\n- Summary: Claude/Gemini CLI 설치/인증 재검증: Claude CLI 직접 호출은 정상이나 dashboard runtime이 두 Claude 계정 모두 quota-lock으로 제외; Gemini CLI는 미인증·dashboard 미등록\n- Verification: claude --print 직접 호출=정상응답; gemini -p=Auth method missing; agent:cycle-test --worker claude-code --execute=blocked(라우팅 후보 0); agent:cycle-test --worker gemini-cli=blocked(활성 계정 없음); pnpm agent:doctor=ready(2 warnings)\n- Git: not recorded\n- Decisions: DEC-20260516-002 pending(Gemini 인증+등록), DEC-20260516-003 pending(Claude 잠금 일치성)\n- Next: DEC-20260516-002/003 사용자 결정 후 cycle-test 재실행\n\n## 2026-05-16T11:36:15.694Z\n\n- Status: completed\n- Summary: Dashboard 현재 실행 패널을 selectedProject 기준으로 필터링하도록 수정. activeRun.projectId === selectedProjectRecord.id 인 경우만 ChatConversation/pendingRuns/runHistory 노출. 다른 프로젝트가 글로벌 슬롯을 점유 중이면 사용자에게 명시 메시지 표시. topbar nowDoing/StatusPill 도 선택된 프로젝트 기준.\n- Verification: pnpm dashboard:build; pnpm validate\n- Git: not recorded\n- Decisions: none\n- Next: 사용자 환경에서 실제로 프로젝트 전환 시 현재 실행 패널이 비워지는지 시각 확인\n\n## 2026-05-16T11:42:00.978Z\n\n- Status: blocked\n- Summary: v0.4.5 현재 실행 패널 프로젝트 전환 검증: 소스에서 selectedProject 기준 activeRun 필터와 다른 프로젝트 글로벌 슬롯 안내 문구 존재를 확인했고 pnpm validate/pnpm dashboard:build 통과. 설치된 앱에서 프로젝트 A Start 후 프로젝트 B 전환 시 실제 안내 노출 여부는 사용자 시각 확인 결과가 필요함.\n- Verification: pnpm validate; pnpm dashboard:build\n- Git: not recorded\n- Decisions: none\n- Next: 사용자 환경에서 v0.4.5 설치 앱 프로젝트 전환 시 '다른 프로젝트에서 실행 중인 작업이 있어 글로벌 슬롯은 점유 중입니다.' 안내 노출 여부를 알려주면 완료/회귀 처리"
     },
     {
       "id": "dashboard-run",
