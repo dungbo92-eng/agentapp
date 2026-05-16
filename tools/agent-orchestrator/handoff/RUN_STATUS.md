@@ -1,5 +1,15 @@
 # RUN_STATUS
 
+## 2026-05-16T_tailscale_label
+
+v0.5.0 의 LAN 접속은 0.0.0.0 으로 바인딩해 모든 IPv4 인터페이스를 받아주기 때문에 PC 에 Tailscale 만 설치하면 이미 동작. UX 만 보강:
+
+- main.mjs: `classifyIp` 추가 — 100.64.0.0/10 (Tailscale CGNAT), 192.168 / 10 / 172.16-31 (LAN), 169.254 (link-local, 숨김), 그 외 public. 인터페이스 이름이 "Tailscale" 이면 그 이름도 hint.
+- getLanAccess 가 `entries: [{ url, address, kind, interface }]` 와 `hasTailscale` 추가 반환.
+- main.tsx: URL 마다 보라(Tailscale)/파랑(LAN)/빨강(public) 배지 + 인터페이스 이름. Tailscale 감지 안 됐을 때 설치 링크 안내, 감지됐을 때는 "보라는 어디서든, 파랑은 같은 Wi-Fi" 한 줄 도움말.
+
+11/11 classify 단위 테스트 통과 (100.64-127 / 100.128+ / 192.168 / 10/8 / 172.16-31 vs 172.32 / link-local / 이름 기반 fallback).
+
 ## 2026-05-16T_mobile_lan_access
 
 같은 Wi-Fi 의 모바일/태블릿에서 호스팅 없이 대시보드 보고 싶다는 요청. 추가:

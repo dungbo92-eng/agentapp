@@ -1198,11 +1198,14 @@ function App() {
       token: string;
       port: number;
       urls: string[];
+      entries?: { url: string; address: string; kind: string; interface: string }[];
       ips: string[];
+      hasTailscale?: boolean;
     }>;
   } }).agentapp : undefined);
   const [appVersion, setAppVersion] = React.useState<string>("");
   const [updateInfo, setUpdateInfo] = React.useState<UpdateState>({ status: "idle", version: "" });
+  type LanEntry = { url: string; address: string; kind: string; interface: string };
   type LanState = {
     enabled: boolean;
     boundLan: boolean;
@@ -1210,7 +1213,9 @@ function App() {
     token: string;
     port: number;
     urls: string[];
+    entries?: LanEntry[];
     ips: string[];
+    hasTailscale?: boolean;
   };
   const [lanAccess, setLanAccess] = React.useState<LanState | null>(null);
   const refreshLanAccess = React.useCallback(async () => {
@@ -3123,33 +3128,74 @@ function App() {
                 ⚠ 설정 변경됨 — 트레이 메뉴 → 종료 후 재실행해야 새 bind 가 적용됩니다.
               </small>
             ) : null}
-            {lanAccess?.enabled && lanAccess.boundLan && lanAccess.urls.length > 0 ? (
+            {lanAccess?.enabled && lanAccess.boundLan && (lanAccess.entries?.length ?? lanAccess.urls.length) > 0 ? (
               <>
-                <small>폰 브라우저에 아래 URL 중 하나 입력 (보통 192.168 로 시작):</small>
-                {lanAccess.urls.map((url) => (
-                  <button
-                    key={url}
-                    type="button"
-                    className="button ghost"
-                    style={{
-                      justifyContent: "flex-start",
-                      fontSize: 11,
-                      wordBreak: "break-all",
-                      whiteSpace: "normal",
-                      textAlign: "left",
-                      padding: "6px 8px",
-                    }}
-                    title="클릭해서 URL 복사"
-                    onClick={() => {
-                      void navigator.clipboard?.writeText(url);
-                      setToast({ kind: "success", message: "URL 복사됨 — 폰에 붙여넣기" });
-                    }}
-                  >
-                    {url}
-                  </button>
-                ))}
+                <small>아래 URL 클릭 → 복사 → 폰 브라우저에 붙여넣기 (즐겨찾기 저장하면 다음부터 한 번에):</small>
+                {(lanAccess.entries && lanAccess.entries.length > 0
+                  ? lanAccess.entries
+                  : lanAccess.urls.map((url) => ({ url, address: "", kind: "lan", interface: "" }))
+                ).map((entry) => {
+                  const badge =
+                    entry.kind === "tailscale"
+                      ? { label: "Tailscale", color: "#7c3aed", hint: "어디서든 (4G/5G/외부 Wi-Fi 포함) — 본인 Tailnet 기기끼리만" }
+                      : entry.kind === "lan"
+                        ? { label: "같은 Wi-Fi", color: "#0ea5e9", hint: "현재 PC 와 같은 네트워크에 연결됐을 때만" }
+                        : entry.kind === "public"
+                          ? { label: "공인 IP", color: "#dc2626", hint: "외부 노출 — 권장 안 함, 라우터에 포트 포워딩이 잡힌 환경일 수 있음" }
+                          : { label: entry.kind || "기타", color: "#64748b", hint: entry.interface || "" };
+                  return (
+                    <div key={entry.url} style={{ display: "flex", flexDirection: "column", gap: 2 }}>
+                      <div style={{ display: "flex", alignItems: "center", gap: 6, fontSize: 11 }}>
+                        <span
+                          style={{
+                            background: badge.color,
+                            color: "#fff",
+                            borderRadius: 4,
+                            padding: "1px 6px",
+                            fontSize: 10,
+                            fontWeight: 600,
+                          }}
+                          title={badge.hint}
+                        >
+                          {badge.label}
+                        </span>
+                        {entry.interface ? (
+                          <span style={{ color: "#64748b", fontSize: 10 }}>{entry.interface}</span>
+                        ) : null}
+                      </div>
+                      <button
+                        type="button"
+                        className="button ghost"
+                        style={{
+                          justifyContent: "flex-start",
+                          fontSize: 11,
+                          wordBreak: "break-all",
+                          whiteSpace: "normal",
+                          textAlign: "left",
+                          padding: "6px 8px",
+                        }}
+                        title="클릭해서 URL 복사"
+                        onClick={() => {
+                          void navigator.clipboard?.writeText(entry.url);
+                          setToast({ kind: "success", message: "URL 복사됨 — 폰에 붙여넣기" });
+                        }}
+                      >
+                        {entry.url}
+                      </button>
+                    </div>
+                  );
+                })}
+                {!lanAccess.hasTailscale ? (
+                  <small style={{ color: "#64748b" }}>
+                    💡 외출 중에도 (모바일 데이터, 다른 Wi-Fi) 접속하고 싶다면 PC + 폰에 <a href="https://tailscale.com/download" target="_blank" rel="noreferrer">Tailscale</a> 을 설치하세요. 같은 계정으로 로그인하면 위 목록에 `100.x.x.x` URL 이 추가로 나타나고 그 URL 은 어디서든 동작합니다 (개인 사용 무료).
+                  </small>
+                ) : (
+                  <small style={{ color: "#64748b" }}>
+                    Tailscale 감지됨 — 보라색 배지의 URL 은 어디서든 (4G/5G/카페 Wi-Fi 등) 동작. 파란색은 지금 PC 가 연결된 Wi-Fi 와 같은 네트워크에 있을 때만.
+                  </small>
+                )}
                 <small style={{ color: "#64748b" }}>
-                  토큰은 URL 의 <code>?t=</code> 뒤 부분. 즐겨찾기에 통째로 저장하면 다음부터 한 번에 접속됩니다. (토큰 노출 = 같은 Wi-Fi 누구나 접속 가능 — 친구 줄 때 주의)
+                  토큰은 URL 의 <code>?t=</code> 뒤 부분. 노출 시 같은 네트워크 누구나 접속 가능하므로 친구 줄 때 주의.
                 </small>
               </>
             ) : lanAccess?.enabled && !lanAccess.boundLan ? (

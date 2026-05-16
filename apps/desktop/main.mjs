@@ -464,6 +464,29 @@ ipcMain.handle("agentapp:check-for-updates", () => checkForUpdatesNow());
 // 같은 Wi-Fi 의 폰/태블릿에서 대시보드 접속할 때 사용. main 이 알고 있는 정보는
 // 현재 LAN bind 여부 + 시작 시 적용된 token + 추정 LAN IP. URL 변경 (settings toggle)
 // 은 다음 앱 재시작 후 반영되므로 needsRestart 도 함께 알려준다.
+// 같은 PC 에 여러 인터페이스가 있을 때 (Wi-Fi + Tailscale + Docker bridge 등) 어떤
+// IP 가 어디서 쓰는 건지 사용자가 헷갈리지 않도록 종류로 분류.
+//   - tailscale: 100.64.0.0/10 (Tailscale CGNAT 대역, 인터넷 어디서나 본인 기기끼리 P2P)
+//   - lan: 192.168/16, 10/8, 172.16-31/12 (집/회사 사설망, 같은 Wi-Fi 한정)
+//   - link-local: 169.254/16 (DHCP 실패 시 자체 할당, 보통 무시)
+//   - public: 그 외 (외부 노출 가능, 거의 안 잡힘 — 잡혀도 토큰 보호하긴 하지만 권장 안 함)
+function classifyIp(address, interfaceName) {
+  const ip = String(address || "");
+  const parts = ip.split(".").map((s) => Number(s));
+  if (parts.length !== 4 || parts.some((n) => !Number.isInteger(n) || n < 0 || n > 255)) {
+    return "other";
+  }
+  const [a, b] = parts;
+  if (a === 100 && b >= 64 && b <= 127) return "tailscale";
+  if (a === 192 && b === 168) return "lan";
+  if (a === 10) return "lan";
+  if (a === 172 && b >= 16 && b <= 31) return "lan";
+  if (a === 169 && b === 254) return "link-local";
+  // 인터페이스 이름이 명백히 Tailscale 인 경우도 같이 분류 (Windows 의 "Tailscale" adapter 등)
+  if (/tailscale/i.test(String(interfaceName || ""))) return "tailscale";
+  return "public";
+}
+
 function detectLanIps() {
   try {
     const interfaces = networkInterfaces();
@@ -471,10 +494,16 @@ function detectLanIps() {
     for (const name of Object.keys(interfaces || {})) {
       for (const info of interfaces[name] || []) {
         if (info && info.family === "IPv4" && !info.internal) {
-          candidates.push(info.address);
+          const kind = classifyIp(info.address, name);
+          // link-local 은 UX 에 노출 안 함 (DHCP 못 받은 상태라 의미 없음)
+          if (kind === "link-local") continue;
+          candidates.push({ address: info.address, interface: name, kind });
         }
       }
     }
+    // tailscale 먼저, 그 다음 LAN, 그 다음 나머지 — UI 가 목록 순서대로 보여줘도 권장 순.
+    const priority = { tailscale: 0, lan: 1, public: 2, other: 3 };
+    candidates.sort((a, b) => (priority[a.kind] ?? 9) - (priority[b.kind] ?? 9));
     return candidates;
   } catch {
     return [];
@@ -494,8 +523,15 @@ ipcMain.handle("agentapp:get-lan-access", async () => {
   const lanIps = isLanBound ? detectLanIps() : [];
   const token = String(runtimeSettings.lanAccessToken || "");
   const enabledNow = Boolean(runtimeSettings.lanAccessEnabled);
-  const urls = isLanBound && token
-    ? lanIps.map((ip) => `http://${ip}:${port}/?t=${encodeURIComponent(token)}`)
+  // 각 IP 의 종류 (tailscale/lan/public) 까지 같이 내려 UI 에서 배지로 구분 가능하게.
+  // urls 는 호환 위해 평탄한 string 배열로 유지, entries 가 풍부한 정보.
+  const entries = isLanBound && token
+    ? lanIps.map((ip) => ({
+        url: `http://${ip.address}:${port}/?t=${encodeURIComponent(token)}`,
+        address: ip.address,
+        kind: ip.kind,
+        interface: ip.interface,
+      }))
     : [];
   return {
     enabled: enabledNow,
@@ -503,8 +539,11 @@ ipcMain.handle("agentapp:get-lan-access", async () => {
     needsRestart: enabledNow !== isLanBound,
     token,
     port,
-    urls,
-    ips: lanIps,
+    urls: entries.map((entry) => entry.url),
+    entries,
+    ips: lanIps.map((ip) => ip.address),
+    // Tailscale 가 PC 에 설치돼 있는지 (인터페이스에 100.64/10 가 잡히는지) 힌트.
+    hasTailscale: lanIps.some((ip) => ip.kind === "tailscale"),
   };
 });
 
