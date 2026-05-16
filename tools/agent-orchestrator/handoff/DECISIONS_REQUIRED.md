@@ -32,6 +32,22 @@
 
 ## 대기
 
+### DEC-20260516-001 — 이 PC 에서 gh CLI 누락 → 자동 릴리즈 불가
+
+- Status: pending
+- Priority: medium
+- Category: deployment
+- Requested by: agent
+- Blocks: 토큰 폭주 수정 commit `0a10bbd` 의 자동 릴리즈 (`pnpm desktop:release`).
+- Context: feedback rule `의미 있는 변경은 push 직후 자동 릴리즈` 에 따라 `dashboard-runtime.mjs` 수정 후 릴리즈 발행을 시도했으나, 이 PC 에 `gh` CLI 가 설치돼 있지 않아 GitHub Release 발행을 건너뜀. `gh auth status 실패면 건너뛰고 DECISIONS_REQUIRED 에 토큰 점검 항목 남긴다` 규칙 적용.
+- Options:
+  - A: 이 PC 에 `gh` 설치 후 `gh auth login` → 다시 `pnpm desktop:release -- --bump patch` 실행.
+  - B: 다른 PC (이미 릴리즈 권한 있는 환경) 에서 main pull 후 `pnpm desktop:release -- --bump patch` 실행.
+- Recommended: B. 이 PC 는 사용자 테스트 환경이고, 릴리즈 권한 PC 가 따로 있는 흐름을 유지하는 게 보안에 유리.
+- Decision needed: 누가/어디서 v0.2.12 릴리즈를 발행할지.
+- After decision: 결정 PC 에서 main pull → `pnpm desktop:release -- --bump patch --notes "fix: prevent token-drain (concurrent runs, CHAIN_DONE override, retry chain)"` 실행 → latest.yml + NSIS Setup 업로드 확인.
+- Created: 2026-05-16
+
 ### DEC-20260509-003 — 주간 사용량 입력 방식
 
 - Status: pending
