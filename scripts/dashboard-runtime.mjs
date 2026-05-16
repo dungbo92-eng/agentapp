@@ -1297,7 +1297,7 @@ export async function deleteProject(input) {
   return writeRuntime(runtime);
 }
 
-function routeScore(candidate, complexity) {
+function routeScore(candidate, complexity, opts = {}) {
   const profile = candidate.profile;
   const account = candidate.account;
   const modelRank = MODEL_RANK[profile.model] || 1;
@@ -1306,15 +1306,23 @@ function routeScore(candidate, complexity) {
   const idleHours = lastUsed > 0 ? Math.max(0, (Date.now() - lastUsed) / 3600000) : 48;
   const loadBalance = Math.min(idleHours, 24) / 24; // 0..1, 24h+ 이면 만점
 
+  // 도메인 우선 보너스 — 회사 정책상 특정 도메인 계정으로 우선 라우팅하고 싶을 때 사용.
+  // 예: 유지보수성 작업(오류/분석/C#/T-SQL 등)은 회사 계정(@hanilnetworks.com)이 정책상 허용
+  // 되므로 그 계정 우선 사용해서 개인 계정 quota 를 아낀다. 다른 가중치를 압도하도록
+  // 큰 보너스를 줘서 동일 후보군에서는 항상 회사 계정이 1순위가 된다.
+  const email = String(account.email || "").toLowerCase();
+  const preferDomain = String(opts.preferAccountDomain || "").toLowerCase();
+  const domainBonus = preferDomain && email.endsWith(`@${preferDomain}`) ? 500 : 0;
+
   // 로컬 remainingUnits 는 실제 provider 한도와 무관하므로 점수에서 제외.
   // 균등 분배 (오래 안 쓴 계정 우선) + 모델 품질만 사용.
   if (complexity === "routine") {
-    return loadBalance * 40 - modelRank;
+    return loadBalance * 40 - modelRank + domainBonus;
   }
   if (complexity === "standard") {
-    return loadBalance * 30 + modelRank * 8;
+    return loadBalance * 30 + modelRank * 8 + domainBonus;
   }
-  return loadBalance * 20 + modelRank * 20;
+  return loadBalance * 20 + modelRank * 20 + domainBonus;
 }
 
 function hasAuthIdentityMismatch(account) {
@@ -1340,9 +1348,16 @@ export function selectRoute(accounts, request) {
   const complexity = request.complexity || "standard";
   const preferredProvider = providerForWorker(request.workerId);
   const modelOverride = String(request.modelOverride || request.model_override || "auto");
+  // 정책 거절 retry 등에서 특정 provider 를 후보에서 빼고 싶을 때 사용. 같은 vendor 의
+  // 다른 계정에도 동일한 조직 정책이 적용될 가능성이 높으므로 cross-provider 우선 시도용.
+  const excludeProviders = Array.isArray(request.excludeProviders)
+    ? request.excludeProviders.map((p) => String(p || "").toLowerCase()).filter(Boolean)
+    : [];
+  const preferAccountDomain = String(request.preferAccountDomain || "").toLowerCase();
   const enabledAccounts = accounts
     .filter((account) => account.enabled !== false)
-    .filter((account) => !preferredProvider || account.provider === preferredProvider);
+    .filter((account) => !preferredProvider || account.provider === preferredProvider)
+    .filter((account) => excludeProviders.length === 0 || !excludeProviders.includes(String(account.provider || "").toLowerCase()));
   const readyAccounts = enabledAccounts.filter((account) => account.sessionStatus === "ready");
   const providerAccounts = readyAccounts.filter(routeReadyAccount);
 
@@ -1382,7 +1397,9 @@ export function selectRoute(accounts, request) {
   const candidates = providerAccounts
     .map((account) => ({ account, profile: account.modelProfiles?.[complexity] }))
     .filter((candidate) => candidate.profile)
-    .sort((left, right) => routeScore(right, complexity) - routeScore(left, complexity));
+    .sort((left, right) =>
+      routeScore(right, complexity, { preferAccountDomain }) - routeScore(left, complexity, { preferAccountDomain }),
+    );
 
   if (candidates.length === 0) {
     return {
@@ -2365,11 +2382,12 @@ export async function quickHandoff(input = {}) {
 // 넘어가는 게 사용자 의도(작업 자체를 끊지 않기)에 더 가깝다.
 // 최대 시도 횟수를 넘기면 null 반환. 호출자는 사용자 알림으로 마감해야 한다.
 export async function tryQuotaRetry(failedRun) {
-  const settings = normalizeSettings((await readRuntime()).settings);
+  const runtime = await readRuntime();
+  const settings = normalizeSettings(runtime.settings);
   if (!settings.quotaRetryEnabled) return null;
+  if (chainCancelled(runtime, failedRun)) return null;
   const attempts = Number(failedRun.retryCount || 0) + 1;
   if (attempts > settings.quotaRetryMaxAttempts) return null;
-  const runtime = await readRuntime();
   const failedAccountId = String(failedRun.routing?.accountId || "");
   const originalWorkerId = failedRun.workerId;
 
@@ -2435,6 +2453,10 @@ export async function tryAutoChain(prevRun, opts = {}) {
   const runtime = await readRuntime();
   const settings = normalizeSettings(runtime.settings);
   if (!settings.autoChainEnabled) return null;
+  // 사용자가 정지를 눌렀거나 이 chain 이 명시적으로 취소된 경우 더 이상 spawn 하지 않는다.
+  if (chainCancelled(runtime, prevRun)) {
+    return { stopped: true, reason: "사용자가 정지를 눌러 자동 이어 진행을 취소했습니다." };
+  }
 
   // 무한 루프 방지: 같은 체인에서 너무 많이 반복되지 않도록 제한.
   const prevDepth = Number(prevRun.chainDepth || 0);
@@ -2585,6 +2607,93 @@ export async function tryAutoChain(prevRun, opts = {}) {
   return result.activeRun || null;
 }
 
+// 작업 텍스트로 도메인을 분류한다. 회사 조직 정책상 허용되는 유지보수성 작업
+// (오류 분석, 디버깅, 코드 리뷰, C#/.NET, T-SQL, 검증, 리팩토링 등) 이면 "maintenance" 로
+// 분류해서 회사 계정 우선 라우팅에 사용한다. 정책 거절을 피하면서 개인 계정의 quota 를 아끼는 목적.
+export function classifyTaskDomain(promptText) {
+  const text = String(promptText || "").toLowerCase();
+  if (!text) return "general";
+  const maintenancePatterns = [
+    /오류|에러|error|exception|stack ?trace|trace ?back/,
+    /버그|debug|디버그|디버깅|bug ?fix|fix ?bug/,
+    /분석|analy[sz]e|analysis|진단|diagnos/,
+    /검증|validate|validation|verify|테스트|\btest\b/,
+    /리뷰|review|code ?review/,
+    /\bc#|csharp|\.net|t-?sql|mssql|ssms/,
+    /리팩토|refactor|cleanup|clean ?up/,
+    /로그|log ?analy|log ?file/,
+    /유지 ?보수|maintenance/,
+    /스키마|schema|index|stored ?procedure/,
+  ];
+  for (const pattern of maintenancePatterns) {
+    if (pattern.test(text)) return "maintenance";
+  }
+  return "general";
+}
+
+// 사용자가 정지를 눌렀거나 해당 run 의 retry chain 이 명시적으로 취소된 경우 true.
+// 정지 → 새 run spawn (retry/autoChain) 폭주 차단용.
+function chainCancelled(runtime, failedRun) {
+  const cancelAt = Number(runtime?.cancelChainAt || 0);
+  // 직전 60 초 이내에 사용자가 정지를 눌렀으면 cascade 중단.
+  if (cancelAt > 0 && Date.now() - cancelAt < 60_000) return true;
+  if (!failedRun?.id) return false;
+  const latest = runtime?.runHistory?.find((item) => item.id === failedRun.id);
+  if (latest?.status === "stopped" || latest?.cancelRetryChain === true) return true;
+  return false;
+}
+
+// 정책 거절 (조직 정책으로 작업 거절) 후 다른 계정으로 1 회만 retry. 같은 vendor 의 다른
+// 계정에도 동일한 조직 정책이 적용될 가능성이 높으므로 다른 provider 를 우선 시도.
+// quota retry 와 별개 counter (policyRetryCount) 를 사용해 cascade 폭주를 막는다.
+export async function tryPolicyRetry(failedRun) {
+  const latest = await readRuntime();
+  const settings = normalizeSettings(latest.settings);
+  if (!settings.quotaRetryEnabled) return null;
+  if (Number(failedRun.policyRetryCount || 0) >= 1) return null;
+  if (chainCancelled(latest, failedRun)) return null;
+
+  const failedAccountId = String(failedRun.routing?.accountId || "");
+  const failedProvider = String(failedRun.routing?.provider || providerForWorker(failedRun.workerId) || "").toLowerCase();
+
+  // 1) 다른 provider 의 ready 계정 우선
+  let routing = selectRoute(latest.accounts, {
+    workerId: "auto",
+    complexity: failedRun.complexity || "standard",
+    modelOverride: "auto",
+    excludeProviders: failedProvider ? [failedProvider] : [],
+  });
+  let resolvedWorker = routing.status === "recommended"
+    ? (workerForProvider(routing.provider) || "auto")
+    : "auto";
+
+  // 2) 다른 provider 후보가 없으면 같은 provider 의 다른 계정 (실패 계정은 selectRoute 에서 자동 제외)
+  if (routing.status !== "recommended") {
+    routing = selectRoute(latest.accounts, {
+      workerId: failedRun.workerId,
+      complexity: failedRun.complexity || "standard",
+      modelOverride: "auto",
+    });
+    if (routing.status !== "recommended" || routing.accountId === failedAccountId) {
+      return null;
+    }
+    resolvedWorker = failedRun.workerId;
+  }
+
+  const result = await startRun({
+    workerId: resolvedWorker,
+    projectId: failedRun.projectId,
+    prompt: failedRun.prompt,
+    complexity: failedRun.complexity || "auto",
+    modelOverride: "auto",
+    retryCount: Number(failedRun.retryCount || 0) + 1,
+    retryReason: `policy_blocked_attempt_1_to_${routing.provider || "alt"}`,
+    policyRetryCount: 1,
+    autoChain: false,
+  });
+  return result.activeRun || null;
+}
+
 // 작업 텍스트만으로 complexity 를 자동 분류한다. 사용자가 dropdown 에서 명시적으로 고르지 않을 때 사용.
 export function classifyComplexity(promptText) {
   const text = String(promptText || "").trim();
@@ -2677,12 +2786,25 @@ export async function startRun(input) {
   const projectLastModel = projectRecord?.lastModel || "";
   const requestedModelOverride = String(input.modelOverride || "auto");
 
+  // 도메인 우선 — prompt 가 유지보수성 (오류/분석/C#/T-SQL/검증 등) 이면 회사 계정을
+  // 1순위로 라우팅. 회사 조직 정책상 이런 작업은 회사 계정에서 정상 처리되므로
+  // 정책 거절을 피하면서 개인 계정 quota 를 아낀다. 호출자가 명시 override 한 경우 그대로 사용.
+  // (settings 로 도메인을 노출하기 전 단계라 도메인은 코드 상수로 유지)
+  const MAINTENANCE_DOMAIN = "hanilnetworks.com";
+  const taskDomain = classifyTaskDomain(input.prompt);
+  const resolvedPreferDomain = input.preferAccountDomain
+    ? String(input.preferAccountDomain)
+    : taskDomain === "maintenance"
+      ? MAINTENANCE_DOMAIN
+      : "";
+
   // 1차 라우팅 — modelOverride='auto' 로 보내 selectRoute 가 후보 자유 선택.
   const firstPass = selectRoute(runtime.accounts, {
     ...input,
     complexity: resolvedComplexity,
     workerId: requestedWorker === "auto" ? "" : requestedWorker,
     modelOverride: "auto",
+    preferAccountDomain: resolvedPreferDomain,
   });
 
   // projectLastModel 이 1차 라우팅이 고른 provider 와 호환되는지 검사.
@@ -2701,6 +2823,7 @@ export async function startRun(input) {
     complexity: resolvedComplexity,
     workerId: requestedWorker === "auto" ? "" : requestedWorker,
     modelOverride: resolvedModelOverride,
+    preferAccountDomain: resolvedPreferDomain,
   };
   const routing = selectRoute(runtime.accounts, normalizedInput);
 
@@ -2724,10 +2847,13 @@ export async function startRun(input) {
     modelOverrideAuto: requestedModelOverride === "auto",
     retryCount: Number(input.retryCount || 0),
     retryReason: String(input.retryReason || ""),
+    policyRetryCount: Number(input.policyRetryCount || 0),
     autoChain: Boolean(input.autoChain),
     chainDepth: Number(input.chainDepth || 0),
     chainReason: String(input.chainReason || ""),
     chainDoneOverrides: Number(input.chainDoneOverrides || 0),
+    preferAccountDomain: resolvedPreferDomain,
+    taskDomain,
     startedAt: new Date().toISOString(),
     routing,
     worktreeBefore: worktreeBefore
@@ -2797,7 +2923,12 @@ export async function startRun(input) {
 
 export async function stopRun() {
   const runtime = await readRuntime();
-  if (!runtime.activeRun) return runtime;
+  // 사용자가 정지를 누른 시점을 기록 — 진행 중인 worker 의 close 핸들러에서
+  // tryQuotaRetry/tryAutoChain/tryPolicyRetry 가 새 run 을 spawn 하기 직전에
+  // 이 timestamp 를 보고 cascade 를 차단한다. activeRun 이 없어도 직전에 끝난
+  // run 이 비동기 retry 를 시도할 수 있으므로 항상 기록.
+  runtime.cancelChainAt = Date.now();
+  if (!runtime.activeRun) return writeRuntime(runtime);
   try {
     const { stopDashboardWorker } = await import("./worker-launch-adapter.mjs");
     await stopDashboardWorker(runtime.activeRun);
@@ -2808,13 +2939,15 @@ export async function stopRun() {
     ...runtime.activeRun,
     status: "stopped",
     stoppedAt: new Date().toISOString(),
+    // 이 run 으로부터 파생되는 모든 자동 retry/autoChain 을 명시적으로 차단.
+    cancelRetryChain: true,
     adapter: {
       ...(runtime.activeRun.adapter || {}),
       status: "stopped",
     },
     events: [
       ...(runtime.activeRun.events || []),
-      { at: new Date().toISOString(), level: "warn", message: "대시보드에서 실행을 중지했습니다." },
+      { at: new Date().toISOString(), level: "warn", message: "대시보드에서 실행을 중지했습니다. 자동 재시도/이어 진행도 함께 취소됩니다." },
     ],
   };
   stopped.handoffPath = await writeDashboardRunHandoff(stopped, "interrupted", "user_stopped");

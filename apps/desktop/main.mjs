@@ -13,6 +13,20 @@ const PRELOAD_PATH = path.join(path.dirname(fileURLToPath(import.meta.url)), "pr
 
 const debugEnabled = process.env.AGENTAPP_DEBUG === "1" || !app.isPackaged;
 
+// 트레이 백그라운드 상태에서 .exe 가 또 실행되면 두 번째 프로세스는 즉시 종료하고
+// 첫 번째 인스턴스가 기존 창을 띄운다. dev 모드 (electron .) 에서는 lock 을
+// 잡지 않아도 무방하지만 동일 동작을 시키기 위해 같은 경로를 따른다.
+const singleInstanceLock = app.requestSingleInstanceLock();
+if (!singleInstanceLock) {
+  app.quit();
+} else {
+  app.on("second-instance", () => {
+    if (mainWindow && !mainWindow.isDestroyed()) {
+      showMainWindow();
+    }
+  });
+}
+
 const FULL_WINDOW = { width: 1440, height: 920, minWidth: 1120, minHeight: 760 };
 const COMPACT_WINDOW = { width: 380, height: 560, minWidth: 320, minHeight: 420 };
 
@@ -186,7 +200,9 @@ function rebuildTrayMenu() {
   const menu = Menu.buildFromTemplate([
     { label: "열기", click: () => showMainWindow() },
     {
-      label: compact ? "✓ 컴팩트 채팅 모드" : "컴팩트 채팅 모드",
+      label: "컴팩트 채팅 모드",
+      type: "checkbox",
+      checked: compact,
       click: () => setWindowMode(compact ? "full" : "compact"),
     },
     { type: "separator" },

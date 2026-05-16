@@ -1639,20 +1639,21 @@ async function launchCommandWorker(run, files, adapter, promptText) {
         handoffReason: "org_policy_refusal",
       },
     );
-    // 다른 ready 계정 (다른 provider 포함) 으로 failover. quota retry 와
-    // 동일 경로를 사용 — 이미 잠긴 이 계정은 selectRoute 에서 자동 제외됨.
+    // 다른 vendor 의 ready 계정으로 1 회만 failover. 같은 vendor 의 다른 계정에도
+    // 같은 조직 정책이 적용될 가능성이 높기 때문에 cross-provider 우선 시도.
+    // policyRetryCount 가 이미 1 이면 더 이상 시도하지 않아 cascading 폭주 차단.
     try {
-      const { tryQuotaRetry } = await import("./dashboard-runtime.mjs");
-      const retried = await tryQuotaRetry(run);
+      const { tryPolicyRetry } = await import("./dashboard-runtime.mjs");
+      const retried = await tryPolicyRetry(run);
       if (retried) {
         await appendRunEvent(run.id, {
           level: "info",
-          message: `▶ 정책 거절 — ${retried.routing?.accountId || "다른 계정"} 으로 자동 전환 (attempt ${retried.retryCount}).`,
+          message: `▶ 정책 거절 — ${retried.routing?.accountId || "다른 계정"} 으로 1 회 전환 시도 (policy retry).`,
         });
       } else {
         await appendRunEvent(run.id, {
           level: "error",
-          message: "정책 거절 — 다른 사용 가능한 계정이 없습니다. 사이드바에서 다른 계정을 준비하거나 작업 내용을 정책에 맞게 조정한 뒤 다시 시작하세요.",
+          message: "정책 거절 — 다른 provider/계정 후보가 없거나 이미 1 회 재시도했습니다. 작업 내용을 정책에 맞게 조정하거나 사이드바에서 다른 계정을 준비한 뒤 다시 시작하세요.",
         });
       }
     } catch (error) {

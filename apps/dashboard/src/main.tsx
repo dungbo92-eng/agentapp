@@ -1195,11 +1195,12 @@ function App() {
   }, [desktopApi]);
   const toggleViewMode = React.useCallback(() => {
     const next = viewMode === "compact" ? "full" : "compact";
+    // 낙관적 업데이트로 UI 가 즉시 반응하게 한다. main 에서 오는
+    // window-mode-changed 이벤트는 같은 값으로 다시 한 번 setViewMode 를
+    // 호출하지만 React 가 동일 값으로 재렌더링은 막아준다.
+    setViewMode(next);
     if (desktopApi) {
       void desktopApi.setWindowMode(next);
-    } else {
-      // 브라우저 dev 모드: window resize 권한 없으므로 클래스만 토글.
-      setViewMode(next);
     }
   }, [viewMode, desktopApi]);
   const [showMetaPanels, setShowMetaPanels] = React.useState<boolean>(() => {

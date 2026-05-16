@@ -1,5 +1,18 @@
 # RUN_STATUS
 
+## 2026-05-16T_policy_retry_cap
+
+worker-launches 폴더 분석으로 "한 번 지시 → N개 run spawn" 폭주 원인 두 가지 확인:
+(1) `isAliveActiveRun` 화이트리스트가 adapter.status="queued" 를 제외해서 ~200ms 내 중복 dispatch 가 가드를 우회. (2) policy_blocked 에서 `tryQuotaRetry` 를 그대로 호출해 같은 조직 정책에 막히는 다른 계정으로 cascading.
+
+수정 적용:
+- 새 `tryPolicyRetry` — policyRetryCount 별도 counter, 1 회만 시도, 다른 provider 우선.
+- `classifyTaskDomain` + `routeScore` 의 `preferAccountDomain` — 오류/분석/C#/T-SQL/검증 등 유지보수성 prompt 는 회사 계정(@hanilnetworks.com)으로 1순위 라우팅.
+- `stopRun` 이 `runtime.cancelChainAt` + stopped run 의 `cancelRetryChain: true` 를 마킹, `tryQuotaRetry`/`tryAutoChain`/`tryPolicyRetry` 가 사이클 진입 직전 `chainCancelled` 로 차단.
+- 컴팩트 모드 UI/IPC 양방향 동기화, single-instance lock 도 같이 정리.
+
+검증: pnpm validate 통과, dashboard build 통과, selectRoute smoke test 통과.
+
 ## 2026-05-09
 
 - AgentApp 초기 프로젝트 골격 생성.
