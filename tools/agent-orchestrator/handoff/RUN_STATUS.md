@@ -818,3 +818,12 @@ NEXT_TASK.md 템플릿 확정: agent-next 생성물을 Required Reads, Execution
 - Git: not recorded
 - Decisions: none
 - Next: 사용자 환경에서 v0.4.6 자동 업데이트 적용 후 프로젝트 A Start → 프로젝트 B 전환 시 글로벌 슬롯 안내 노출 여부 확인
+
+## 2026-05-16T14:31:31.185Z
+
+- Status: completed
+- Summary: hanilnetworks.com 회사 계정으로 선택된 run 의 프롬프트 시작 구문을 [에러분석] 으로 자동 정규화하도록 dashboard runtime/launch adapter 를 보강했다. validate-quota-parser 에 prefix 추가/정규화/개인 계정 미적용 회귀 테스트를 추가하고 session profile routing 문서에 규칙을 기록했다.
+- Verification: pnpm validate; pnpm agent:doctor; pnpm agent:status; pnpm agent:progress
+- Git: not recorded
+- Decisions: none
+- Next: Claude/Gemini CLI 인증 cycle 재검증은 기존 NEXT_TASK 그대로 유지

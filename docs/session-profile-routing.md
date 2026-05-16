@@ -34,6 +34,12 @@ Start 실행 시 runtime은 아래 순서로 후보를 좁힌다.
 
 routine 작업은 효율 모델을 우선하고, complex/critical 작업은 품질 우선 모델을 고른다. 주말 예비분을 남기는 예산 정책은 `docs/usage-budget-model-routing.md`를 따른다.
 
+## 회사 도메인 프롬프트 태그
+
+`hanilnetworks.com` 회사 계정으로 로그인된 ready profile에 작업을 지시할 때는 worker에게 전달되는 프롬프트 시작 구문을 `[에러분석]`으로 맞춘다. 사용자가 `[오류분석]`처럼 같은 의미의 태그를 먼저 쓴 경우에도 실행 프롬프트에서는 `[에러분석]`으로 정규화한다.
+
+이 규칙은 회사 계정 정책상 허용되는 유지보수/오류 분석 작업임을 명확히 알리기 위한 로컬 라우팅 보조 규칙이며, 자동 로그인이나 계정 전환 우회와는 관련이 없다.
+
 ## Credential Vault
 
 password/API key가 필요한 계정은 dashboard에서 입력할 수 있다. 값은 repo에 저장하지 않고 Windows DPAPI로 암호화한 local vault에 저장한다.

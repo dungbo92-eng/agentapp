@@ -113,6 +113,7 @@ const MODEL_RANK = {
 
 const SESSION_STATUSES = new Set(["needs-login", "ready", "paused"]);
 const AUTH_METHODS = new Set(["google", "email_password", "api_key", "cli_session", "browser_profile", "manual"]);
+const MAINTENANCE_PROMPT_PREFIX = "[에러분석]";
 
 const PLAN_WEEKLY_BUDGET = {
   pro: 100,
@@ -1332,9 +1333,24 @@ function routeScore(candidate, complexity) {
 }
 
 function accountMatchesDomain(account, domain) {
-  if (!domain) return false;
-  const email = String(account.email || "").toLowerCase();
-  return email.endsWith(`@${String(domain).toLowerCase()}`);
+  const normalizedDomain = String(domain || "").trim().toLowerCase().replace(/^@/, "");
+  if (!normalizedDomain) return false;
+  return [account?.actualAuthEmail, account?.email]
+    .map((value) => String(value || "").trim().toLowerCase())
+    .filter(Boolean)
+    .some((email) => email.endsWith(`@${normalizedDomain}`));
+}
+
+export function ensureMaintenancePromptPrefix(promptText, account, domain) {
+  const text = String(promptText || "").trim();
+  if (!text || !accountMatchesDomain(account, domain)) return text;
+  if (text.startsWith(MAINTENANCE_PROMPT_PREFIX)) return text;
+
+  const body = text.replace(
+    /^\[\s*(?:오류|에러)\s*(?:분석|진단|디버그|디버깅|수정)\s*\]\s*/i,
+    "",
+  ).trim();
+  return body ? `${MAINTENANCE_PROMPT_PREFIX} ${body}` : MAINTENANCE_PROMPT_PREFIX;
 }
 
 function hasAuthIdentityMismatch(account) {
@@ -3088,6 +3104,12 @@ export async function startRun(input) {
     excludeProviders,
   };
   const routing = selectRoute(runtime.accounts, normalizedInput);
+  const selectedRoutingAccount = routing.status === "recommended"
+    ? runtime.accounts.find((account) => account.id === routing.accountId) || null
+    : null;
+  const maintenancePromptPrefix = accountMatchesDomain(selectedRoutingAccount, maintenanceDomain)
+    ? MAINTENANCE_PROMPT_PREFIX
+    : "";
 
   // auto 워커는 routing 이 고른 provider 로 환산.
   const resolvedWorker = requestedWorker === "auto"
@@ -3100,7 +3122,11 @@ export async function startRun(input) {
   // 규칙을 첨부한다. autoChain 이 다음 prompt 를 결정할 때 NEXT_STEPS 마커를
   // 파싱하려면 첫 run 부터 규칙이 worker 에게 전달돼야 한다. decorate 는
   // idempotent — 이미 첨부된 prompt 에는 중복 첨부하지 않는다.
-  const rawPrompt = String(input.prompt || "").trim();
+  const rawPrompt = ensureMaintenancePromptPrefix(
+    String(input.prompt || "").trim(),
+    selectedRoutingAccount,
+    maintenanceDomain,
+  );
   const decoratedPrompt = settingsForRouting.autoChainEnabled
     ? decorateAutoChainPrompt(rawPrompt)
     : rawPrompt;
@@ -3122,8 +3148,9 @@ export async function startRun(input) {
     chainDepth: Number(input.chainDepth || 0),
     chainReason: String(input.chainReason || ""),
     chainDoneOverrides: Number(input.chainDoneOverrides || 0),
+    promptPrefix: maintenancePromptPrefix,
     preferAccountDomain: resolvedPreferDomain,
-    taskDomain,
+    taskDomain: classifyTaskDomain(rawPrompt),
     startedAt: new Date().toISOString(),
     routing,
     worktreeBefore: worktreeBefore
@@ -3153,6 +3180,9 @@ export async function startRun(input) {
             : `선택 계정 ${routing.accountId} / 모델 ${routing.model} / 추론 ${routing.reasoningEffort}`,
       },
       { at: new Date().toISOString(), level: "info", message: "작업 실행 어댑터를 준비하는 중입니다." },
+      ...(maintenancePromptPrefix
+        ? [{ at: new Date().toISOString(), level: "info", message: "회사 도메인 계정 지시라 프롬프트 시작 태그 [에러분석]을 적용했습니다." }]
+        : []),
     ],
   };
   run.handoffPath = await writeDashboardRunHandoff(

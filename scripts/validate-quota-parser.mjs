@@ -13,7 +13,9 @@ await mkdir(tempDir, { recursive: true });
 process.env.AGENTAPP_DATA_DIR = tempDir;
 
 const {
+  classifyTaskDomain,
   dispatchPendingForAccount,
+  ensureMaintenancePromptPrefix,
   parseQuotaReset,
   readRuntime,
   setAccountSession,
@@ -85,6 +87,36 @@ try {
     throw new Error(`codex hard rate limit was classified as ${hardInterruption.kind || "none"}`);
   }
   console.log("[validate-quota-parser] ok worker detects hard rate-limit error");
+
+  const companyPrompt = ensureMaintenancePromptPrefix(
+    "T-SQL 오류 확인",
+    { email: "dev@hanilnetworks.com" },
+    "hanilnetworks.com",
+  );
+  if (companyPrompt !== "[에러분석] T-SQL 오류 확인" || classifyTaskDomain(companyPrompt) !== "maintenance") {
+    throw new Error(`company prompt was not prefixed correctly: ${companyPrompt}`);
+  }
+  console.log("[validate-quota-parser] ok company prompt prefix added");
+
+  const normalizedCompanyPrompt = ensureMaintenancePromptPrefix(
+    "[오류분석] T-SQL 오류 확인",
+    { actualAuthEmail: "dev@hanilnetworks.com" },
+    "hanilnetworks.com",
+  );
+  if (normalizedCompanyPrompt !== "[에러분석] T-SQL 오류 확인") {
+    throw new Error(`company prompt leading tag was not normalized: ${normalizedCompanyPrompt}`);
+  }
+  console.log("[validate-quota-parser] ok company prompt prefix normalized");
+
+  const personalPrompt = ensureMaintenancePromptPrefix(
+    "T-SQL 오류 확인",
+    { email: "dev@example.com" },
+    "hanilnetworks.com",
+  );
+  if (personalPrompt !== "T-SQL 오류 확인") {
+    throw new Error(`personal prompt was unexpectedly prefixed: ${personalPrompt}`);
+  }
+  console.log("[validate-quota-parser] ok personal prompt not prefixed");
 
   await writeFile(runtimeFile, JSON.stringify({
     version: 1,
