@@ -1,5 +1,29 @@
 # RUN_STATUS
 
+## 2026-05-16T_next_steps_marker
+
+worker 가 작업을 끝낼 때 다음 작업 후보를 일관된 형식으로 출력하는 마커 규칙 도입. 기존 흐름은 worker 가 NEXT_TASK.md 를 갱신하지 않으면 dashboard 가 generic_continuation 으로 같은 자리를 돌거나, CHAIN_DONE 신호 오용 (한 단계 끝남을 전체 끝남으로) 으로 무한 chain 이 끊기는 패턴이 있었음.
+
+마커 형식:
+- `[NEXT_STEPS]` ~ `[/NEXT_STEPS]` 블록 — 다음 작업 후보 리스트 (title / priority P0~P2 / notes)
+- `[NEXT_NONE] <이유>` — 다음 작업 정말 없음 (즉시 종료)
+
+구현:
+- `scripts/dashboard-runtime.mjs`:
+  - 모듈 상단에 STATUS_MARKER_RULE / CHAIN_DONE_PROMPT_RULE / NEXT_STEPS_RULE 상수 + `decorateAutoChainPrompt(prompt)` helper (idempotent — `[NEXT_STEPS 규칙]` 마커로 중복 첨부 방지).
+  - `parseNextSteps(text)` 함수 추가. `[NEXT_NONE]` 우선 → `{done: true, reason}`. `[NEXT_STEPS]` 블록 → 항목 파싱 + P0/P1/P2 정렬 → `{done: false, steps: [...]}`.
+  - `tryAutoChain` 에서 chainDone 처리보다 먼저 `parseNextSteps(lastMessage)` 호출. NEXT_NONE → 즉시 stop, P0 항목 있으면 basePrompt 로 사용 (chainReason="next_steps_marker"). 우선순위: NEXT_STEPS > CHAIN_DONE override > NEXT_TASK.md > generic_continuation.
+  - `startRun` 이 autoChainEnabled 일 때 input.prompt 끝에 STATUS/CHAIN_DONE/NEXT_STEPS 규칙을 자동 첨부. 첫 run 부터 worker 가 마커 규칙을 알게 됨. decorate 는 idempotent 이므로 chain run 에서 재가공돼도 중복 없음.
+
+검증:
+- pnpm validate 통과 (validate-quota-parser 모두 OK).
+- parseNextSteps 7 케이스 (NEXT_NONE 단독/이유누락, NEXT_STEPS 단일/다중/priority 정렬/priority 누락 기본값, 마커 없음 fallback, NEXT_NONE+NEXT_STEPS 우선순위) 모두 통과.
+- decorateAutoChainPrompt 3 케이스 (마커 첨부, idempotent, 빈 prompt) 통과.
+
+호환성:
+- 마커가 없으면 기존 흐름 (NEXT_TASK.md / generic_continuation) 그대로. backward compatible.
+- 기존 CHAIN_DONE 처리는 그대로 유지 (override cap 1 회, autoChainOverrideOnChainDone=false 기본).
+
 ## 2026-05-16T_routing_polish
 
 라우팅 일관성 정리 후속 보완 4 건:

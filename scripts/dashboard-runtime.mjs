@@ -2504,6 +2504,86 @@ export async function tryQuotaRetry(failedRun) {
 // 필요하다.
 const CHAIN_DONE_OVERRIDE_CAP = 1;
 
+// worker 가 작업을 끝낼 때 응답 끝에 붙이는 마커. dashboard 는 이 마커를
+// 파싱해서 autoChain 의 다음 prompt 를 만든다. 기존 CHAIN_DONE / NEXT_TASK.md
+// 흐름과 병행한다 (마커 우선).
+//
+//   [NEXT_STEPS]
+//   - title: <간결한 작업 제목>
+//     priority: P0|P1|P2
+//     notes: <한 줄 설명>
+//   - title: ...
+//   [/NEXT_STEPS]
+//
+// 다음 작업이 정말 없을 때:
+//   [NEXT_NONE] <이유>
+const STATUS_MARKER_RULE =
+  "\n\n[STATUS 규칙] 단계마다 한 줄로 `[STATUS] <지금 하고 있는 일>` 을 출력하세요. dashboard 가 이 라인을 현재 작업으로 표면화합니다. 예) `[STATUS] 모델 라우팅 코드 리팩토링 중`.";
+const CHAIN_DONE_PROMPT_RULE =
+  "\n\n[CHAIN_DONE 규칙] CHAIN_DONE 은 roadmap/plan 의 **모든** 작업이 끝나고 진행률이 100% 일 때만, 다른 텍스트 없이 단독 한 줄로 보냅니다. 방금 한 단계만 끝낸 것이라면 절대 CHAIN_DONE 을 보내지 말고, memory/plan/NEXT_TASK 의 다음 항목을 스스로 골라 계속 진행하세요. 코드·설명과 같은 응답에 CHAIN_DONE 을 섞으면 무시됩니다.";
+const NEXT_STEPS_RULE =
+  "\n\n[NEXT_STEPS 규칙] 응답의 **맨 마지막**에 다음 작업 후보를 한 블록으로 출력합니다.\n" +
+  "\n다음 작업이 있다면:\n" +
+  "[NEXT_STEPS]\n" +
+  "- title: <간결한 작업 제목>\n" +
+  "  priority: P0|P1|P2  (P0=최우선)\n" +
+  "  notes: <한 줄 설명 / 왜 필요한지>\n" +
+  "- title: <다음 후보>\n" +
+  "  priority: P1\n" +
+  "  notes: ...\n" +
+  "[/NEXT_STEPS]\n" +
+  "\n다음 작업이 정말 없다면 (roadmap 완료 / 사용자 결정 대기 / 자율 진행 불가):\n" +
+  "[NEXT_NONE] <이유 한 줄>\n" +
+  "\ndashboard 가 이 마커를 파싱해 다음 자동 진행 prompt 를 만듭니다. NEXT_NONE 은 CHAIN_DONE 과 동등하게 즉시 종료를 의미하며, NEXT_STEPS 의 P0 항목이 다음 prompt 로 사용됩니다.";
+
+const WORKER_PROMPT_RULES_MARKER = "[NEXT_STEPS 규칙]";
+
+// 이미 worker prompt 규칙이 첨부된 prompt 인지 확인 — autoChain/retry/handoff
+// 경로에서 prompt 가 재사용될 때 규칙이 중복 첨부되는 것을 막는다.
+export function decorateAutoChainPrompt(prompt) {
+  const text = String(prompt || "");
+  if (text.includes(WORKER_PROMPT_RULES_MARKER)) return text;
+  return text + STATUS_MARKER_RULE + CHAIN_DONE_PROMPT_RULE + NEXT_STEPS_RULE;
+}
+
+// worker 응답에서 NEXT_STEPS / NEXT_NONE 마커를 파싱.
+// 반환:
+//   { done: true, reason }                 — NEXT_NONE 마커 검출
+//   { done: false, steps: [{title, priority, notes}, ...] } — NEXT_STEPS 블록
+//   { done: false, steps: [] }             — 마커 없음 (기존 폴백 흐름으로)
+export function parseNextSteps(text) {
+  const source = String(text || "");
+  // NEXT_NONE 우선 — 명시적 종료 신호
+  const noneMatch = source.match(/\[NEXT_NONE\]\s*([^\n]*)/);
+  if (noneMatch) {
+    return { done: true, reason: noneMatch[1].trim() || "다음 작업 없음" };
+  }
+  const blockMatch = source.match(/\[NEXT_STEPS\]([\s\S]*?)\[\/NEXT_STEPS\]/);
+  if (!blockMatch) return { done: false, steps: [] };
+  const block = blockMatch[1];
+  // 각 항목은 "- title: ..." 으로 시작. priority/notes 는 같은 항목 안에서
+  // 들여쓰기된 라인. 다음 "- title:" 또는 블록 끝까지가 한 항목.
+  const items = [];
+  const itemRegex = /(^|\n)\s*-\s*title:\s*([^\n]+)([\s\S]*?)(?=(?:\n\s*-\s*title:)|$)/g;
+  let match;
+  while ((match = itemRegex.exec(block)) !== null) {
+    const title = String(match[2] || "").trim();
+    if (!title) continue;
+    const rest = String(match[3] || "");
+    const priorityMatch = rest.match(/priority:\s*(P[0-2])/i);
+    const notesMatch = rest.match(/notes:\s*([^\n]+)/);
+    items.push({
+      title,
+      priority: priorityMatch ? priorityMatch[1].toUpperCase() : "P1",
+      notes: notesMatch ? notesMatch[1].trim() : "",
+    });
+  }
+  // P0 > P1 > P2 순 정렬 (안정 정렬 — 같은 priority 면 입력 순서 유지)
+  const priorityRank = { P0: 0, P1: 1, P2: 2 };
+  items.sort((a, b) => (priorityRank[a.priority] ?? 1) - (priorityRank[b.priority] ?? 1));
+  return { done: false, steps: items };
+}
+
 export async function tryAutoChain(prevRun, opts = {}) {
   const runtime = await readRuntime();
   const settings = normalizeSettings(runtime.settings);
@@ -2579,6 +2659,19 @@ export async function tryAutoChain(prevRun, opts = {}) {
   //   4) 같은 자리에서 무한 override 하지 않도록 cap.
   const chainDoneSignaled = Boolean(opts.chainDoneSignaled);
   const lastMessageText = String(opts.lastMessage || "");
+
+  // NEXT_STEPS / NEXT_NONE 마커 우선 처리. worker 가 응답 끝에 명시적으로
+  // 다음 작업 후보 (또는 종료 신호) 를 적었다면 NEXT_TASK.md 파싱이나 진행률
+  // 기반 추정 같은 간접 신호보다 그게 더 정확하다.
+  const nextStepsParsed = parseNextSteps(lastMessageText);
+  if (nextStepsParsed.done) {
+    return {
+      stopped: true,
+      reason: `worker 가 [NEXT_NONE] 으로 다음 작업 없음을 보고했습니다 — ${nextStepsParsed.reason}`,
+    };
+  }
+  const markerStep = nextStepsParsed.steps[0] || null;
+
   const WAIT_FOR_USER_PATTERNS = [
     /사용자\s*(?:방향성|결정|지시|입력|확인|선택)\s*(?:대기|필요|없)/,
     /사용자\s+방향/,
@@ -2636,15 +2729,15 @@ export async function tryAutoChain(prevRun, opts = {}) {
     chainDoneOverride = true;
   }
 
-  // 진행 상황 가시화 — worker 가 큰 단계 진입/완료 시 '[STATUS] ...' 형식의
-  // 한 줄을 출력하면 dashboard 가 그 라인을 'currently doing' 으로 표면화한다.
-  const STATUS_MARKER_HINT = "\n\n[STATUS 규칙] 단계마다 한 줄로 `[STATUS] <지금 하고 있는 일>` 을 출력하세요. dashboard 가 이 라인을 현재 작업으로 표면화합니다. 예) `[STATUS] 모델 라우팅 코드 리팩토링 중`.";
-  // CHAIN_DONE 오·남용 방지 규칙 — 한 단계 끝낸 것과 전체 완료를 구분시킨다.
-  const CHAIN_DONE_RULE =
-    "\n\n[CHAIN_DONE 규칙] CHAIN_DONE 은 roadmap/plan 의 **모든** 작업이 끝나고 진행률이 100% 일 때만, 다른 텍스트 없이 단독 한 줄로 보냅니다. 방금 한 단계만 끝낸 것이라면 절대 CHAIN_DONE 을 보내지 말고, memory/plan/NEXT_TASK 의 다음 항목을 스스로 골라 계속 진행하세요. 코드·설명과 같은 응답에 CHAIN_DONE 을 섞으면 무시됩니다.";
-
+  // basePrompt 결정 — 우선순위: NEXT_STEPS 마커(P0) > CHAIN_DONE override
+  // 강제진행 > NEXT_TASK.md 다음 항목 > generic_continuation.
   let basePrompt;
-  if (chainDoneOverride) {
+  let chainReason;
+  if (markerStep) {
+    const notesNote = markerStep.notes ? ` (사유: ${markerStep.notes})` : "";
+    basePrompt = `${markerStep.title}${notesNote}`;
+    chainReason = "next_steps_marker";
+  } else if (chainDoneOverride) {
     const progressNote = Number.isFinite(progressPercent)
       ? `현재 진행률은 ${progressPercent}% 입니다. `
       : "";
@@ -2652,12 +2745,15 @@ export async function tryAutoChain(prevRun, opts = {}) {
       ? `NEXT_TASK 에 '${nextTitle}' 항목이 아직 남아 있습니다. 이 항목부터 진행하세요. `
       : "memory/plan/NEXT_TASK 를 다시 확인해 남은 작업을 이어서 진행하세요. ";
     basePrompt = `직전 실행이 CHAIN_DONE 을 보냈지만 아직 작업이 남아 있습니다. ${progressNote}${taskNote}한 단계를 끝낸 것은 CHAIN_DONE 이 아닙니다 — 정말로 모든 작업이 끝나 진행률이 100% 일 때만 CHAIN_DONE 을 보내세요.`;
+    chainReason = "chain_done_override";
+  } else if (hasNewTask) {
+    basePrompt = nextTitle;
+    chainReason = "next_task_picked";
   } else {
-    basePrompt = hasNewTask
-      ? nextTitle
-      : "이전 작업을 완료한 상태입니다. 메모리/계획/핸드오프 파일을 참고해 다음에 진행할 항목을 스스로 판단하고 이어서 진행해 주세요.";
+    basePrompt = "이전 작업을 완료한 상태입니다. 메모리/계획/핸드오프 파일을 참고해 다음에 진행할 항목을 스스로 판단하고 이어서 진행해 주세요.";
+    chainReason = "generic_continuation";
   }
-  const chainPrompt = basePrompt + STATUS_MARKER_HINT + CHAIN_DONE_RULE;
+  const chainPrompt = decorateAutoChainPrompt(basePrompt);
   const nextWorkerId = prevRun.workerAuto ? "auto" : prevRun.workerId;
 
   const result = await startRun({
@@ -2669,11 +2765,7 @@ export async function tryAutoChain(prevRun, opts = {}) {
     autoChain: true,
     chainDoneOverrides: chainDoneOverride ? prevOverrides + 1 : 0,
     chainDepth: prevDepth + 1,
-    chainReason: chainDoneOverride
-      ? "chain_done_override"
-      : hasNewTask
-        ? "next_task_picked"
-        : "generic_continuation",
+    chainReason,
   });
   return result.activeRun || null;
 }
@@ -2935,13 +3027,21 @@ export async function startRun(input) {
 
   const worktreeBefore = await inspectRunWorktree(runtime, { projectId });
   const id = `run-${Date.now()}`;
+  // autoChain 이 켜져 있으면 worker prompt 끝에 STATUS/CHAIN_DONE/NEXT_STEPS
+  // 규칙을 첨부한다. autoChain 이 다음 prompt 를 결정할 때 NEXT_STEPS 마커를
+  // 파싱하려면 첫 run 부터 규칙이 worker 에게 전달돼야 한다. decorate 는
+  // idempotent — 이미 첨부된 prompt 에는 중복 첨부하지 않는다.
+  const rawPrompt = String(input.prompt || "").trim();
+  const decoratedPrompt = settingsForRouting.autoChainEnabled
+    ? decorateAutoChainPrompt(rawPrompt)
+    : rawPrompt;
   const run = {
     id,
     status: routing.status === "blocked" ? "queued" : "running",
     workerId: resolvedWorker,
     workerAuto: requestedWorker === "auto",
     projectId,
-    prompt: String(input.prompt || "").trim(),
+    prompt: decoratedPrompt,
     complexity: resolvedComplexity,
     complexityAuto: requestedComplexity === "auto",
     modelOverride: resolvedModelOverride,
