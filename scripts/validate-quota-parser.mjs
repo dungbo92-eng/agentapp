@@ -20,7 +20,7 @@ const {
   startRun,
   tryAutoChain,
 } = await import("./dashboard-runtime.mjs");
-const { detectInterruption } = await import("./worker-launch-adapter.mjs");
+const { detectInterruption, interpretClaudeStreamLine } = await import("./worker-launch-adapter.mjs");
 
 Date.now = () => fixedNow;
 
@@ -340,6 +340,47 @@ try {
     throw new Error("CHAIN_DONE was not honored by default (override flag off)");
   }
   console.log("[validate-quota-parser] ok CHAIN_DONE honored by default");
+
+  // ---- Claude stream-json 파서 ----
+  const streamCases = [
+    {
+      name: "system init line is human-friendly",
+      input: JSON.stringify({ type: "system", subtype: "init", model: "claude-sonnet-4-5", tools: ["Read", "Edit"] }),
+      assert: (out) => out.display && out.display.includes("Claude Code 세션 시작") && !out.skip,
+    },
+    {
+      name: "assistant text becomes 💬 line",
+      input: JSON.stringify({ type: "assistant", message: { role: "assistant", content: [{ type: "text", text: "Reading the config file" }] } }),
+      assert: (out) => out.display && out.display.startsWith("💬"),
+    },
+    {
+      name: "tool_use surfaces tool name and target",
+      input: JSON.stringify({ type: "assistant", message: { content: [{ type: "tool_use", name: "Read", input: { file_path: "src/main.tsx" } }] } }),
+      assert: (out) => out.display && out.display.includes("🔧 Read(src/main.tsx)"),
+    },
+    {
+      name: "tool_result error becomes ⚠ line",
+      input: JSON.stringify({ type: "user", message: { content: [{ type: "tool_result", is_error: true, content: "File not found" }] } }),
+      assert: (out) => out.display && out.display.includes("⚠ tool 결과 오류"),
+    },
+    {
+      name: "result event exposes finalText and stats",
+      input: JSON.stringify({ type: "result", subtype: "success", num_turns: 5, duration_ms: 12000, total_cost_usd: 0.0234, result: "Final answer" }),
+      assert: (out) => out.finalText === "Final answer" && out.display.includes("5턴") && out.display.includes("12초"),
+    },
+    {
+      name: "non-JSON line is kept as-is",
+      input: "plain text line",
+      assert: (out) => out.keep === true,
+    },
+  ];
+  for (const tc of streamCases) {
+    const out = interpretClaudeStreamLine(tc.input);
+    if (!tc.assert(out)) {
+      throw new Error(`stream-json parser failed: ${tc.name}: ${JSON.stringify(out)}`);
+    }
+    console.log(`[validate-quota-parser] ok claude stream-json: ${tc.name}`);
+  }
 } finally {
   Date.now = realDateNow;
   await rm(tempDir, { recursive: true, force: true });

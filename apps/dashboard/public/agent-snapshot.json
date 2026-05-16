@@ -1,5 +1,5 @@
 {
-  "generated_at": "2026-05-16T01:44:58.795Z",
+  "generated_at": "2026-05-16T01:59:31.614Z",
   "repo_root": "E:\\agentApp",
   "progress": {
     "percent": 99,
@@ -384,6 +384,12 @@
   },
   "pending_decisions": [
     {
+      "title": "DEC-20260516-001 — 이 PC 에서 gh CLI 누락 → 자동 릴리즈 불가",
+      "priority": "medium",
+      "category": "deployment",
+      "blocks": "토큰 폭주 수정 commit `0a10bbd` 의 자동 릴리즈 (`pnpm desktop:release`)."
+    },
+    {
       "title": "DEC-20260509-003 — 주간 사용량 입력 방식",
       "priority": "high",
       "category": "usage_budget",
@@ -399,6 +405,12 @@
   },
   "approval_queue": {
     "pending_decisions": [
+      {
+        "title": "DEC-20260516-001 — 이 PC 에서 gh CLI 누락 → 자동 릴리즈 불가",
+        "priority": "medium",
+        "category": "deployment",
+        "blocks": "토큰 폭주 수정 commit `0a10bbd` 의 자동 릴리즈 (`pnpm desktop:release`)."
+      },
       {
         "title": "DEC-20260509-003 — 주간 사용량 입력 방식",
         "priority": "high",
@@ -556,19 +568,19 @@
       "generated": "",
       "decision_count": 0,
       "line_count": 14,
-      "excerpt": "# DASHBOARD_RUN\n\n- 생성 시각: 2026-05-11T07:32:39.363Z\n- 실행 상태 파일: tools/agent-orchestrator/handoff/run-states/dashboard-current.json\n- 작업 도구: cursor\n- 상태: interrupted\n- 사유: user_stopped\n- 계정: local-account\n- 모델: efficient\n- 프롬프트 본문: data/dashboard-runtime.json 에만 저장\n- 비밀 포함 여부: false\n\n## 요약\n\n대시보드가 cursor 작업의 상태를 interrupted 로 기록했습니다. 프롬프트 본문은 data/dashboard-runtime.json 에만 저장됩니다.\n\n## 다음 단계\n\n로컬 실행 기록을 확인하고 NEXT_TASK.md 에서 이어가거나 새 작업을 시작하세요."
+      "excerpt": "# DASHBOARD_RUN\n\n- 생성 시각: 2026-05-16T01:46:10.052Z\n- 실행 상태 파일: tools/agent-orchestrator/handoff/run-states/dashboard-current.json\n- 작업 도구: claude-code\n- 상태: running\n- 사유: in_progress\n- 계정: local-account\n- 모델: sonnet\n- 프롬프트 본문: data/dashboard-runtime.json 에만 저장\n- 비밀 포함 여부: false\n\n## 요약\n\n대시보드가 claude-code 작업을 local-account / sonnet 조합으로 시작했습니다. 어댑터 pending 상태는 queued 입니다. 프롬프트 본문은 data/dashboard-runtime.json 에만 저장됩니다.\n\n## 다음 단계\n\n대시보드에서 실행 상태, 검증 결과, 어댑터 로그를 확인하세요. 인수인계가 필요하면 여기서 중지하면 됩니다."
     },
     {
       "id": "decisions",
       "title": "DECISIONS_REQUIRED.md",
       "path": "tools/agent-orchestrator/handoff/DECISIONS_REQUIRED.md",
       "heading": "DECISIONS_REQUIRED",
-      "status": "1 pending",
+      "status": "2 pending",
       "next": "",
       "generated": "",
-      "decision_count": 1,
-      "line_count": 81,
-      "excerpt": "# DECISIONS_REQUIRED\n\n사용자 결정이 필요한 항목을 모은 큐다. 에이전트는 `approval-policy.yaml`의 `hold_for_user` 또는 `deny`에 해당하는 작업을 임의 실행하지 않고, 여기 구조에 맞춰 기록한다.\n\n## 기록 규칙\n\n- 새 항목은 `대기` 아래에 추가한다.\n- 해결된 항목은 `해결됨` 아래로 옮기고 `Resolved`를 채운다.\n- 비밀값, 토큰, 계정명, 이메일, 세션 정보는 기록하지 않는다.\n- 결정 없이 진행 가능한 로컬 작업은 멈추지 말고 완료한다.\n- 결정이 필요한 작업만 명확히 분리한다.\n\n## 항목 템플릿\n\n```md\n### DEC-YYYYMMDD-001 — 짧은 제목\n\n- Status: pending\n- Priority: high | medium | low\n- Category: product | safety | git | usage_budget | worker | deployment | other\n- Requested by: user | agent\n- Blocks: 어떤 작업이 막히는지\n- Context: 왜 결정이 필요한지\n- Options:\n  - A: 선택지와 영향\n  - B: 선택지와 영향\n- Recommended: 권장 선택과 이유\n- Decision needed: 사용자가 답해야 할 짧은 질문\n- After decision: 결정 후 에이전트가 수행할 작업\n- Created: YYYY-MM-DD\n```\n\n## 대기\n\n### DEC-20260509-003 — 주간 사용량 입력 방식\n\n- Status: pending\n- Priority: high\n- Category: usage_budget\n- Requested by: user\n- Blocks: 사용량 예산/모델 라우팅 CLI 구현\n- Context: Claude Pro, Codex Plus 등 정상 보유 계정의 남은 주간 사용량을 어떻게 입력받을지 정해야 한다.\n- Options:\n  - A: 사용자 수동 입력만 허용. 가장 안전하고 비밀값/세션 접근이 없다.\n  - B: 사용자가 명시 제공한 read-only 화면 값까지 허용. 편하지만 브라우저/화면 접근 정책이 추가로 필요하다.\n- Recommended: A로 MVP를 시작한다. B는 별도 승인 정책과 read-only 검증 후 추가한다.\n- Decision needed: 사용량 입력은 수동 입력만 허용할까, 사용자가 명시 제공한 read-only 화면 값까지 허용할까?\n- After decision: 계정 수/요금제/남은 주간 사용량 설정 스키마와 budget CLI에 반영한다.\n- Created: 2026-05-09\n\n## 해결됨\n\n### DEC-20260513-001 — GitHub Release 도구 점검\n\n- Status: resolved\n- Priority: high\n- Category: deployment\n- Requested by: agent\n- Blocks: 코드 변경 push 후 자동 업데이트용 GitHub Release 발행\n- Context: bare `gh`는 현재 세션 PATH에서 감지되지 않았지만, `C:\\Program Files\\GitHub CLI\\gh.exe`가 설치되어 있고 인증도 정상임을 확인했다. `scripts/desktop-release.mjs`의 fallback이 해당 경로를 사용해 릴리즈를 발행했다.\n- Decision: GitHub CLI 설치/인증 확인 후 자동 릴리즈 진행.\n- Resolved: 2026-05-13\n- Result: `pnpm desktop:release -- --bump patch`로 `v0.2.1` GitHub Release를 발행했고 `latest.yml`, NSIS setup, blockmap 업로드를 확인했다.\n\n### DEC-20260509-001 — 첫 UI 구현 방식\n\n- Status: resolved\n- Priority: medium\n- Category: product\n- Requested by: agent\n- Blocks: Dashboard Phase 착수 방식\n- Context: CLI 기반 동기화, 정책, 큐, worker adapter, 사용량 예산 기능이 먼저 안정화되었고 이제 read-only 로컬 웹 대시보드를 진행할 수 있다.\n- Decision: 로컬 웹 대시보드를 착수한다. 기술 선택은 `docs/dashboard-technology.md` 기준 `Vite + React + TypeScrip..."
+      "decision_count": 2,
+      "line_count": 95,
+      "excerpt": "# DECISIONS_REQUIRED\n\n사용자 결정이 필요한 항목을 모은 큐다. 에이전트는 `approval-policy.yaml`의 `hold_for_user` 또는 `deny`에 해당하는 작업을 임의 실행하지 않고, 여기 구조에 맞춰 기록한다.\n\n## 기록 규칙\n\n- 새 항목은 `대기` 아래에 추가한다.\n- 해결된 항목은 `해결됨` 아래로 옮기고 `Resolved`를 채운다.\n- 비밀값, 토큰, 계정명, 이메일, 세션 정보는 기록하지 않는다.\n- 결정 없이 진행 가능한 로컬 작업은 멈추지 말고 완료한다.\n- 결정이 필요한 작업만 명확히 분리한다.\n\n## 항목 템플릿\n\n```md\n### DEC-YYYYMMDD-001 — 짧은 제목\n\n- Status: pending\n- Priority: high | medium | low\n- Category: product | safety | git | usage_budget | worker | deployment | other\n- Requested by: user | agent\n- Blocks: 어떤 작업이 막히는지\n- Context: 왜 결정이 필요한지\n- Options:\n  - A: 선택지와 영향\n  - B: 선택지와 영향\n- Recommended: 권장 선택과 이유\n- Decision needed: 사용자가 답해야 할 짧은 질문\n- After decision: 결정 후 에이전트가 수행할 작업\n- Created: YYYY-MM-DD\n```\n\n## 대기\n\n### DEC-20260516-001 — 이 PC 에서 gh CLI 누락 → 자동 릴리즈 불가\n\n- Status: pending\n- Priority: medium\n- Category: deployment\n- Requested by: agent\n- Blocks: 토큰 폭주 수정 commit `0a10bbd` 의 자동 릴리즈 (`pnpm desktop:release`).\n- Context: feedback rule `의미 있는 변경은 push 직후 자동 릴리즈` 에 따라 `dashboard-runtime.mjs` 수정 후 릴리즈 발행을 시도했으나, 이 PC 에 `gh` CLI 가 설치돼 있지 않아 GitHub Release 발행을 건너뜀. `gh auth status 실패면 건너뛰고 DECISIONS_REQUIRED 에 토큰 점검 항목 남긴다` 규칙 적용.\n- Options:\n  - A: 이 PC 에 `gh` 설치 후 `gh auth login` → 다시 `pnpm desktop:release -- --bump patch` 실행.\n  - B: 다른 PC (이미 릴리즈 권한 있는 환경) 에서 main pull 후 `pnpm desktop:release -- --bump patch` 실행.\n- Recommended: B. 이 PC 는 사용자 테스트 환경이고, 릴리즈 권한 PC 가 따로 있는 흐름을 유지하는 게 보안에 유리.\n- Decision needed: 누가/어디서 v0.2.12 릴리즈를 발행할지.\n- After decision: 결정 PC 에서 main pull → `pnpm desktop:release -- --bump patch --notes \"fix: prevent token-drain (concurrent runs, CHAIN_DONE override, retry chain)\"` 실행 → latest.yml + NSIS Setup 업로드 확인.\n- Created: 2026-05-16\n\n### DEC-20260509-003 — 주간 사용량 입력 방식\n\n- Status: pending\n- Priority: high\n- Category: usage_budget\n- Requested by: user\n- Blocks: 사용량 예산/모델 라우팅 CLI 구현\n- Context: Claude Pro, Codex Plus 등 정상 보유 계정의 남은 주간 사용량을 어떻게 입력받을지 정해야 한다.\n- Options:\n  - A: 사용자 수동 입력만 허용. 가장 안전하고 비밀값/세션 접근이 없다.\n  - B: 사용자가 명시 제공한 read-only 화면 값까지 허용. 편하지만 브라우저/화면 접근 정책이 추가로 필요하다.\n- Recommended: A로 MVP를 시작한다. B는 별도 승인 정책과 read-only 검증 후 추가한다.\n- Decision needed: 사용량 입력은 수동 입력만 허용할까, 사용자가 명시 제공한 read-only 화면 값까지 허용할까?\n- After decision:..."
     }
   ],
   "task_queue": {
@@ -635,22 +647,22 @@
       "kind": "claude-code",
       "display_name": "Claude Code",
       "status": "available",
-      "latest_status": "available",
-      "latest_reason": "none",
-      "latest_task": "",
-      "latest_updated_at": "",
-      "handoff_summary": ""
+      "latest_status": "running",
+      "latest_reason": "in_progress",
+      "latest_task": "대시보드 시작 요청",
+      "latest_updated_at": "2026-05-16T01:46:10.052Z",
+      "handoff_summary": "대시보드가 claude-code 작업을 local-account / sonnet 조합으로 시작했습니다. 어댑터 pending 상태는 queued 입니다. 프롬프트 본문은 data/dashboard-runtime.json 에만 저장됩니다."
     },
     {
       "id": "cursor",
       "kind": "cursor",
       "display_name": "Cursor",
       "status": "available",
-      "latest_status": "interrupted",
-      "latest_reason": "user_stopped",
-      "latest_task": "대시보드 시작 요청",
-      "latest_updated_at": "2026-05-11T07:32:39.363Z",
-      "handoff_summary": "대시보드가 cursor 작업의 상태를 interrupted 로 기록했습니다. 프롬프트 본문은 data/dashboard-runtime.json 에만 저장됩니다."
+      "latest_status": "available",
+      "latest_reason": "none",
+      "latest_task": "",
+      "latest_updated_at": "",
+      "handoff_summary": ""
     },
     {
       "id": "gemini-cli",

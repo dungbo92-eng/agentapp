@@ -167,6 +167,119 @@ function providerKeyFor(workerId) {
   return "";
 }
 
+// Claude Code `--output-format stream-json --verbose` 가 NDJSON 으로 흘려보내는
+// 진행 이벤트를 dashboard event log 에 보여줄 수 있는 한 줄 메시지로 변환.
+// 반환:
+//   { skip: true }        — 이 라인은 event log 에 보이지 말 것 (system init 등)
+//   { display: string }   — event log 에 보여줄 사람용 한 줄
+//   { display, finalText } — 완료 이벤트일 때 final assistant text 동봉
+//   { keep: true }        — JSON 아님 → 원본 라인 그대로 처리하라
+export function interpretClaudeStreamLine(line) {
+  const raw = String(line || "").trim();
+  if (!raw || raw[0] !== "{") return { keep: true };
+  let event;
+  try {
+    event = JSON.parse(raw);
+  } catch {
+    return { keep: true };
+  }
+  const type = String(event?.type || "");
+  if (!type) return { skip: true };
+
+  if (type === "system") {
+    const subtype = String(event.subtype || "");
+    if (subtype === "init") {
+      const model = event.model ? `모델 ${event.model}` : "";
+      const tools = Array.isArray(event.tools) ? `${event.tools.length} 개 tool` : "";
+      const info = [model, tools].filter(Boolean).join(" / ");
+      return { display: `▶ Claude Code 세션 시작 (${info || "준비"})` };
+    }
+    return { skip: true };
+  }
+
+  if (type === "assistant") {
+    const content = Array.isArray(event?.message?.content) ? event.message.content : [];
+    const blocks = [];
+    for (const block of content) {
+      const blockType = String(block?.type || "");
+      if (blockType === "text") {
+        const text = String(block?.text || "").trim();
+        if (text) {
+          const oneLine = text.replace(/\s+/g, " ");
+          blocks.push(`💬 ${oneLine.length > 200 ? `${oneLine.slice(0, 200)}…` : oneLine}`);
+        }
+      } else if (blockType === "tool_use") {
+        const name = String(block?.name || "Tool");
+        const input = block?.input || {};
+        let summary = "";
+        if (typeof input?.file_path === "string") summary = input.file_path;
+        else if (typeof input?.path === "string") summary = input.path;
+        else if (typeof input?.command === "string") summary = input.command.length > 80 ? `${input.command.slice(0, 80)}…` : input.command;
+        else if (typeof input?.pattern === "string") summary = input.pattern;
+        else if (typeof input?.url === "string") summary = input.url;
+        else if (typeof input?.description === "string") summary = input.description;
+        blocks.push(summary ? `🔧 ${name}(${summary})` : `🔧 ${name}`);
+      } else if (blockType === "thinking") {
+        const text = String(block?.thinking || block?.text || "").trim();
+        if (text) {
+          const oneLine = text.replace(/\s+/g, " ");
+          blocks.push(`🤔 ${oneLine.length > 160 ? `${oneLine.slice(0, 160)}…` : oneLine}`);
+        }
+      }
+    }
+    if (blocks.length === 0) return { skip: true };
+    return { display: blocks.join(" · ") };
+  }
+
+  if (type === "user") {
+    const content = Array.isArray(event?.message?.content) ? event.message.content : [];
+    const blocks = [];
+    for (const block of content) {
+      if (String(block?.type || "") !== "tool_result") continue;
+      const isError = block?.is_error === true;
+      const result = block?.content;
+      let text = "";
+      if (typeof result === "string") text = result;
+      else if (Array.isArray(result)) {
+        text = result
+          .map((part) => (typeof part?.text === "string" ? part.text : ""))
+          .filter(Boolean)
+          .join(" ");
+      }
+      text = text.replace(/\s+/g, " ").trim();
+      if (isError) {
+        blocks.push(`⚠ tool 결과 오류: ${text.length > 160 ? `${text.slice(0, 160)}…` : text}`);
+      } else if (text) {
+        // 정상 tool 결과는 한 줄 미리보기만.
+        const preview = text.length > 100 ? `${text.slice(0, 100)}…` : text;
+        blocks.push(`↳ ${preview}`);
+      }
+    }
+    if (blocks.length === 0) return { skip: true };
+    return { display: blocks.join(" · ") };
+  }
+
+  if (type === "result") {
+    const subtype = String(event.subtype || "");
+    const isError = event?.is_error === true || subtype === "error";
+    const turns = Number(event?.num_turns || 0);
+    const duration = Number(event?.duration_ms || 0);
+    const cost = Number(event?.total_cost_usd || 0);
+    const parts = [];
+    if (turns) parts.push(`${turns}턴`);
+    if (duration) parts.push(`${Math.round(duration / 1000)}초`);
+    if (cost) parts.push(`$${cost.toFixed(4)}`);
+    const summary = parts.length ? ` (${parts.join(" / ")})` : "";
+    const display = isError
+      ? `▣ Claude 결과 오류${summary} — ${String(event?.error || event?.result || "").slice(0, 200)}`
+      : `▣ Claude 작업 종료${summary}`;
+    const finalText = typeof event?.result === "string" ? event.result : "";
+    return { display, finalText };
+  }
+
+  return { skip: true };
+}
+
 export function detectInterruption(workerId, output) {
   if (!output) return { kind: "", reason: "" };
   const provider = providerKeyFor(workerId);
@@ -694,8 +807,17 @@ async function resolveAdapter(run, files) {
       status: "ready",
       mode: "command",
       command,
+      // --output-format stream-json --verbose 는 Claude Code 가 작업 진행을
+      // NDJSON 으로 즉시 흘려보내는 모드. text 모드 (--print 만) 는 응답이
+      // 다 끝날 때까지 stdout 이 비어 있어 dashboard 에 진행 상황이 안 보인다.
+      // 각 라인은 한 개의 완성된 JSON 이벤트 (system / assistant / user /
+      // tool_use / tool_result / result) — interpretClaudeStreamLine 가
+      // 사람 읽기 좋은 한 줄로 변환해서 event log 에 보여준다.
       args: [
         "--print",
+        "--output-format",
+        "stream-json",
+        "--verbose",
         "--dangerously-skip-permissions",
         ...(claudeModel ? ["--model", claudeModel] : []),
       ],
@@ -708,8 +830,11 @@ async function resolveAdapter(run, files) {
       },
       sessionDir,
       workspace,
-      summary: "Claude Code --print 어댑터 준비 완료",
-      writeLastMessageFromStdout: true,
+      summary: "Claude Code --print stream-json 어댑터 준비 완료",
+      // raw stream-json 을 lastMessage 로 저장하면 JSON 파편이 들어가므로
+      // assistant text 만 모아서 별도 buffer 에서 기록한다.
+      writeLastMessageFromStdout: false,
+      streamJsonClaude: true,
     };
   }
 
@@ -1146,6 +1271,14 @@ async function launchCommandWorker(run, files, adapter, promptText) {
       message: "자동 종료 비활성 — 사용자가 멈출 때까지 실행 유지",
     });
   }
+  // Claude stream-json 어댑터의 진행 텍스트 누적 — final result 이벤트가
+  // 안 오는 비정상 종료 대비 fallback 으로도 쓰인다.
+  const claudeStream = {
+    enabled: Boolean(adapter.streamJsonClaude),
+    assistantText: "",
+    finalText: "",
+  };
+
   const result = await streamProcess(adapter.command, adapter.args, {
     cwd: adapterCwd,
     env: { ...augmentedSpawnEnv(), ...(adapter.env || {}) },
@@ -1167,10 +1300,35 @@ async function launchCommandWorker(run, files, adapter, promptText) {
       });
     },
     onLine: async (line, level) => {
-      await appendRunEvent(run.id, {
-        level: level === "stderr" ? "warn" : "info",
-        message: line.length > 220 ? `${line.slice(0, 220)}...` : line,
-      });
+      // Claude stream-json: stdout 의 NDJSON 라인을 사람용으로 변환해 event log
+      // 에 보여주고, 원본 JSON 라인은 숨긴다. stderr 는 그대로 통과.
+      if (claudeStream.enabled && level === "stdout") {
+        const interp = interpretClaudeStreamLine(line);
+        if (interp.skip) {
+          // 건너뛰는 라인은 event log 에 보이지 않게.
+        } else if (interp.display) {
+          if (typeof interp.finalText === "string" && interp.finalText) {
+            claudeStream.finalText = interp.finalText;
+          }
+          // assistant text 누적 (final 미수신 대비)
+          const m = interp.display.match(/^💬\s+(.*)$/);
+          if (m) claudeStream.assistantText += `${m[1]}\n`;
+          await appendRunEvent(run.id, {
+            level: "info",
+            message: interp.display.length > 240 ? `${interp.display.slice(0, 240)}...` : interp.display,
+          });
+        } else if (interp.keep) {
+          await appendRunEvent(run.id, {
+            level: "info",
+            message: line.length > 220 ? `${line.slice(0, 220)}...` : line,
+          });
+        }
+      } else {
+        await appendRunEvent(run.id, {
+          level: level === "stderr" ? "warn" : "info",
+          message: line.length > 220 ? `${line.slice(0, 220)}...` : line,
+        });
+      }
       // 진행 상황 표면화 — '[STATUS] ...' 라인이 보이면 run.currentStatus 에 저장.
       // dashboard 가 이 필드를 topbar/컴팩트 모드에 실시간 표시.
       try {
@@ -1234,6 +1392,19 @@ async function launchCommandWorker(run, files, adapter, promptText) {
       await writeFile(files.lastMessagePath, `${result.stdoutOnly}\n`, "utf8");
     } catch {
       // last message capture is best-effort
+    }
+  }
+
+  // Claude stream-json: result 이벤트의 finalText 우선, 없으면 누적된
+  // assistant text fallback. raw NDJSON 을 lastMessage 로 기록하지 않는다.
+  if (claudeStream.enabled) {
+    const finalText = claudeStream.finalText || claudeStream.assistantText.trim();
+    if (finalText) {
+      try {
+        await writeFile(files.lastMessagePath, `${finalText}\n`, "utf8");
+      } catch {
+        // best-effort
+      }
     }
   }
 
