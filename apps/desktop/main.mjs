@@ -2,6 +2,7 @@ import { app, BrowserWindow, shell, globalShortcut, Tray, Menu, ipcMain, screen,
 import { readFileSync, writeFileSync } from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
+import { networkInterfaces } from "node:os";
 
 let dashboardServer;
 let mainWindow;
@@ -196,8 +197,26 @@ async function createMainWindow() {
   windowMode = loadPersistedWindowMode();
   const initialDims = windowMode === "compact" ? COMPACT_WINDOW : FULL_WINDOW;
 
+  // LAN 접속 토글에 따라 host 를 결정. 켜져 있으면 0.0.0.0 으로 바인딩해 같은 Wi-Fi
+  // 안의 모바일/태블릿에서 토큰 URL 로 접근 가능. 토글 변경은 앱 재시작 후 적용
+  // (이미 listen 한 서버의 bind 주소는 바꿀 수 없음).
+  let initialLanSettings = { lanAccessEnabled: false, lanAccessToken: "" };
+  try {
+    const { getRuntimeSettings } = await import("../../scripts/dashboard-runtime.mjs");
+    const s = await getRuntimeSettings();
+    initialLanSettings = {
+      lanAccessEnabled: Boolean(s.lanAccessEnabled),
+      lanAccessToken: String(s.lanAccessToken || ""),
+    };
+  } catch {
+    // settings 읽기 실패 시 안전 default (LAN off).
+  }
+
   const { createDashboardServer } = await import("../../scripts/dashboard-server.mjs");
-  dashboardServer = await createDashboardServer();
+  dashboardServer = await createDashboardServer({
+    host: initialLanSettings.lanAccessEnabled ? "0.0.0.0" : "127.0.0.1",
+    lanAccessToken: initialLanSettings.lanAccessToken,
+  });
 
   mainWindow = new BrowserWindow({
     width: initialDims.width,
@@ -441,6 +460,53 @@ ipcMain.handle("agentapp:get-update-status", () => latestUpdateStatus);
 ipcMain.handle("agentapp:install-update", () => installUpdateNow());
 // 사용자가 "지금 확인" 으로 즉시 업데이트 체크를 트리거.
 ipcMain.handle("agentapp:check-for-updates", () => checkForUpdatesNow());
+
+// 같은 Wi-Fi 의 폰/태블릿에서 대시보드 접속할 때 사용. main 이 알고 있는 정보는
+// 현재 LAN bind 여부 + 시작 시 적용된 token + 추정 LAN IP. URL 변경 (settings toggle)
+// 은 다음 앱 재시작 후 반영되므로 needsRestart 도 함께 알려준다.
+function detectLanIps() {
+  try {
+    const interfaces = networkInterfaces();
+    const candidates = [];
+    for (const name of Object.keys(interfaces || {})) {
+      for (const info of interfaces[name] || []) {
+        if (info && info.family === "IPv4" && !info.internal) {
+          candidates.push(info.address);
+        }
+      }
+    }
+    return candidates;
+  } catch {
+    return [];
+  }
+}
+ipcMain.handle("agentapp:get-lan-access", async () => {
+  let runtimeSettings = { lanAccessEnabled: false, lanAccessToken: "" };
+  try {
+    const { getRuntimeSettings } = await import("../../scripts/dashboard-runtime.mjs");
+    runtimeSettings = await getRuntimeSettings();
+  } catch {
+    /* best-effort */
+  }
+  const boundHost = dashboardServer?.host || "127.0.0.1";
+  const port = dashboardServer?.port || 0;
+  const isLanBound = boundHost === "0.0.0.0" || boundHost === "::";
+  const lanIps = isLanBound ? detectLanIps() : [];
+  const token = String(runtimeSettings.lanAccessToken || "");
+  const enabledNow = Boolean(runtimeSettings.lanAccessEnabled);
+  const urls = isLanBound && token
+    ? lanIps.map((ip) => `http://${ip}:${port}/?t=${encodeURIComponent(token)}`)
+    : [];
+  return {
+    enabled: enabledNow,
+    boundLan: isLanBound,
+    needsRestart: enabledNow !== isLanBound,
+    token,
+    port,
+    urls,
+    ips: lanIps,
+  };
+});
 
 app.whenReady().then(createMainWindow);
 

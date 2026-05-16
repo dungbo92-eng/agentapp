@@ -17,6 +17,7 @@ import {
   Send,
   Settings,
   ShieldCheck,
+  Smartphone,
   Square,
   Terminal,
   TimerReset,
@@ -1190,9 +1191,37 @@ function App() {
     onUpdateDownloaded?: (handler: (payload: { version?: string }) => void) => () => void;
     installUpdate?: () => Promise<boolean>;
     checkForUpdates?: () => Promise<{ ok: boolean; reason?: string }>;
+    getLanAccess?: () => Promise<{
+      enabled: boolean;
+      boundLan: boolean;
+      needsRestart: boolean;
+      token: string;
+      port: number;
+      urls: string[];
+      ips: string[];
+    }>;
   } }).agentapp : undefined);
   const [appVersion, setAppVersion] = React.useState<string>("");
   const [updateInfo, setUpdateInfo] = React.useState<UpdateState>({ status: "idle", version: "" });
+  type LanState = {
+    enabled: boolean;
+    boundLan: boolean;
+    needsRestart: boolean;
+    token: string;
+    port: number;
+    urls: string[];
+    ips: string[];
+  };
+  const [lanAccess, setLanAccess] = React.useState<LanState | null>(null);
+  const refreshLanAccess = React.useCallback(async () => {
+    if (!desktopApi?.getLanAccess) return;
+    try {
+      const info = await desktopApi.getLanAccess();
+      setLanAccess(info);
+    } catch {
+      setLanAccess(null);
+    }
+  }, [desktopApi]);
   React.useEffect(() => {
     if (!desktopApi) return;
     let off: (() => void) | undefined;
@@ -1211,6 +1240,8 @@ function App() {
         if (s && s.status) setUpdateInfo(s);
       });
     }
+    // LAN 접속 상태 — 토큰/IP/needsRestart 를 모바일 접속 패널에서 표시.
+    void refreshLanAccess();
     // 통합 상태 채널 — checking/current/available/downloaded/error 모두 한 채널로.
     // 옛 빌드 호환을 위해 onUpdateAvailable/Downloaded 도 같이 구독한다.
     const offStatus = desktopApi.onUpdateStatus?.((s) => {
@@ -3052,6 +3083,84 @@ function App() {
             </ol>
           )}
         </section>
+
+        {desktopApi ? (
+          <section className="railPanel">
+            <div className="sectionTitle compact">
+              <h2>모바일 접속</h2>
+              <Smartphone aria-hidden="true" size={16} />
+            </div>
+            <label
+              style={{ display: "flex", alignItems: "center", gap: 8, fontSize: 13, cursor: "pointer" }}
+              title="같은 Wi-Fi 의 폰/태블릿에서 토큰 URL 로 대시보드 접속 허용. 토글 변경은 앱 재시작 후 반영됩니다."
+            >
+              <input
+                type="checkbox"
+                checked={Boolean(lanAccess?.enabled)}
+                onChange={async (event) => {
+                  const next = event.target.checked;
+                  try {
+                    await runtimeRequest("settings", { lanAccessEnabled: next });
+                    await refreshLanAccess();
+                    setToast({
+                      kind: "info",
+                      message: next
+                        ? "LAN 접속 활성화. 앱을 한 번 종료 → 재실행해야 0.0.0.0 으로 다시 바인딩됩니다."
+                        : "LAN 접속 비활성화. 재시작 시 127.0.0.1 로 돌아갑니다.",
+                    });
+                  } catch (caught) {
+                    setToast({
+                      kind: "warn",
+                      message: caught instanceof Error ? caught.message : "설정 저장 실패",
+                    });
+                  }
+                }}
+              />
+              <span>같은 Wi-Fi 에서 접속 허용</span>
+            </label>
+            {lanAccess?.needsRestart ? (
+              <small style={{ color: "#b45309" }}>
+                ⚠ 설정 변경됨 — 트레이 메뉴 → 종료 후 재실행해야 새 bind 가 적용됩니다.
+              </small>
+            ) : null}
+            {lanAccess?.enabled && lanAccess.boundLan && lanAccess.urls.length > 0 ? (
+              <>
+                <small>폰 브라우저에 아래 URL 중 하나 입력 (보통 192.168 로 시작):</small>
+                {lanAccess.urls.map((url) => (
+                  <button
+                    key={url}
+                    type="button"
+                    className="button ghost"
+                    style={{
+                      justifyContent: "flex-start",
+                      fontSize: 11,
+                      wordBreak: "break-all",
+                      whiteSpace: "normal",
+                      textAlign: "left",
+                      padding: "6px 8px",
+                    }}
+                    title="클릭해서 URL 복사"
+                    onClick={() => {
+                      void navigator.clipboard?.writeText(url);
+                      setToast({ kind: "success", message: "URL 복사됨 — 폰에 붙여넣기" });
+                    }}
+                  >
+                    {url}
+                  </button>
+                ))}
+                <small style={{ color: "#64748b" }}>
+                  토큰은 URL 의 <code>?t=</code> 뒤 부분. 즐겨찾기에 통째로 저장하면 다음부터 한 번에 접속됩니다. (토큰 노출 = 같은 Wi-Fi 누구나 접속 가능 — 친구 줄 때 주의)
+                </small>
+              </>
+            ) : lanAccess?.enabled && !lanAccess.boundLan ? (
+              <small style={{ color: "#b45309" }}>
+                LAN 활성화됐지만 서버가 127.0.0.1 에 바인딩된 상태. 한 번 종료 후 재실행하세요.
+              </small>
+            ) : (
+              <small>꺼져 있음. 켜면 같은 Wi-Fi 안의 다른 기기에서 토큰 URL 로 접속 가능 (인터넷엔 노출 안 됨).</small>
+            )}
+          </section>
+        ) : null}
       </aside>
     </main>
   );

@@ -40,4 +40,7 @@ contextBridge.exposeInMainWorld("agentapp", {
   installUpdate: () => ipcRenderer.invoke("agentapp:install-update"),
   // 30 분 자동 체크와 별개로 사용자가 즉시 확인하고 싶을 때.
   checkForUpdates: () => ipcRenderer.invoke("agentapp:check-for-updates"),
+  // 같은 Wi-Fi 의 폰/태블릿에서 대시보드 접속용. 현재 LAN bind 상태 + 적용된 token
+  // + 추정 LAN IP 와 그로 만든 접속 URL 들. UI 는 이걸 받아 QR / 복사 버튼을 띄운다.
+  getLanAccess: () => ipcRenderer.invoke("agentapp:get-lan-access"),
 });

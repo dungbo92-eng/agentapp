@@ -1,5 +1,17 @@
 # RUN_STATUS
 
+## 2026-05-16T_mobile_lan_access
+
+같은 Wi-Fi 의 모바일/태블릿에서 호스팅 없이 대시보드 보고 싶다는 요청. 추가:
+
+- settings: `lanAccessEnabled` (bool, default false), `lanAccessToken` (32자, 켤 때 자동 생성·영속). normalizeSettings 가 토글 ON 일 때만 토큰 새로 만들고 그 뒤에는 유지.
+- scripts/dashboard-server.mjs: 비로컬호스트 요청에 token 검증 미들웨어. query `?t=`, header `X-AgentApp-Token`, cookie `agentapp_t` 셋 다 받음. 첫 통과 시 cookie 심어 같은 페이지 자원 요청 통과.
+- apps/desktop/main.mjs: 시작 시 settings 읽어 host=0.0.0.0 또는 127.0.0.1 결정. `agentapp:get-lan-access` IPC 가 현재 bind 상태 + token + 자동 감지한 LAN IPv4 들로 URL 배열 반환. needsRestart 도 동봉.
+- preload: `getLanAccess` 추가.
+- main.tsx: contextRail 에 "모바일 접속" 패널 신규. 토글, 재시작 필요 경고, URL 목록 클릭 → 복사. token = URL 의 ?t= 부분이라 즐겨찾기 한 번 저장으로 재접속 가능.
+
+검증: 설정 lifecycle 토글 on/off 시 토큰 생성·영속 OK, validate / dashboard build 통과.
+
 ## 2026-05-16T_preload_esm_fix
 
 v0.4.3 재설치 후에도 버전 pill / 트레이로 버튼 / 컴팩트 모드 IPC 가 동작하지 않는 회귀 분석.

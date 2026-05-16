@@ -42,6 +42,12 @@ const DEFAULT_RUNTIME = {
     // 빈 값 또는 미지정이면 도메인 우선 비활성화. 코드 상수 대신 settings 로
     // 노출해 사이트별로 다른 도메인을 쓸 수 있게 한다.
     maintenanceDomain: "hanilnetworks.com",
+    // 같은 Wi-Fi 안의 모바일/태블릿에서 대시보드 접속 허용. 기본 off (127.0.0.1).
+    // 켜면 main.mjs 가 0.0.0.0 으로 dashboard-server 를 다시 띄우고, 비로컬호스트
+    // 요청은 lanAccessToken 을 query (?t=...) 또는 X-AgentApp-Token 헤더로 들고
+    // 와야 받아준다. 토큰은 toggle ON 시 자동 생성 (영구 보관).
+    lanAccessEnabled: false,
+    lanAccessToken: "",
   },
 };
 
@@ -65,6 +71,18 @@ function normalizeSettings(raw) {
   const maintenanceDomain = typeof maintenanceDomainRaw === "string"
     ? maintenanceDomainRaw.trim().toLowerCase()
     : "hanilnetworks.com";
+  const lanAccessEnabled = source.lanAccessEnabled === undefined
+    ? false
+    : Boolean(source.lanAccessEnabled);
+  // 토큰은 영문/숫자 32 자. 켤 때 비어 있으면 새로 생성, 한 번 만들면 유지.
+  // (토글을 껐다가 다시 켜면 같은 토큰 그대로 → 폰에 저장된 즐겨찾기 URL 재사용 가능)
+  const tokenRaw = String(source.lanAccessToken || "").trim();
+  const tokenValid = /^[A-Za-z0-9_-]{16,64}$/.test(tokenRaw);
+  const lanAccessToken = lanAccessEnabled && !tokenValid
+    ? generateLanAccessToken()
+    : tokenValid
+      ? tokenRaw
+      : "";
   return {
     idleWarnMs,
     idleKillMs,
@@ -74,7 +92,19 @@ function normalizeSettings(raw) {
     quotaRetryEnabled,
     quotaRetryMaxAttempts,
     maintenanceDomain,
+    lanAccessEnabled,
+    lanAccessToken,
   };
+}
+
+function generateLanAccessToken() {
+  // 32 자 영문/숫자 — Math.random 충분 (보안 결정 토큰 아님, URL guess 방지용).
+  const alphabet = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789";
+  let out = "";
+  for (let i = 0; i < 32; i += 1) {
+    out += alphabet[Math.floor(Math.random() * alphabet.length)];
+  }
+  return out;
 }
 
 export async function getRuntimeSettings() {

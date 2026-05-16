@@ -276,15 +276,82 @@ async function serveStatic(req, res, staticDir, url) {
   }
 }
 
+// 같은 Wi-Fi LAN 에서 폰/태블릿으로 대시보드를 보려는 케이스용. host="0.0.0.0"
+// 으로 바인딩한 뒤, 비로컬호스트 요청은 token 을 query (?t=) 또는 헤더
+// (X-AgentApp-Token) 로 들고 와야 받아준다. 토큰이 일치하면 응답 직전에
+// Set-Cookie 로 같은 토큰을 심어 페이지 내 fetch/assets 도 통과시킨다.
+function isLocalhostRequest(req) {
+  const raw = String(req.socket?.remoteAddress || "");
+  if (!raw) return true; // unknown → 안전하게 로컬 취급 (절대 외부에서 닿지 않음을 가정)
+  const lower = raw.toLowerCase();
+  return (
+    lower === "127.0.0.1" ||
+    lower === "::1" ||
+    lower === "::ffff:127.0.0.1" ||
+    lower.startsWith("::ffff:127.")
+  );
+}
+
+function extractToken(req) {
+  // 1) query ?t=<token>
+  const qIdx = req.url?.indexOf("?") ?? -1;
+  if (qIdx >= 0) {
+    const params = new URLSearchParams(req.url.slice(qIdx + 1));
+    const t = params.get("t");
+    if (t) return t;
+  }
+  // 2) header
+  const header = req.headers["x-agentapp-token"];
+  if (typeof header === "string" && header) return header;
+  // 3) cookie agentapp_t=<token>
+  const cookie = String(req.headers.cookie || "");
+  const m = cookie.match(/(?:^|;\s*)agentapp_t=([^;]+)/);
+  if (m && m[1]) return decodeURIComponent(m[1]);
+  return "";
+}
+
 export async function createDashboardServer(options = {}) {
   const host = options.host || "127.0.0.1";
   const port = Number(options.port || process.env.AGENTAPP_DESKTOP_PORT || 0);
   const staticDir = path.resolve(options.staticDir || DEFAULT_STATIC_DIR);
+  // LAN access 토큰 — getServerRequireToken() 으로 매 요청마다 최신 setting 을 읽어
+  // 토글 변경이 재시작 없이 반영되도록 한다.
+  const initialToken = String(options.lanAccessToken || "").trim();
+  let activeToken = initialToken;
+  async function getActiveToken() {
+    try {
+      const { getRuntimeSettings } = await import("./dashboard-runtime.mjs");
+      const settings = await getRuntimeSettings();
+      activeToken = settings.lanAccessEnabled ? String(settings.lanAccessToken || "") : "";
+    } catch {
+      // settings 읽기 실패 시 이전 값 유지 — 외부 접근 차단이 더 안전.
+    }
+    return activeToken;
+  }
 
   const server = createServer(async (req, res) => {
     const url = req.url?.split("?")[0] || "/";
 
     try {
+      // 비로컬호스트 요청은 토큰 검증. 매 요청마다 settings 재조회는 cheap (인메모리).
+      if (!isLocalhostRequest(req)) {
+        const token = await getActiveToken();
+        if (!token) {
+          sendText(res, 403, "LAN access is disabled. Enable it in the desktop app settings.");
+          return;
+        }
+        const presented = extractToken(req);
+        if (presented !== token) {
+          sendText(res, 401, "AgentApp token required. Open the URL shown in the desktop dashboard.");
+          return;
+        }
+        // 한 번 통과하면 cookie 로 심어 같은 페이지의 후속 자원 요청도 통과.
+        res.setHeader(
+          "Set-Cookie",
+          `agentapp_t=${encodeURIComponent(token)}; Path=/; SameSite=Lax; Max-Age=2592000`,
+        );
+      }
+
       if (url.startsWith("/api/agentapp/")) {
         const handled = await handleApi(req, res, url);
         if (!handled) sendJson(res, 404, { error: "not_found" });
@@ -308,6 +375,8 @@ export async function createDashboardServer(options = {}) {
     server,
     url: `http://${host}:${actualPort}/`,
     staticDir,
+    host,
+    port: actualPort,
   };
 }
 
