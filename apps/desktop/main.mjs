@@ -61,6 +61,13 @@ if (!singleInstanceLock) {
 const FULL_WINDOW = { width: 1440, height: 920, minWidth: 1120, minHeight: 760 };
 const COMPACT_WINDOW = { width: 380, height: 560, minWidth: 320, minHeight: 420 };
 
+// React renderer 가 mount 되기 전에 발생한 update-available/downloaded 이벤트도
+// 받을 수 있도록 마지막 상태를 main process 에 캐싱. IPC 로 조회 가능.
+//   status = "idle" — 업데이트 정보 없음 (앱 시작 직후 또는 미패키지 dev 환경)
+//          "available" — 새 버전 발견, 다운로드 중 또는 대기
+//          "downloaded" — 다운로드 완료, 재시작 시 적용
+let latestUpdateStatus = { status: "idle", version: "" };
+
 async function bootstrapAutoUpdater() {
   if (!app.isPackaged) return;
   if (process.env.AGENTAPP_DISABLE_AUTOUPDATE === "1") return;
@@ -73,6 +80,7 @@ async function bootstrapAutoUpdater() {
     autoUpdater.on("checking-for-update", () => process.stderr.write("[updater] checking\n"));
     autoUpdater.on("update-available", (info) => {
       process.stderr.write(`[updater] available ${info?.version}\n`);
+      latestUpdateStatus = { status: "available", version: String(info?.version || "") };
       if (mainWindow && !mainWindow.isDestroyed()) {
         mainWindow.webContents.send("agentapp:update-available", { version: info?.version });
       }
@@ -83,6 +91,7 @@ async function bootstrapAutoUpdater() {
     });
     autoUpdater.on("update-downloaded", (info) => {
       process.stderr.write(`[updater] downloaded ${info?.version}\n`);
+      latestUpdateStatus = { status: "downloaded", version: String(info?.version || "") };
       if (mainWindow && !mainWindow.isDestroyed()) {
         mainWindow.webContents.send("agentapp:update-downloaded", { version: info?.version });
       }
@@ -331,6 +340,13 @@ ipcMain.handle("agentapp:hide-to-tray", () => {
   return true;
 });
 ipcMain.handle("agentapp:get-window-mode", () => windowMode);
+// 현재 설치된 앱 버전 (package.json 의 version 과 동기) — UI 가 "v0.4.1" 같은
+// 표기를 헤더에 보여줄 때 사용.
+ipcMain.handle("agentapp:get-app-version", () => app.getVersion());
+// React renderer 가 mount 되기 전에 발생한 update-available/downloaded 이벤트도
+// 따라잡을 수 있도록 마지막 상태를 IPC 로 제공. 첫 렌더에서 한 번 호출하면
+// "이미 다운로드된 새 버전 있음" 같은 상태가 즉시 헤더에 반영된다.
+ipcMain.handle("agentapp:get-update-status", () => latestUpdateStatus);
 
 app.whenReady().then(createMainWindow);
 

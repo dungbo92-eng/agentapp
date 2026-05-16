@@ -1181,7 +1181,13 @@ function App() {
     hideToTray: () => Promise<boolean>;
     getWindowMode: () => Promise<string>;
     onWindowModeChanged: (handler: (mode: string) => void) => () => void;
+    getAppVersion?: () => Promise<string>;
+    getUpdateStatus?: () => Promise<{ status: "idle" | "available" | "downloaded"; version: string }>;
+    onUpdateAvailable?: (handler: (payload: { version?: string }) => void) => () => void;
+    onUpdateDownloaded?: (handler: (payload: { version?: string }) => void) => () => void;
   } }).agentapp : undefined);
+  const [appVersion, setAppVersion] = React.useState<string>("");
+  const [updateInfo, setUpdateInfo] = React.useState<{ status: "idle" | "available" | "downloaded"; version: string }>({ status: "idle", version: "" });
   React.useEffect(() => {
     if (!desktopApi) return;
     let off: (() => void) | undefined;
@@ -1191,7 +1197,26 @@ function App() {
     off = desktopApi.onWindowModeChanged((m) => {
       if (m === "compact" || m === "full") setViewMode(m);
     });
-    return () => { off?.(); };
+    // 버전/업데이트 상태 — 데스크탑일 때만 채운다. 웹에서는 "" 그대로.
+    if (desktopApi.getAppVersion) {
+      void desktopApi.getAppVersion().then((v) => setAppVersion(String(v || "")));
+    }
+    if (desktopApi.getUpdateStatus) {
+      void desktopApi.getUpdateStatus().then((s) => {
+        if (s && (s.status === "available" || s.status === "downloaded")) setUpdateInfo(s);
+      });
+    }
+    const offAvail = desktopApi.onUpdateAvailable?.((payload) => {
+      setUpdateInfo({ status: "available", version: String(payload?.version || "") });
+    });
+    const offDown = desktopApi.onUpdateDownloaded?.((payload) => {
+      setUpdateInfo({ status: "downloaded", version: String(payload?.version || "") });
+    });
+    return () => {
+      off?.();
+      offAvail?.();
+      offDown?.();
+    };
   }, [desktopApi]);
   const toggleViewMode = React.useCallback(() => {
     const next = viewMode === "compact" ? "full" : "compact";
@@ -1873,6 +1898,21 @@ function App() {
           <div className="compactBrand">
             <Bot aria-hidden="true" size={16} />
             <strong>AgentApp</strong>
+            {appVersion ? (
+              <span
+                className={`compactVersion status${updateInfo.status === "downloaded" ? "Downloaded" : updateInfo.status === "available" ? "Available" : "Ok"}`}
+                title={
+                  updateInfo.status === "downloaded"
+                    ? `재시작 시 v${updateInfo.version} 적용`
+                    : updateInfo.status === "available"
+                      ? `새 버전 v${updateInfo.version} 다운로드 중`
+                      : "최신 버전 사용 중"
+                }
+              >
+                v{appVersion}
+                {updateInfo.status === "downloaded" ? ` → v${updateInfo.version}*` : updateInfo.status === "available" ? ` → v${updateInfo.version}↓` : ""}
+              </span>
+            ) : null}
           </div>
           <div className="compactHeaderActions">
             <button
@@ -2433,6 +2473,27 @@ function App() {
               >
                 트레이로
               </button>
+            ) : null}
+            {appVersion ? (
+              <span
+                className={`appVersionPill status${updateInfo.status === "downloaded" ? "Downloaded" : updateInfo.status === "available" ? "Available" : "Ok"}`}
+                title={
+                  updateInfo.status === "downloaded"
+                    ? `새 버전 v${updateInfo.version} 다운로드 완료 — 앱을 종료(트레이 메뉴 → 종료) 후 재시작하면 적용됩니다.`
+                    : updateInfo.status === "available"
+                      ? `새 버전 v${updateInfo.version} 다운로드 중 — 완료되면 재시작 시 적용됩니다.`
+                      : "최신 버전을 사용 중입니다 (30분마다 자동 체크)."
+                }
+              >
+                <span className="versionTag">v{appVersion}</span>
+                {updateInfo.status === "downloaded" ? (
+                  <span className="versionBadge">v{updateInfo.version} 재시작 시 적용</span>
+                ) : updateInfo.status === "available" ? (
+                  <span className="versionBadge">v{updateInfo.version} 다운로드 중</span>
+                ) : (
+                  <span className="versionBadge">최신</span>
+                )}
+              </span>
             ) : null}
             <time dateTime={snapshot.generated_at}>{new Date(snapshot.generated_at).toLocaleString("ko-KR")}</time>
           </div>

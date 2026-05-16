@@ -892,6 +892,62 @@ textarea:focus {
   color: #1d4ed8;
 }
 
+/* 현재 앱 버전 + 업데이트 상태 표시 — 헤더에 작게 노출. */
+.appVersionPill {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 3px 8px;
+  border: 1px solid #cbd5e1;
+  border-radius: 999px;
+  background: #f8fafc;
+  color: #475569;
+  font-size: 0.7rem;
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+.appVersionPill .versionTag {
+  font-weight: 600;
+  color: #1e293b;
+}
+.appVersionPill .versionBadge {
+  font-size: 0.66rem;
+  padding: 1px 6px;
+  border-radius: 999px;
+  background: #e2e8f0;
+  color: #475569;
+}
+.appVersionPill.statusOk .versionBadge {
+  background: #dcfce7;
+  color: #166534;
+}
+.appVersionPill.statusAvailable {
+  border-color: #fcd34d;
+  background: #fffbeb;
+  color: #92400e;
+}
+.appVersionPill.statusAvailable .versionBadge {
+  background: #fde68a;
+  color: #92400e;
+}
+.appVersionPill.statusDownloaded {
+  border-color: #60a5fa;
+  background: #eff6ff;
+  color: #1d4ed8;
+}
+.appVersionPill.statusDownloaded .versionBadge {
+  background: #bfdbfe;
+  color: #1d4ed8;
+}
+.compactVersion {
+  font-size: 0.62rem;
+  color: #64748b;
+  font-variant-numeric: tabular-nums;
+  margin-left: 6px;
+}
+.compactVersion.statusAvailable { color: #92400e; }
+.compactVersion.statusDownloaded { color: #1d4ed8; }
+
 .metaPanels {
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));

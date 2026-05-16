@@ -1,5 +1,5 @@
 {
-  "generated_at": "2026-05-16T08:35:24.799Z",
+  "generated_at": "2026-05-16T09:57:56.134Z",
   "repo_root": "E:\\agentApp",
   "progress": {
     "percent": 99,
@@ -555,7 +555,7 @@
       "next": "DEC-20260516-002/003 사용자 결정 후 cycle-test 재실행",
       "generated": "2026-05-16T02:42:11.328Z",
       "decision_count": 0,
-      "line_count": 584,
+      "line_count": 596,
       "excerpt": "...204233 interruptedWorktree fileCount=6\n- Git: commit 75430d9 pushed; release commit d14858a and tag v0.2.10 pushed\n- Decisions: none\n- Next: D:\\\\sytleOsjang에 남은 6개 변경 파일을 검토해 이어서 완료/커밋하거나 폐기 판단\n\n## 2026-05-16T17:30:00.000Z\n\n- Status: completed\n- Summary: 사용자 환경에서 보고된 토큰 폭주 3대 원인 차단 + Claude Code 라이브 타임라인. (1) startRun 에 살아있는 activeRun 가드, dispatchPendingForAccount 에 in-memory account-lock 으로 백그라운드 다중 실행 차단. (2) tryAutoChain 의 CHAIN_DONE 처리 기본 = stop, override 는 settings 명시 시에만 + cap 3→1, autoChainMaxDepth 30→8. (3) tryQuotaRetry 후속 run 에 autoChain:false 강제, quotaRetryMaxAttempts 3→2 — quota×chain 곱셈 폭주 차단. (4) Claude 어댑터에 --output-format stream-json --verbose 적용, interpretClaudeStreamLine 가 NDJSON 을 💬/🔧/🤔/↳/⚠/▶/▣ 한 줄로 변환해 event log 실시간 표시; lastMessage 는 result.finalText 로 저장. v0.3.0 릴리즈 발행.\n- Verification: pnpm validate (validate-quota-parser 15 케이스 통과 — token-drain 가드 2 + stream-json 파서 6 신규 포함); pnpm dashboard:build; pnpm desktop:release -- --bump minor; gh release view v0.3.0; AgentApp-Setup-0.3.0-x64.exe + latest.yml 업로드 확인.\n- Git: commits 0a10bbd (token-drain fix), 13b2304 (Claude stream-json), 79bbd7d (release v0.3.0), 93d3912/(이번 commit)(decisions doc) pushed; tag v0.3.0 pushed.\n- Decisions: DEC-20260516-001 resolved (gh CLI 설치 + OAuth 인증 후 release 발행 완료)\n- Next: 다음 작업은 사용자 지시 대기. 보류 항목 DEC-20260509-003 (주간 사용량 입력 방식) 만 남음.\n\n## 2026-05-16T02:37:47.857Z\n\n- Status: completed\n- Summary: 데스크탑 단일 인스턴스 잠금 + 트레이/창 컴팩트 모드 양방향 동기화 마무리\n- Verification: pnpm validate && pnpm dashboard:build\n- Git: not recorded\n- Decisions: none\n- Next: See tools/agent-orchestrator/handoff/NEXT_TASK.md\n\n## 2026-05-16T02:42:11.328Z\n\n- Status: blocked\n- Summary: Claude/Gemini CLI 설치/인증 재검증: Claude CLI 직접 호출은 정상이나 dashboard runtime이 두 Claude 계정 모두 quota-lock으로 제외; Gemini CLI는 미인증·dashboard 미등록\n- Verification: claude --print 직접 호출=정상응답; gemini -p=Auth method missing; agent:cycle-test --worker claude-code --execute=blocked(라우팅 후보 0); agent:cycle-test --worker gemini-cli=blocked(활성 계정 없음); pnpm agent:doctor=ready(2 warnings)\n- Git: not recorded\n- Decisions: DEC-20260516-002 pending(Gemini 인증+등록), DEC-20260516-003 pending(Claude 잠금 일치성)\n- Next: DEC-20260516-002/003 사용자 결정 후 cycle-test 재실행"
     },
     {
