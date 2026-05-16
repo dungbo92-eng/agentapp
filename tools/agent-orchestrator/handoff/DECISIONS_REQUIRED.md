@@ -32,22 +32,6 @@
 
 ## 대기
 
-### DEC-20260516-001 — 이 PC 에서 gh CLI 누락 → 자동 릴리즈 불가
-
-- Status: pending
-- Priority: medium
-- Category: deployment
-- Requested by: agent
-- Blocks: 토큰 폭주 수정 commit `0a10bbd` 의 자동 릴리즈 (`pnpm desktop:release`).
-- Context: feedback rule `의미 있는 변경은 push 직후 자동 릴리즈` 에 따라 `dashboard-runtime.mjs` 수정 후 릴리즈 발행을 시도했으나, 이 PC 에 `gh` CLI 가 설치돼 있지 않아 GitHub Release 발행을 건너뜀. `gh auth status 실패면 건너뛰고 DECISIONS_REQUIRED 에 토큰 점검 항목 남긴다` 규칙 적용.
-- Options:
-  - A: 이 PC 에 `gh` 설치 후 `gh auth login` → 다시 `pnpm desktop:release -- --bump patch` 실행.
-  - B: 다른 PC (이미 릴리즈 권한 있는 환경) 에서 main pull 후 `pnpm desktop:release -- --bump patch` 실행.
-- Recommended: B. 이 PC 는 사용자 테스트 환경이고, 릴리즈 권한 PC 가 따로 있는 흐름을 유지하는 게 보안에 유리.
-- Decision needed: 누가/어디서 v0.2.12 릴리즈를 발행할지.
-- After decision: 결정 PC 에서 main pull → `pnpm desktop:release -- --bump patch --notes "fix: prevent token-drain (concurrent runs, CHAIN_DONE override, retry chain)"` 실행 → latest.yml + NSIS Setup 업로드 확인.
-- Created: 2026-05-16
-
 ### DEC-20260509-003 — 주간 사용량 입력 방식
 
 - Status: pending
@@ -65,6 +49,19 @@
 - Created: 2026-05-09
 
 ## 해결됨
+
+### DEC-20260516-001 — 이 PC 에서 gh CLI 누락 → 자동 릴리즈 불가
+
+- Status: resolved
+- Priority: medium
+- Category: deployment
+- Requested by: agent
+- Blocks: 토큰 폭주 수정 (`0a10bbd`) + Claude stream-json (`13b2304`) 의 자동 릴리즈
+- Context: 이 PC 에서 `gh` 가 PATH 와 표준 경로에 없어 `pnpm desktop:release` 가 실패했다.
+- Decision: 사용자가 gh CLI 를 설치하고 OAuth 인증 완료. `C:\Program Files\GitHub CLI\gh.exe` 절대경로로 PATH 임시 export 후 release 실행.
+- Resolved: 2026-05-16
+- Result: `pnpm desktop:release -- --bump minor` 로 `v0.3.0` 발행 (commit `79bbd7d`). Notes: 토큰 폭주 3대 원인 차단 + Claude Code stream-json 라이브 타임라인. NSIS Setup `AgentApp-Setup-0.3.0-x64.exe` + latest.yml + blockmap 업로드 확인. 기존 설치본은 다음 실행 시 자동 업데이트.
+- Release URL: https://github.com/dungbo92-eng/agentapp/releases/tag/v0.3.0
 
 ### DEC-20260513-001 — GitHub Release 도구 점검
 

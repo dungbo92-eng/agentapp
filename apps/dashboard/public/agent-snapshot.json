@@ -1,5 +1,5 @@
 {
-  "generated_at": "2026-05-16T01:59:31.614Z",
+  "generated_at": "2026-05-16T02:18:02.034Z",
   "repo_root": "E:\\agentApp",
   "progress": {
     "percent": 99,
@@ -384,12 +384,6 @@
   },
   "pending_decisions": [
     {
-      "title": "DEC-20260516-001 — 이 PC 에서 gh CLI 누락 → 자동 릴리즈 불가",
-      "priority": "medium",
-      "category": "deployment",
-      "blocks": "토큰 폭주 수정 commit `0a10bbd` 의 자동 릴리즈 (`pnpm desktop:release`)."
-    },
-    {
       "title": "DEC-20260509-003 — 주간 사용량 입력 방식",
       "priority": "high",
       "category": "usage_budget",
@@ -397,20 +391,14 @@
     }
   ],
   "latest_run": {
-    "at": "2026-05-14T07:37:58.292Z",
+    "at": "2026-05-16T17:30:00.000Z",
     "status": "completed",
-    "summary": "Codex run-1778742204233은 프로세스가 exitCode 1로 종료되고 최종 메시지를 남기지 않아 실패 처리됐습니다. quota/auth 증거는 없고, 로그상 누락된 handoff 파일 조회와 PowerShell parser error 이후 i18n 검색 중 종료됐습니다. 실패/강종 후 미커밋 변경이 남으면 run에 interruptedWorktree를 기록하고 대시보드에 파일 수/목록을 표시하도록 v0.2.10 릴리즈했습니다.",
-    "verification": "pnpm validate; pnpm dashboard:build; gh release view v0.2.10; run-1778742204233 interruptedWorktree fileCount=6",
-    "next": "D:\\\\sytleOsjang에 남은 6개 변경 파일을 검토해 이어서 완료/커밋하거나 폐기 판단"
+    "summary": "사용자 환경에서 보고된 토큰 폭주 3대 원인 차단 + Claude Code 라이브 타임라인. (1) startRun 에 살아있는 activeRun 가드, dispatchPendingForAccount 에 in-memory account-lock 으로 백그라운드 다중 실행 차단. (2) tryAutoChain 의 CHAIN_DONE 처리 기본 = stop, override 는 settings 명시 시에만 + cap 3→1, autoChainMaxDepth 30→8. (3) tryQuotaRetry 후속 run 에 autoChain:false 강제, quotaRetryMaxAttempts 3→2 — quota×chain 곱셈 폭주 차단. (4) Claude 어댑터에 --output-format stream-json --verbose 적용, interpretClaudeStreamLine 가 NDJSON 을 💬/🔧/🤔/↳/⚠/▶/▣ 한 줄로 변환해 event log 실시간 표시; lastMessage 는 result.finalText 로 저장. v0.3.0 릴리즈 발행.",
+    "verification": "pnpm validate (validate-quota-parser 15 케이스 통과 — token-drain 가드 2 + stream-json 파서 6 신규 포함); pnpm dashboard:build; pnpm desktop:release -- --bump minor; gh release view v0.3.0; AgentApp-Setup-0.3.0-x64.exe + latest.yml 업로드 확인.",
+    "next": "다음 작업은 사용자 지시 대기. 보류 항목 DEC-20260509-003 (주간 사용량 입력 방식) 만 남음."
   },
   "approval_queue": {
     "pending_decisions": [
-      {
-        "title": "DEC-20260516-001 — 이 PC 에서 gh CLI 누락 → 자동 릴리즈 불가",
-        "priority": "medium",
-        "category": "deployment",
-        "blocks": "토큰 폭주 수정 commit `0a10bbd` 의 자동 릴리즈 (`pnpm desktop:release`)."
-      },
       {
         "title": "DEC-20260509-003 — 주간 사용량 입력 방식",
         "priority": "high",
@@ -552,11 +540,11 @@
       "path": "tools/agent-orchestrator/handoff/RUN_STATUS.md",
       "heading": "RUN_STATUS",
       "status": "completed",
-      "next": "D:\\\\sytleOsjang에 남은 6개 변경 파일을 검토해 이어서 완료/커밋하거나 폐기 판단",
-      "generated": "2026-05-14T07:37:58.292Z",
+      "next": "다음 작업은 사용자 지시 대기. 보류 항목 DEC-20260509-003 (주간 사용량 입력 방식) 만 남음.",
+      "generated": "2026-05-16T17:30:00.000Z",
       "decision_count": 0,
-      "line_count": 497,
-      "excerpt": "...즈했습니다. c4 Codex dungbo92 계정의 잘못된 자동 잠금은 해제된 상태입니다.\n- Verification: pnpm validate; pnpm dashboard:build; gh release view v0.2.7\n- Git: commit 21e1c22 pushed; release commit 1e520de and tag v0.2.7 pushed\n- Decisions: none\n- Next: Claude/Gemini authenticated cycle 재검증\n\n## 2026-05-14T06:33:04.942Z\n\n- Status: completed\n- Summary: stale activeRun 복구를 추가했습니다. worker PID가 사라졌고 last-message가 있으면 dashboard가 자동으로 run을 완료 처리해 다음 에이전트 실행을 막지 않습니다. 현재 멈춘 run-1778736452149도 완료 처리했습니다.\n- Verification: pnpm validate; pnpm dashboard:build; run-1778736452149 activeRun cleared\n- Git: not recorded\n- Decisions: none\n- Next: commit/push/release\n\n## 2026-05-14T06:35:29.560Z\n\n- Status: completed\n- Summary: stale activeRun 복구 패치를 v0.2.9로 릴리즈했습니다. run-1778736452149는 완료 처리되어 activeRun이 비었고, 다음 에이전트 실행을 막지 않습니다.\n- Verification: pnpm validate; pnpm dashboard:build; gh release view v0.2.9; activeRun null\n- Git: commit 754015f pushed; release commit 45c1e53 and tag v0.2.9 pushed\n- Decisions: none\n- Next: D:\\\\sytleOsjang 변경 13개 파일 검증/커밋 또는 다음 에이전트 인계\n\n## 2026-05-14T06:47:09.520Z\n\n- Status: completed\n- Summary: stale activeRun 복구 릴리즈(v0.2.9) 후 stuck run-1778736452149를 완료 처리했고, 이어받은 D:\\\\sytleOsjang 쇼퍼 i18n 변경을 보정해 c11dcdd로 commit/push했습니다.\n- Verification: AgentApp: pnpm validate; pnpm dashboard:build; gh release view v0.2.9; activeRun null. sytleOsjang: pnpm typecheck; git diff --check.\n- Git: AgentApp main pushed: 754015f, 45c1e53, 8446764. sytleOsjang main pushed: c11dcdd.\n- Decisions: none\n- Next: AgentApp 다음 제품 작업: Claude/Gemini CLI authenticated cycle 재검증. sytleOsjang 다음 작업: i18n 잔여 화면 브라우저 런타임 확인 및 문구 품질 보정.\n\n## 2026-05-14T07:37:58.292Z\n\n- Status: completed\n- Summary: Codex run-1778742204233은 프로세스가 exitCode 1로 종료되고 최종 메시지를 남기지 않아 실패 처리됐습니다. quota/auth 증거는 없고, 로그상 누락된 handoff 파일 조회와 PowerShell parser error 이후 i18n 검색 중 종료됐습니다. 실패/강종 후 미커밋 변경이 남으면 run에 interruptedWorktree를 기록하고 대시보드에 파일 수/목록을 표시하도록 v0.2.10 릴리즈했습니다.\n- Verification: pnpm validate; pnpm dashboard:build; gh release view v0.2.10; run-1778742204233 interruptedWorktree fileCount=6\n- Git: commit 75430d9 pushed; release commit d14858a and tag v0.2.10 pushed\n- Decisions: none\n- Next: D:\\\\sytleOsjang에 남은 6개 변경 파일을 검토해 이어서 완료/커밋하거나 폐기 판단"
+      "line_count": 504,
+      "excerpt": "...이어받은 D:\\\\sytleOsjang 쇼퍼 i18n 변경을 보정해 c11dcdd로 commit/push했습니다.\n- Verification: AgentApp: pnpm validate; pnpm dashboard:build; gh release view v0.2.9; activeRun null. sytleOsjang: pnpm typecheck; git diff --check.\n- Git: AgentApp main pushed: 754015f, 45c1e53, 8446764. sytleOsjang main pushed: c11dcdd.\n- Decisions: none\n- Next: AgentApp 다음 제품 작업: Claude/Gemini CLI authenticated cycle 재검증. sytleOsjang 다음 작업: i18n 잔여 화면 브라우저 런타임 확인 및 문구 품질 보정.\n\n## 2026-05-14T07:37:58.292Z\n\n- Status: completed\n- Summary: Codex run-1778742204233은 프로세스가 exitCode 1로 종료되고 최종 메시지를 남기지 않아 실패 처리됐습니다. quota/auth 증거는 없고, 로그상 누락된 handoff 파일 조회와 PowerShell parser error 이후 i18n 검색 중 종료됐습니다. 실패/강종 후 미커밋 변경이 남으면 run에 interruptedWorktree를 기록하고 대시보드에 파일 수/목록을 표시하도록 v0.2.10 릴리즈했습니다.\n- Verification: pnpm validate; pnpm dashboard:build; gh release view v0.2.10; run-1778742204233 interruptedWorktree fileCount=6\n- Git: commit 75430d9 pushed; release commit d14858a and tag v0.2.10 pushed\n- Decisions: none\n- Next: D:\\\\sytleOsjang에 남은 6개 변경 파일을 검토해 이어서 완료/커밋하거나 폐기 판단\n\n## 2026-05-16T17:30:00.000Z\n\n- Status: completed\n- Summary: 사용자 환경에서 보고된 토큰 폭주 3대 원인 차단 + Claude Code 라이브 타임라인. (1) startRun 에 살아있는 activeRun 가드, dispatchPendingForAccount 에 in-memory account-lock 으로 백그라운드 다중 실행 차단. (2) tryAutoChain 의 CHAIN_DONE 처리 기본 = stop, override 는 settings 명시 시에만 + cap 3→1, autoChainMaxDepth 30→8. (3) tryQuotaRetry 후속 run 에 autoChain:false 강제, quotaRetryMaxAttempts 3→2 — quota×chain 곱셈 폭주 차단. (4) Claude 어댑터에 --output-format stream-json --verbose 적용, interpretClaudeStreamLine 가 NDJSON 을 💬/🔧/🤔/↳/⚠/▶/▣ 한 줄로 변환해 event log 실시간 표시; lastMessage 는 result.finalText 로 저장. v0.3.0 릴리즈 발행.\n- Verification: pnpm validate (validate-quota-parser 15 케이스 통과 — token-drain 가드 2 + stream-json 파서 6 신규 포함); pnpm dashboard:build; pnpm desktop:release -- --bump minor; gh release view v0.3.0; AgentApp-Setup-0.3.0-x64.exe + latest.yml 업로드 확인.\n- Git: commits 0a10bbd (token-drain fix), 13b2304 (Claude stream-json), 79bbd7d (release v0.3.0), 93d3912/(이번 commit)(decisions doc) pushed; tag v0.3.0 pushed.\n- Decisions: DEC-20260516-001 resolved (gh CLI 설치 + OAuth 인증 후 release 발행 완료)\n- Next: 다음 작업은 사용자 지시 대기. 보류 항목 DEC-20260509-003 (주간 사용량 입력 방식) 만 남음."
     },
     {
       "id": "dashboard-run",
@@ -575,12 +563,12 @@
       "title": "DECISIONS_REQUIRED.md",
       "path": "tools/agent-orchestrator/handoff/DECISIONS_REQUIRED.md",
       "heading": "DECISIONS_REQUIRED",
-      "status": "2 pending",
+      "status": "1 pending",
       "next": "",
       "generated": "",
-      "decision_count": 2,
-      "line_count": 95,
-      "excerpt": "# DECISIONS_REQUIRED\n\n사용자 결정이 필요한 항목을 모은 큐다. 에이전트는 `approval-policy.yaml`의 `hold_for_user` 또는 `deny`에 해당하는 작업을 임의 실행하지 않고, 여기 구조에 맞춰 기록한다.\n\n## 기록 규칙\n\n- 새 항목은 `대기` 아래에 추가한다.\n- 해결된 항목은 `해결됨` 아래로 옮기고 `Resolved`를 채운다.\n- 비밀값, 토큰, 계정명, 이메일, 세션 정보는 기록하지 않는다.\n- 결정 없이 진행 가능한 로컬 작업은 멈추지 말고 완료한다.\n- 결정이 필요한 작업만 명확히 분리한다.\n\n## 항목 템플릿\n\n```md\n### DEC-YYYYMMDD-001 — 짧은 제목\n\n- Status: pending\n- Priority: high | medium | low\n- Category: product | safety | git | usage_budget | worker | deployment | other\n- Requested by: user | agent\n- Blocks: 어떤 작업이 막히는지\n- Context: 왜 결정이 필요한지\n- Options:\n  - A: 선택지와 영향\n  - B: 선택지와 영향\n- Recommended: 권장 선택과 이유\n- Decision needed: 사용자가 답해야 할 짧은 질문\n- After decision: 결정 후 에이전트가 수행할 작업\n- Created: YYYY-MM-DD\n```\n\n## 대기\n\n### DEC-20260516-001 — 이 PC 에서 gh CLI 누락 → 자동 릴리즈 불가\n\n- Status: pending\n- Priority: medium\n- Category: deployment\n- Requested by: agent\n- Blocks: 토큰 폭주 수정 commit `0a10bbd` 의 자동 릴리즈 (`pnpm desktop:release`).\n- Context: feedback rule `의미 있는 변경은 push 직후 자동 릴리즈` 에 따라 `dashboard-runtime.mjs` 수정 후 릴리즈 발행을 시도했으나, 이 PC 에 `gh` CLI 가 설치돼 있지 않아 GitHub Release 발행을 건너뜀. `gh auth status 실패면 건너뛰고 DECISIONS_REQUIRED 에 토큰 점검 항목 남긴다` 규칙 적용.\n- Options:\n  - A: 이 PC 에 `gh` 설치 후 `gh auth login` → 다시 `pnpm desktop:release -- --bump patch` 실행.\n  - B: 다른 PC (이미 릴리즈 권한 있는 환경) 에서 main pull 후 `pnpm desktop:release -- --bump patch` 실행.\n- Recommended: B. 이 PC 는 사용자 테스트 환경이고, 릴리즈 권한 PC 가 따로 있는 흐름을 유지하는 게 보안에 유리.\n- Decision needed: 누가/어디서 v0.2.12 릴리즈를 발행할지.\n- After decision: 결정 PC 에서 main pull → `pnpm desktop:release -- --bump patch --notes \"fix: prevent token-drain (concurrent runs, CHAIN_DONE override, retry chain)\"` 실행 → latest.yml + NSIS Setup 업로드 확인.\n- Created: 2026-05-16\n\n### DEC-20260509-003 — 주간 사용량 입력 방식\n\n- Status: pending\n- Priority: high\n- Category: usage_budget\n- Requested by: user\n- Blocks: 사용량 예산/모델 라우팅 CLI 구현\n- Context: Claude Pro, Codex Plus 등 정상 보유 계정의 남은 주간 사용량을 어떻게 입력받을지 정해야 한다.\n- Options:\n  - A: 사용자 수동 입력만 허용. 가장 안전하고 비밀값/세션 접근이 없다.\n  - B: 사용자가 명시 제공한 read-only 화면 값까지 허용. 편하지만 브라우저/화면 접근 정책이 추가로 필요하다.\n- Recommended: A로 MVP를 시작한다. B는 별도 승인 정책과 read-only 검증 후 추가한다.\n- Decision needed: 사용량 입력은 수동 입력만 허용할까, 사용자가 명시 제공한 read-only 화면 값까지 허용할까?\n- After decision:..."
+      "decision_count": 1,
+      "line_count": 92,
+      "excerpt": "# DECISIONS_REQUIRED\n\n사용자 결정이 필요한 항목을 모은 큐다. 에이전트는 `approval-policy.yaml`의 `hold_for_user` 또는 `deny`에 해당하는 작업을 임의 실행하지 않고, 여기 구조에 맞춰 기록한다.\n\n## 기록 규칙\n\n- 새 항목은 `대기` 아래에 추가한다.\n- 해결된 항목은 `해결됨` 아래로 옮기고 `Resolved`를 채운다.\n- 비밀값, 토큰, 계정명, 이메일, 세션 정보는 기록하지 않는다.\n- 결정 없이 진행 가능한 로컬 작업은 멈추지 말고 완료한다.\n- 결정이 필요한 작업만 명확히 분리한다.\n\n## 항목 템플릿\n\n```md\n### DEC-YYYYMMDD-001 — 짧은 제목\n\n- Status: pending\n- Priority: high | medium | low\n- Category: product | safety | git | usage_budget | worker | deployment | other\n- Requested by: user | agent\n- Blocks: 어떤 작업이 막히는지\n- Context: 왜 결정이 필요한지\n- Options:\n  - A: 선택지와 영향\n  - B: 선택지와 영향\n- Recommended: 권장 선택과 이유\n- Decision needed: 사용자가 답해야 할 짧은 질문\n- After decision: 결정 후 에이전트가 수행할 작업\n- Created: YYYY-MM-DD\n```\n\n## 대기\n\n### DEC-20260509-003 — 주간 사용량 입력 방식\n\n- Status: pending\n- Priority: high\n- Category: usage_budget\n- Requested by: user\n- Blocks: 사용량 예산/모델 라우팅 CLI 구현\n- Context: Claude Pro, Codex Plus 등 정상 보유 계정의 남은 주간 사용량을 어떻게 입력받을지 정해야 한다.\n- Options:\n  - A: 사용자 수동 입력만 허용. 가장 안전하고 비밀값/세션 접근이 없다.\n  - B: 사용자가 명시 제공한 read-only 화면 값까지 허용. 편하지만 브라우저/화면 접근 정책이 추가로 필요하다.\n- Recommended: A로 MVP를 시작한다. B는 별도 승인 정책과 read-only 검증 후 추가한다.\n- Decision needed: 사용량 입력은 수동 입력만 허용할까, 사용자가 명시 제공한 read-only 화면 값까지 허용할까?\n- After decision: 계정 수/요금제/남은 주간 사용량 설정 스키마와 budget CLI에 반영한다.\n- Created: 2026-05-09\n\n## 해결됨\n\n### DEC-20260516-001 — 이 PC 에서 gh CLI 누락 → 자동 릴리즈 불가\n\n- Status: resolved\n- Priority: medium\n- Category: deployment\n- Requested by: agent\n- Blocks: 토큰 폭주 수정 (`0a10bbd`) + Claude stream-json (`13b2304`) 의 자동 릴리즈\n- Context: 이 PC 에서 `gh` 가 PATH 와 표준 경로에 없어 `pnpm desktop:release` 가 실패했다.\n- Decision: 사용자가 gh CLI 를 설치하고 OAuth 인증 완료. `C:\\Program Files\\GitHub CLI\\gh.exe` 절대경로로 PATH 임시 export 후 release 실행.\n- Resolved: 2026-05-16\n- Result: `pnpm desktop:release -- --bump minor` 로 `v0.3.0` 발행 (commit `79bbd7d`). Notes: 토큰 폭주 3대 원인 차단 + Claude Code stream-json 라이브 타임라인. NSIS Setup `AgentApp-Setup-0.3.0-x64.exe` + latest.yml + blockmap 업로드 확인. 기존 설치본은 다음 실행 시 자동 업데이트.\n- Release URL: https://github.com/dungbo92-eng/agentapp/releases/tag/v0.3.0\n\n### DEC-20260513-001 — GitHub Release 도구 점검\n\n- Status: resolved\n- Priority: high\n- Category: deployment\n- Requested by: agent\n- Blocks: 코드 변경 pu..."
     }
   ],
   "task_queue": {
