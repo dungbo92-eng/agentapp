@@ -32,7 +32,39 @@
 
 ## 대기
 
-(없음)
+### DEC-20260516-002 — Gemini CLI 인증 + dashboard 계정 등록
+
+- Status: pending
+- Priority: medium
+- Category: worker
+- Requested by: agent
+- Blocks: `pnpm agent:cycle-test -- --worker gemini-cli --execute` (현재 라우팅 후보 0건)
+- Context: Gemini CLI 0.41.2가 설치돼 있지만 `gemini -p`가 `Please set an Auth method in your C:\Users\lee\.gemini\settings.json or specify GEMINI_API_KEY / GOOGLE_GENAI_USE_VERTEXAI / GOOGLE_GENAI_USE_GCA` 안내로 종료한다. dashboard runtime에도 등록된 Gemini 계정이 없다.
+- Options:
+  - A: GEMINI_API_KEY 발급 후 환경 변수 또는 dashboard secret으로 등록 → 무료 한도 + API 키 인증으로 가장 단순.
+  - B: `gemini` 인터랙티브 모드로 Google 계정 OAuth 로그인 완료 → GCA 인증 후 dashboard에서 Add account → session profile 생성.
+  - C: Vertex AI(GOOGLE_GENAI_USE_VERTEXAI) 경로 → 기업 계정/프로젝트 설정 필요.
+- Recommended: B. Google OAuth가 사용자가 보유한 Gemini Pro 한도를 그대로 사용하고 비밀값 저장도 피한다.
+- Decision needed: Gemini 인증 방식과 사용할 계정 한 가지.
+- After decision: 인증 완료 후 dashboard에서 Add account → provider=Gemini → 해당 login method 선택 → ready 전환 → `pnpm agent:cycle-test -- --worker gemini-cli --execute` 재실행.
+- Created: 2026-05-16
+
+### DEC-20260516-003 — Claude dashboard 한도 잠금 일치성 확인
+
+- Status: pending
+- Priority: low
+- Category: usage_budget
+- Requested by: agent
+- Blocks: `pnpm agent:cycle-test -- --worker claude-code --execute` (dashboard 라우팅 후보 0건)
+- Context: Claude CLI 직접 호출(`claude --print ...`)은 정상적으로 응답한다. 그러나 dashboard runtime의 두 Claude 계정 모두 `quotaResetAt`가 설정돼 라우팅에서 제외됐다. `claude-dungbo92-gmail-com`은 실제 429("You've hit your limit · resets 3:30pm (Asia/Seoul)") 응답을 받은 흔적이 남아 있어 정상 잠금으로 보이지만, `claude-leemg-hanilnetworks-com`의 `quotaReason`은 `tool_result` 본문 JSON이라 false-positive 가능성이 있다(24h fallback이 적용된 reset 시각).
+- Options:
+  - A: dashboard 사이드바에서 leemg 계정 '강제 해제' 버튼 클릭 → 다음 routine 호출에서 자동 재잠금되는지 확인.
+  - B: 모두 정상 잠금으로 두고 reset 시각(2026-05-17~18 KST) 이후 자연 복구를 기다린다.
+  - C: parseQuotaReset에 tool_result 본문을 무시하는 보강을 추가한다(코드 수정).
+- Recommended: A. leemg 계정 한 건만 강제 해제하고, 잠금이 다시 잡히지 않으면 false-positive 확정. 재잠금되면 정상 한도 도달이므로 그대로 두면 된다.
+- Decision needed: 강제 해제를 즉시 진행할지, parseQuotaReset 보강 패치까지 기다릴지.
+- After decision: 강제 해제 후 `pnpm agent:cycle-test -- --worker claude-code --execute --timeout-ms 180000`을 다시 실행해 dashboard 통합 cycle을 인증.
+- Created: 2026-05-16
 
 ## 해결됨
 

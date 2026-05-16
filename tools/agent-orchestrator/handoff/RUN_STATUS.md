@@ -654,3 +654,21 @@ NEXT_TASK.md 템플릿 확정: agent-next 생성물을 Required Reads, Execution
 - Git: commits 0a10bbd (token-drain fix), 13b2304 (Claude stream-json), 79bbd7d (release v0.3.0), 93d3912/(이번 commit)(decisions doc) pushed; tag v0.3.0 pushed.
 - Decisions: DEC-20260516-001 resolved (gh CLI 설치 + OAuth 인증 후 release 발행 완료)
 - Next: 다음 작업은 사용자 지시 대기. 보류 항목 DEC-20260509-003 (주간 사용량 입력 방식) 만 남음.
+
+## 2026-05-16T02:37:47.857Z
+
+- Status: completed
+- Summary: 데스크탑 단일 인스턴스 잠금 + 트레이/창 컴팩트 모드 양방향 동기화 마무리
+- Verification: pnpm validate && pnpm dashboard:build
+- Git: not recorded
+- Decisions: none
+- Next: See tools/agent-orchestrator/handoff/NEXT_TASK.md
+
+## 2026-05-16T02:42:11.328Z
+
+- Status: blocked
+- Summary: Claude/Gemini CLI 설치/인증 재검증: Claude CLI 직접 호출은 정상이나 dashboard runtime이 두 Claude 계정 모두 quota-lock으로 제외; Gemini CLI는 미인증·dashboard 미등록
+- Verification: claude --print 직접 호출=정상응답; gemini -p=Auth method missing; agent:cycle-test --worker claude-code --execute=blocked(라우팅 후보 0); agent:cycle-test --worker gemini-cli=blocked(활성 계정 없음); pnpm agent:doctor=ready(2 warnings)
+- Git: not recorded
+- Decisions: DEC-20260516-002 pending(Gemini 인증+등록), DEC-20260516-003 pending(Claude 잠금 일치성)
+- Next: DEC-20260516-002/003 사용자 결정 후 cycle-test 재실행
