@@ -809,3 +809,12 @@ NEXT_TASK.md 템플릿 확정: agent-next 생성물을 Required Reads, Execution
 - Git: not recorded
 - Decisions: none
 - Next: 사용자 환경에서 v0.4.5 설치 앱 프로젝트 전환 시 '다른 프로젝트에서 실행 중인 작업이 있어 글로벌 슬롯은 점유 중입니다.' 안내 노출 여부를 알려주면 완료/회귀 처리
+
+## 2026-05-16T11:45:14.475Z
+
+- Status: blocked
+- Summary: v0.4.5 시각 검증 handoff 커밋(c112410)을 push한 뒤 apps/dashboard snapshot 변경이 자동 릴리즈 트리거에 해당해 v0.4.6 patch 릴리즈를 발행함. 릴리즈 자산은 NSIS Setup, blockmap, latest.yml 업로드 확인. 실제 설치 앱 프로젝트 전환 안내 노출 여부는 사용자 시각 확인 대기.
+- Verification: pnpm validate; pnpm dashboard:build; pnpm desktop:release -- --bump patch; gh release view v0.4.6
+- Git: not recorded
+- Decisions: none
+- Next: 사용자 환경에서 v0.4.6 자동 업데이트 적용 후 프로젝트 A Start → 프로젝트 B 전환 시 글로벌 슬롯 안내 노출 여부 확인
