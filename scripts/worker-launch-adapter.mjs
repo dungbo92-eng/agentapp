@@ -1464,6 +1464,72 @@ async function launchCommandWorker(run, files, adapter, promptText) {
     return;
   }
 
+  // 정책 거절 우선 분류 — Claude Enterprise 의 조직 정책 거절은 worker 가 exit code 0
+  // 으로 정상 종료하면서 본문에만 거절문을 내놓는 형태라 result.code === 0 분기로 가기
+  // 전에 본문/출력 전체에서 패턴을 먼저 검사한다. 안 그러면 "completed" 로 마감 → autoChain
+  // 이 같은 계정에서 NEXT_TASK 를 또 spawn 하는 토큰 폭주가 발생.
+  const earlyDetection = detectInterruption(
+    run.workerId,
+    `${result.combinedOutput || ""}\n${lastMessage || ""}`,
+  );
+  if (earlyDetection.kind === "policy_blocked") {
+    await appendRunEvent(run.id, { level: "error", message: earlyDetection.reason });
+    try {
+      const { applyQuotaLockout } = await import("./dashboard-runtime.mjs");
+      if (run.routing?.accountId) {
+        const resetAt = new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString();
+        await applyQuotaLockout(
+          run.routing.accountId,
+          resetAt,
+          `조직 정책으로 작업 거절 — 24h 자동 잠금. 다른 계정 사용 또는 사이드바 '강제 해제' 후 재시도.`,
+        );
+      }
+    } catch {
+      // best-effort
+    }
+    await finishRunRecord(
+      run.id,
+      {
+        status: "policy_blocked",
+        adapter: {
+          status: "policy-blocked",
+          mode: adapter.mode,
+          pid: result.pid,
+          exitCode: result.code,
+          summary: earlyDetection.reason,
+          logPath: relativePath(files.launchLogPath),
+          promptPath: relativePath(files.promptPath),
+          sessionDir: relativePath(adapter.sessionDir),
+        },
+      },
+      {
+        handoffStatus: "policy_blocked",
+        handoffReason: "org_policy_refusal",
+      },
+    );
+    try {
+      const { tryPolicyRetry } = await import("./dashboard-runtime.mjs");
+      const retried = await tryPolicyRetry(run);
+      if (retried) {
+        await appendRunEvent(run.id, {
+          level: "info",
+          message: `▶ 정책 거절 — ${retried.routing?.accountId || "다른 계정"} 으로 1 회 전환 시도 (policy retry).`,
+        });
+      } else {
+        await appendRunEvent(run.id, {
+          level: "error",
+          message: "정책 거절 — 다른 provider/계정 후보가 없거나 이미 1 회 재시도했습니다. 작업 내용을 정책에 맞게 조정하거나 사이드바에서 다른 계정을 준비한 뒤 다시 시작하세요.",
+        });
+      }
+    } catch (error) {
+      await appendRunEvent(run.id, {
+        level: "warn",
+        message: `policy retry 시도 중 오류: ${error instanceof Error ? error.message : String(error)}`,
+      });
+    }
+    return;
+  }
+
   if (result.code === 0) {
     if (lastMessage) {
       await appendRunEvent(run.id, {

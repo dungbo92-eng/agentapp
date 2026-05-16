@@ -1353,11 +1353,17 @@ export function selectRoute(accounts, request) {
   const excludeProviders = Array.isArray(request.excludeProviders)
     ? request.excludeProviders.map((p) => String(p || "").toLowerCase()).filter(Boolean)
     : [];
+  // 실패한 특정 계정을 retry 후보에서 명시적으로 제외. quota lockout 이 race 로 아직
+  // 적용 안 됐을 때를 위한 안전망.
+  const excludeAccountIds = Array.isArray(request.excludeAccountIds)
+    ? request.excludeAccountIds.map((id) => String(id || "").toLowerCase()).filter(Boolean)
+    : [];
   const preferAccountDomain = String(request.preferAccountDomain || "").toLowerCase();
   const enabledAccounts = accounts
     .filter((account) => account.enabled !== false)
     .filter((account) => !preferredProvider || account.provider === preferredProvider)
-    .filter((account) => excludeProviders.length === 0 || !excludeProviders.includes(String(account.provider || "").toLowerCase()));
+    .filter((account) => excludeProviders.length === 0 || !excludeProviders.includes(String(account.provider || "").toLowerCase()))
+    .filter((account) => excludeAccountIds.length === 0 || !excludeAccountIds.includes(String(account.id || "").toLowerCase()));
   const readyAccounts = enabledAccounts.filter((account) => account.sessionStatus === "ready");
   const providerAccounts = readyAccounts.filter(routeReadyAccount);
 
@@ -2690,6 +2696,11 @@ export async function tryPolicyRetry(failedRun) {
     retryReason: `policy_blocked_attempt_1_to_${routing.provider || "alt"}`,
     policyRetryCount: 1,
     autoChain: false,
+    // 같은 계정/같은 provider 로 회귀하지 않도록 명시. preferAccountDomain 도
+    // 비워 회사 도메인 보너스로 다시 hanilnetworks 가 1순위가 되는 회귀 방지.
+    excludeAccountIds: failedAccountId ? [failedAccountId] : [],
+    excludeProviders: failedProvider ? [failedProvider] : [],
+    preferAccountDomain: "",
   });
   return result.activeRun || null;
 }
@@ -2788,15 +2799,21 @@ export async function startRun(input) {
 
   // 도메인 우선 — prompt 가 유지보수성 (오류/분석/C#/T-SQL/검증 등) 이면 회사 계정을
   // 1순위로 라우팅. 회사 조직 정책상 이런 작업은 회사 계정에서 정상 처리되므로
-  // 정책 거절을 피하면서 개인 계정 quota 를 아낀다. 호출자가 명시 override 한 경우 그대로 사용.
+  // 정책 거절을 피하면서 개인 계정 quota 를 아낀다. 호출자가 명시 override 한 경우 그대로 사용
+  // (정책 거절 retry 등에서 빈 문자열을 넘기면 회귀 방지 위해 도메인 보너스 비활성화).
   // (settings 로 도메인을 노출하기 전 단계라 도메인은 코드 상수로 유지)
   const MAINTENANCE_DOMAIN = "hanilnetworks.com";
   const taskDomain = classifyTaskDomain(input.prompt);
-  const resolvedPreferDomain = input.preferAccountDomain
-    ? String(input.preferAccountDomain)
+  const hasExplicitDomain = Object.prototype.hasOwnProperty.call(input, "preferAccountDomain");
+  const resolvedPreferDomain = hasExplicitDomain
+    ? String(input.preferAccountDomain || "")
     : taskDomain === "maintenance"
       ? MAINTENANCE_DOMAIN
       : "";
+
+  // 실패 계정/provider 제외 — tryPolicyRetry 가 명시 전달. 명시 안 됐으면 빈 배열.
+  const excludeAccountIds = Array.isArray(input.excludeAccountIds) ? input.excludeAccountIds : [];
+  const excludeProviders = Array.isArray(input.excludeProviders) ? input.excludeProviders : [];
 
   // 1차 라우팅 — modelOverride='auto' 로 보내 selectRoute 가 후보 자유 선택.
   const firstPass = selectRoute(runtime.accounts, {
@@ -2805,6 +2822,8 @@ export async function startRun(input) {
     workerId: requestedWorker === "auto" ? "" : requestedWorker,
     modelOverride: "auto",
     preferAccountDomain: resolvedPreferDomain,
+    excludeAccountIds,
+    excludeProviders,
   });
 
   // projectLastModel 이 1차 라우팅이 고른 provider 와 호환되는지 검사.
@@ -2824,6 +2843,8 @@ export async function startRun(input) {
     workerId: requestedWorker === "auto" ? "" : requestedWorker,
     modelOverride: resolvedModelOverride,
     preferAccountDomain: resolvedPreferDomain,
+    excludeAccountIds,
+    excludeProviders,
   };
   const routing = selectRoute(runtime.accounts, normalizedInput);
 

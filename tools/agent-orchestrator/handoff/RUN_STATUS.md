@@ -1,5 +1,16 @@
 # RUN_STATUS
 
+## 2026-05-16T_policy_detect_before_complete
+
+worker-launches 14:38 구간 분석으로 회귀 확인: Claude Enterprise 의 정책 거절은 worker 가 exit code 0 으로 정상 종료하면서 본문에만 거절문을 내놓는 형태라, 기존 `if (result.code === 0)` 분기가 먼저 잡혀 `completed` 로 마감 → autoChain 이 같은 hanilnetworks 계정으로 NEXT_TASK 를 또 spawn 하는 토큰 폭주 발생.
+
+수정:
+- `worker-launch-adapter.mjs` 의 success 분기 진입 전에 `detectInterruption(combinedOutput + lastMessage)` 으로 policy_blocked 우선 분류. 해당하면 24h quota lockout 후 `tryPolicyRetry` 로 1 회만 다른 provider/계정 시도.
+- `tryPolicyRetry` 가 startRun 으로 `excludeAccountIds: [failedAccountId]`, `excludeProviders: [failedProvider]`, `preferAccountDomain: ""` 명시 전달 → 회사 도메인 보너스 회귀 방지.
+- `selectRoute` 가 `excludeAccountIds` 필터 신규 지원, startRun 이 모든 input 의 exclusion/도메인 옵션 통과.
+
+검증: detectInterruption 정책 텍스트 매칭 OK, selectRoute 3 시나리오 (초기 회사계정 / cross-provider retry / same-provider-different-account) 모두 OK.
+
 ## 2026-05-16T_policy_retry_cap
 
 worker-launches 폴더 분석으로 "한 번 지시 → N개 run spawn" 폭주 원인 두 가지 확인:
