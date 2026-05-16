@@ -1474,19 +1474,12 @@ async function launchCommandWorker(run, files, adapter, promptText) {
   );
   if (earlyDetection.kind === "policy_blocked") {
     await appendRunEvent(run.id, { level: "error", message: earlyDetection.reason });
-    try {
-      const { applyQuotaLockout } = await import("./dashboard-runtime.mjs");
-      if (run.routing?.accountId) {
-        const resetAt = new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString();
-        await applyQuotaLockout(
-          run.routing.accountId,
-          resetAt,
-          `조직 정책으로 작업 거절 — 24h 자동 잠금. 다른 계정 사용 또는 사이드바 '강제 해제' 후 재시도.`,
-        );
-      }
-    } catch {
-      // best-effort
-    }
+    // 정책 거절 = 그 작업이 그 계정의 정책에 안 맞았다는 신호일 뿐, 계정 자체가
+    // 망가진 게 아니다. 24h 자동 잠금은 다음 cycle 에 같은 회사 계정으로 정상
+    // 통과될 작업까지 막아버려서 오히려 사용성을 해친다. 잠금 대신 분류 단계
+    // (classifyTaskDomain) 에서 "명확히 통과할" 작업만 회사 계정 우선으로
+    // 라우팅하도록 제한하고, 정책 거절이 발생하면 그냥 다른 provider 로 1 회만
+    // failover 한 뒤 다음 요청은 새 분류로 다시 판단한다.
     await finishRunRecord(
       run.id,
       {
@@ -1668,23 +1661,10 @@ async function launchCommandWorker(run, files, adapter, promptText) {
   }
   if (detection.kind === "policy_blocked") {
     await appendRunEvent(run.id, { level: "error", message: detection.reason });
-    // 정책 거절은 한도 도달처럼 그 계정을 자동 잠금 (재시도하지 않게).
-    // 24시간 동안 routing 후보에서 제외. 사용자가 사이드바 '강제 해제' 로
-    // 풀 수 있고, 그 계정에 정책이 풀리거나 작업 도메인이 정책 안에 들어가면
-    // 그때 다시 시도 가능.
-    try {
-      const { applyQuotaLockout } = await import("./dashboard-runtime.mjs");
-      if (run.routing?.accountId) {
-        const resetAt = new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString();
-        await applyQuotaLockout(
-          run.routing.accountId,
-          resetAt,
-          `조직 정책으로 작업 거절 — 24h 자동 잠금. 다른 계정 사용 또는 사이드바 '강제 해제' 후 재시도.`,
-        );
-      }
-    } catch {
-      // best-effort
-    }
+    // 정책 거절은 그 작업이 그 계정 정책에 안 맞았다는 신호일 뿐 계정이 망가진
+    // 게 아니다. 24h 자동 잠금 대신 분류 단계에서 회사 계정 우선 작업을 제한
+    // 하고, 거절이 발생하면 다른 provider 로 1 회만 failover 한 뒤 다음 요청은
+    // 새 분류로 다시 판단한다.
     await finishRunRecord(
       run.id,
       {

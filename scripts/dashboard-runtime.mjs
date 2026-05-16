@@ -1297,7 +1297,7 @@ export async function deleteProject(input) {
   return writeRuntime(runtime);
 }
 
-function routeScore(candidate, complexity, opts = {}) {
+function routeScore(candidate, complexity) {
   const profile = candidate.profile;
   const account = candidate.account;
   const modelRank = MODEL_RANK[profile.model] || 1;
@@ -1306,23 +1306,24 @@ function routeScore(candidate, complexity, opts = {}) {
   const idleHours = lastUsed > 0 ? Math.max(0, (Date.now() - lastUsed) / 3600000) : 48;
   const loadBalance = Math.min(idleHours, 24) / 24; // 0..1, 24h+ 이면 만점
 
-  // 도메인 우선 보너스 — 회사 정책상 특정 도메인 계정으로 우선 라우팅하고 싶을 때 사용.
-  // 예: 유지보수성 작업(오류/분석/C#/T-SQL 등)은 회사 계정(@hanilnetworks.com)이 정책상 허용
-  // 되므로 그 계정 우선 사용해서 개인 계정 quota 를 아낀다. 다른 가중치를 압도하도록
-  // 큰 보너스를 줘서 동일 후보군에서는 항상 회사 계정이 1순위가 된다.
-  const email = String(account.email || "").toLowerCase();
-  const preferDomain = String(opts.preferAccountDomain || "").toLowerCase();
-  const domainBonus = preferDomain && email.endsWith(`@${preferDomain}`) ? 500 : 0;
-
   // 로컬 remainingUnits 는 실제 provider 한도와 무관하므로 점수에서 제외.
-  // 균등 분배 (오래 안 쓴 계정 우선) + 모델 품질만 사용.
+  // 균등 분배 (오래 안 쓴 계정 우선) + 모델 품질만 사용. 도메인 우선은 점수
+  // 보너스 (+500) 가 아니라 selectRoute 의 1차 후보 필터로 처리한다. 그래야
+  // 보너스가 다른 가중치를 압도해 사용자에게 표시되는 추천 모델과 실제 라우팅
+  // 결과가 어긋나는 일을 막을 수 있다.
   if (complexity === "routine") {
-    return loadBalance * 40 - modelRank + domainBonus;
+    return loadBalance * 40 - modelRank;
   }
   if (complexity === "standard") {
-    return loadBalance * 30 + modelRank * 8 + domainBonus;
+    return loadBalance * 30 + modelRank * 8;
   }
-  return loadBalance * 20 + modelRank * 20 + domainBonus;
+  return loadBalance * 20 + modelRank * 20;
+}
+
+function accountMatchesDomain(account, domain) {
+  if (!domain) return false;
+  const email = String(account.email || "").toLowerCase();
+  return email.endsWith(`@${String(domain).toLowerCase()}`);
 }
 
 function hasAuthIdentityMismatch(account) {
@@ -1400,12 +1401,20 @@ export function selectRoute(accounts, request) {
   // 동기화되지 않는다. 진짜 한도는 quota_limited 에러로 감지되어
   // quotaResetAt 으로 마킹되며 위 필터에서 이미 제외된다. 그러므로
   // 여기서는 remainingUnits 로 후보를 거르지 않는다.
-  const candidates = providerAccounts
+  const allCandidates = providerAccounts
     .map((account) => ({ account, profile: account.modelProfiles?.[complexity] }))
-    .filter((candidate) => candidate.profile)
-    .sort((left, right) =>
-      routeScore(right, complexity, { preferAccountDomain }) - routeScore(left, complexity, { preferAccountDomain }),
-    );
+    .filter((candidate) => candidate.profile);
+
+  // 도메인 우선 — preferAccountDomain 이 지정되면 그 도메인 계정만 1차 후보로
+  // 좁힌다. 점수 보너스(+500)로 처리하던 방식은 다른 가중치를 압도해 UI 표시
+  // 모델과 실제 라우팅 결과가 어긋날 수 있었기에, 명시적 1차 필터로 전환.
+  // 도메인 계정이 하나도 없으면 자동으로 전체 풀로 폴백한다.
+  const domainCandidates = preferAccountDomain
+    ? allCandidates.filter((c) => accountMatchesDomain(c.account, preferAccountDomain))
+    : [];
+  const usingDomainFilter = domainCandidates.length > 0;
+  const candidates = (usingDomainFilter ? domainCandidates : allCandidates)
+    .sort((left, right) => routeScore(right, complexity) - routeScore(left, complexity));
 
   if (candidates.length === 0) {
     return {
@@ -2342,8 +2351,16 @@ export async function quickHandoff(input = {}) {
     targetAccount = runtime.accounts.find((item) => item.id === targetId) || null;
   } else {
     const fromId = normalizeId(input.fromAccountId || active?.routing?.accountId || "");
+    // routeReadyAccount() 를 통과하지 못한 계정은 후보에서 제외한다. 한도 잠금/
+    // 인증 계정 불일치 계정으로 이어받으면 곧바로 quota_limited 또는 needs-login
+    // 으로 다시 떨어져 retry 폭주를 유발한다.
     const candidates = runtime.accounts
-      .filter((account) => account.enabled !== false && account.sessionStatus === "ready" && account.id !== fromId)
+      .filter((account) =>
+        account.enabled !== false
+        && account.sessionStatus === "ready"
+        && account.id !== fromId
+        && routeReadyAccount(account),
+      )
       .sort((left, right) => Number(right.remainingUnits || 0) - Number(left.remainingUnits || 0));
     targetAccount = candidates[0] || null;
   }
@@ -2499,11 +2516,27 @@ export async function tryAutoChain(prevRun, opts = {}) {
     nextTitle = "";
   }
 
-  // NEXT_TASK 가 비었거나 'none' 이거나, **방금 끝낸 작업과 동일**하면
-  // 일반 '이어 진행' 프롬프트로 폴백. 그래야 worker 가 NEXT_TASK 를
-  // 갱신하지 않은 상태에서도 다음 단계로 자율 진행된다.
+  // NEXT_TASK 가 비었거나 'none' 이거나, **방금 끝낸 작업과 사실상 동일**하면
+  // 일반 '이어 진행' 프롬프트로 폴백. 그래야 worker 가 NEXT_TASK 를 갱신하지
+  // 않은 상태에서도 다음 단계로 자율 진행된다. "사실상 동일" 판단은 공백/구두점/
+  // 대괄호 태그/대소문자를 정규화한 뒤 비교한다. 예: "DB 마이그레이션" 과 "DB
+  // 마이그레이션 진행" 처럼 한 단어 차이로 같은 작업을 spawn 하는 패턴 방지.
   const prevPrompt = String(prevRun.prompt || "").trim();
-  const hasNewTask = nextTitle && !/^none$/i.test(nextTitle) && nextTitle.trim() !== prevPrompt;
+  const normalizeForCompare = (str) => String(str || "")
+    .toLowerCase()
+    .replace(/\[[^\]]*\]/g, " ")          // [오류분석] 같은 태그 제거
+    .replace(/[\p{P}\p{S}]+/gu, " ")      // 구두점/기호 제거
+    .replace(/\s+/g, " ")
+    .trim();
+  const normalizedPrev = normalizeForCompare(prevPrompt);
+  const normalizedNext = normalizeForCompare(nextTitle);
+  // 한쪽이 다른 쪽을 포함하면 사실상 동일한 작업으로 간주 (한 단어 추가/축약 차이).
+  const sameAsPrev = normalizedNext.length > 0 && (
+    normalizedNext === normalizedPrev
+    || normalizedPrev.includes(normalizedNext)
+    || normalizedNext.includes(normalizedPrev)
+  );
+  const hasNewTask = nextTitle && !/^none$/i.test(nextTitle) && !sameAsPrev;
 
   // CHAIN_DONE 안전망 — worker 가 종료 신호를 보냈을 때:
   //   1) 메시지에 "사용자 결정/방향 대기", "DECISIONS_REQUIRED", "actionable item 없음"
@@ -2613,26 +2646,40 @@ export async function tryAutoChain(prevRun, opts = {}) {
   return result.activeRun || null;
 }
 
-// 작업 텍스트로 도메인을 분류한다. 회사 조직 정책상 허용되는 유지보수성 작업
-// (오류 분석, 디버깅, 코드 리뷰, C#/.NET, T-SQL, 검증, 리팩토링 등) 이면 "maintenance" 로
-// 분류해서 회사 계정 우선 라우팅에 사용한다. 정책 거절을 피하면서 개인 계정의 quota 를 아끼는 목적.
+// 작업 텍스트로 도메인을 분류한다. 회사 조직 정책상 "명확하게 통과할" 작업만
+// maintenance 로 분류해서 회사 계정 우선 라우팅에 사용한다. 너무 광범위하게
+// 잡으면 정책 거절을 부른 뒤 다른 계정으로 fallback 하느라 회사 계정 1회를
+// 낭비하므로, 보수적으로 분류한다.
+//
+// 사용자가 프롬프트 어디든 `[오류분석]`, `[검증]`, `[버그수정]`,
+// `[프로세스분석]` 같은 명시 태그를 넣으면 그 자체로 즉시 maintenance.
+// 이건 사용자가 회사 정책상 허용됨을 명시적으로 알리는 신호이므로 최우선.
+//
+// 명시 태그가 없으면 강한 키워드 조합(오류분석/버그수정/디버그/C#/T-SQL 등)만
+// maintenance 로 분류. 약한 단어 하나(test/로그/분석)만으로는 분류하지 않는다.
 export function classifyTaskDomain(promptText) {
-  const text = String(promptText || "").toLowerCase();
-  if (!text) return "general";
-  const maintenancePatterns = [
-    /오류|에러|error|exception|stack ?trace|trace ?back/,
-    /버그|debug|디버그|디버깅|bug ?fix|fix ?bug/,
-    /분석|analy[sz]e|analysis|진단|diagnos/,
-    /검증|validate|validation|verify|테스트|\btest\b/,
-    /리뷰|review|code ?review/,
-    /\bc#|csharp|\.net|t-?sql|mssql|ssms/,
-    /리팩토|refactor|cleanup|clean ?up/,
-    /로그|log ?analy|log ?file/,
-    /유지 ?보수|maintenance/,
-    /스키마|schema|index|stored ?procedure/,
+  const text = String(promptText || "");
+  if (!text.trim()) return "general";
+  // 명시 태그 — 사용자가 회사 정책상 허용됨을 직접 알린 신호 (최우선)
+  const explicitTagPatterns = [
+    /\[\s*(?:오류\s*분석|에러\s*분석|버그\s*수정|디버그|디버깅|검증|프로세스\s*분석|코드\s*리뷰|로그\s*분석|스키마\s*분석)\s*\]/i,
+    /\[\s*(?:error\s*analysis|bug\s*fix|debug|validation|process\s*analysis|code\s*review)\s*\]/i,
   ];
-  for (const pattern of maintenancePatterns) {
+  for (const pattern of explicitTagPatterns) {
     if (pattern.test(text)) return "maintenance";
+  }
+  const lower = text.toLowerCase();
+  // 강한 키워드 — 회사 정책상 명확히 허용되는 도메인 (오류분석/버그수정/C#/T-SQL/스키마)
+  const strongPatterns = [
+    /오류\s*분석|에러\s*분석|버그\s*수정|디버그|디버깅/,
+    /error\s*analysis|bug\s*fix|debug(?:ging)?\s+(?:the|this|code|issue)/i,
+    /\bc#\b|csharp|\.net\s+(?:코드|개발|디버그)/i,
+    /t-?sql|mssql|ssms|stored\s+procedure/i,
+    /스택\s*트레이스|stack\s*trace|trace\s*back/i,
+    /예외\s*처리|exception\s+(?:handling|trace)/i,
+  ];
+  for (const pattern of strongPatterns) {
+    if (pattern.test(lower)) return "maintenance";
   }
   return "general";
 }

@@ -1,5 +1,33 @@
 # RUN_STATUS
 
+## 2026-05-16T_account_routing_consistency
+
+라우팅이 "멍청하게 동작"하는 4가지 원인을 정리해서 한꺼번에 수정.
+
+원인:
+1. `routeScore` 의 `domainBonus=+500` 이 다른 가중치를 압도해 회사 계정이 항상 1순위가 되면서 UI 추천 모델과 실제 라우팅이 어긋날 수 있었음.
+2. `classifyTaskDomain` 이 약한 단어(`로그`/`\btest\b`/`분석`) 단독으로도 maintenance 로 분류 → "로그인 기능 추가", "테스트 코드 작성" 같은 일반 작업이 회사 계정으로 잘못 라우팅됨.
+3. 정책 거절 시 24h `applyQuotaLockout` 자동 잠금 → 다음 cycle 에 회사 정책상 정상 통과될 작업까지 막아 사용성을 해침. policy retry 가 1 회만 시도 후 종료하므로 추가 잠금이 불필요.
+4. `quickHandoff` 가 `routeReadyAccount()` 검사 없이 인계 후보를 골라 quota-lock/auth-mismatch 계정으로 이어가 retry 폭주 가능. `tryAutoChain` 의 `hasNewTask` 정확 일치 비교 때문에 "DB 마이그레이션" vs "DB 마이그레이션 진행" 처럼 같은 작업이 반복 spawn 가능.
+
+수정:
+- `scripts/dashboard-runtime.mjs`:
+  - `classifyTaskDomain` 을 명시 태그(`[오류분석]`/`[검증]`/`[버그수정]` 등) 최우선 + 강한 키워드(오류분석/디버그/C#/T-SQL/스택트레이스) 위주로 보수화. 약한 단어 단독 매칭 제거.
+  - `routeScore` 의 `domainBonus=+500` 제거. 도메인 우선은 `selectRoute` 의 1차 후보 필터(`accountMatchesDomain`) 로 처리 → preferDomain 계정만 후보 → 없으면 전체 풀로 자동 폴백. 점수는 loadBalance + modelRank 만으로 결정되므로 UI 추천 모델과 실제 라우팅이 항상 일치.
+  - `quickHandoff` 자동 후보 선택에 `routeReadyAccount()` 추가.
+  - `tryAutoChain` 의 `hasNewTask` 비교를 정규화(공백/구두점/태그 제거 후 소문자) 한 뒤 포함 관계로 판정.
+- `scripts/worker-launch-adapter.mjs`:
+  - early/late `policy_blocked` 분기에서 `applyQuotaLockout(now + 24h)` 호출 제거. `tryPolicyRetry` 만 호출해 다른 provider 로 1 회 failover.
+
+검증:
+- pnpm validate 통과 (validate-quota-parser 모두 OK).
+- classifyTaskDomain 12 케이스 (명시 태그/일반/강한 키워드/이전 오분류) 모두 기대 결과 일치.
+
+영향:
+- 동일 지시 반복 발사 위험 — quota retry 2 회 + policy retry 1 회 + autoChain depth 8 한도는 유지. autoChain 의 NEXT_TASK 유사도 비교로 "한 글자 차이" 패턴 차단.
+- 백그라운드 동시 실행 — `DISPATCH_LOCKS` + `isAliveActiveRun` + `isContinuation` 가드 모두 유지.
+- 회사 계정 잠금-복구 순환 제거 — 정책 거절 발생해도 같은 작업이 다음 cycle 에 또 회사 계정으로 가는 건 분류 단계에서 이미 차단됨.
+
 ## 2026-05-16T_policy_detect_before_complete
 
 worker-launches 14:38 구간 분석으로 회귀 확인: Claude Enterprise 의 정책 거절은 worker 가 exit code 0 으로 정상 종료하면서 본문에만 거절문을 내놓는 형태라, 기존 `if (result.code === 0)` 분기가 먼저 잡혀 `completed` 로 마감 → autoChain 이 같은 hanilnetworks 계정으로 NEXT_TASK 를 또 spawn 하는 토큰 폭주 발생.
