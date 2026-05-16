@@ -1176,18 +1176,23 @@ function App() {
   const [activeSection, setActiveSection] = React.useState("run");
   const [viewMode, setViewMode] = React.useState<"full" | "compact">("full");
   // electron preload 가 주입한 IPC bridge. 데스크탑이 아니면 undefined.
+  type UpdateStatus = "idle" | "checking" | "current" | "available" | "downloaded" | "error";
+  type UpdateState = { status: UpdateStatus; version: string; lastCheckedAt?: number; error?: string };
   const desktopApi = (typeof window !== "undefined" ? (window as unknown as { agentapp?: {
     setWindowMode: (mode: "full" | "compact") => Promise<string>;
     hideToTray: () => Promise<boolean>;
     getWindowMode: () => Promise<string>;
     onWindowModeChanged: (handler: (mode: string) => void) => () => void;
     getAppVersion?: () => Promise<string>;
-    getUpdateStatus?: () => Promise<{ status: "idle" | "available" | "downloaded"; version: string }>;
+    getUpdateStatus?: () => Promise<UpdateState>;
+    onUpdateStatus?: (handler: (state: UpdateState) => void) => () => void;
     onUpdateAvailable?: (handler: (payload: { version?: string }) => void) => () => void;
     onUpdateDownloaded?: (handler: (payload: { version?: string }) => void) => () => void;
+    installUpdate?: () => Promise<boolean>;
+    checkForUpdates?: () => Promise<{ ok: boolean; reason?: string }>;
   } }).agentapp : undefined);
   const [appVersion, setAppVersion] = React.useState<string>("");
-  const [updateInfo, setUpdateInfo] = React.useState<{ status: "idle" | "available" | "downloaded"; version: string }>({ status: "idle", version: "" });
+  const [updateInfo, setUpdateInfo] = React.useState<UpdateState>({ status: "idle", version: "" });
   React.useEffect(() => {
     if (!desktopApi) return;
     let off: (() => void) | undefined;
@@ -1203,21 +1208,39 @@ function App() {
     }
     if (desktopApi.getUpdateStatus) {
       void desktopApi.getUpdateStatus().then((s) => {
-        if (s && (s.status === "available" || s.status === "downloaded")) setUpdateInfo(s);
+        if (s && s.status) setUpdateInfo(s);
       });
     }
+    // 통합 상태 채널 — checking/current/available/downloaded/error 모두 한 채널로.
+    // 옛 빌드 호환을 위해 onUpdateAvailable/Downloaded 도 같이 구독한다.
+    const offStatus = desktopApi.onUpdateStatus?.((s) => {
+      if (s && s.status) setUpdateInfo(s);
+    });
     const offAvail = desktopApi.onUpdateAvailable?.((payload) => {
-      setUpdateInfo({ status: "available", version: String(payload?.version || "") });
+      setUpdateInfo((prev) => prev.status === "downloaded" ? prev : { status: "available", version: String(payload?.version || "") });
     });
     const offDown = desktopApi.onUpdateDownloaded?.((payload) => {
       setUpdateInfo({ status: "downloaded", version: String(payload?.version || "") });
     });
     return () => {
       off?.();
+      offStatus?.();
       offAvail?.();
       offDown?.();
     };
   }, [desktopApi]);
+
+  // 헤더 pill 클릭 동작 — 다운로드 완료 상태면 즉시 quitAndInstall, 그 외에는
+  // 수동 업데이트 체크를 트리거. X 버튼만 누르면 트레이로 내려가 quit 이
+  // 발생 안 해 autoInstallOnAppQuit 가 영원히 안 도는 사용자 케이스 해결.
+  const onVersionPillClick = React.useCallback(() => {
+    if (!desktopApi) return;
+    if (updateInfo.status === "downloaded" && desktopApi.installUpdate) {
+      void desktopApi.installUpdate();
+    } else if (desktopApi.checkForUpdates) {
+      void desktopApi.checkForUpdates();
+    }
+  }, [desktopApi, updateInfo.status]);
   const toggleViewMode = React.useCallback(() => {
     const next = viewMode === "compact" ? "full" : "compact";
     // 낙관적 업데이트로 UI 가 즉시 반응하게 한다. main 에서 오는
@@ -1899,19 +1922,21 @@ function App() {
             <Bot aria-hidden="true" size={16} />
             <strong>AgentApp</strong>
             {appVersion ? (
-              <span
+              <button
+                type="button"
                 className={`compactVersion status${updateInfo.status === "downloaded" ? "Downloaded" : updateInfo.status === "available" ? "Available" : "Ok"}`}
                 title={
                   updateInfo.status === "downloaded"
-                    ? `재시작 시 v${updateInfo.version} 적용`
+                    ? `클릭하여 v${updateInfo.version} 즉시 재시작 적용`
                     : updateInfo.status === "available"
-                      ? `새 버전 v${updateInfo.version} 다운로드 중`
-                      : "최신 버전 사용 중"
+                      ? `v${updateInfo.version} 다운로드 중`
+                      : "클릭하여 업데이트 지금 확인"
                 }
+                onClick={onVersionPillClick}
               >
                 v{appVersion}
-                {updateInfo.status === "downloaded" ? ` → v${updateInfo.version}*` : updateInfo.status === "available" ? ` → v${updateInfo.version}↓` : ""}
-              </span>
+                {updateInfo.status === "downloaded" ? ` → v${updateInfo.version}▶` : updateInfo.status === "available" ? ` → v${updateInfo.version}↓` : ""}
+              </button>
             ) : null}
           </div>
           <div className="compactHeaderActions">
@@ -2475,25 +2500,37 @@ function App() {
               </button>
             ) : null}
             {appVersion ? (
-              <span
-                className={`appVersionPill status${updateInfo.status === "downloaded" ? "Downloaded" : updateInfo.status === "available" ? "Available" : "Ok"}`}
+              <button
+                type="button"
+                className={`appVersionPill status${updateInfo.status === "downloaded" ? "Downloaded" : updateInfo.status === "available" ? "Available" : updateInfo.status === "checking" ? "Checking" : updateInfo.status === "error" ? "Error" : "Ok"}`}
                 title={
                   updateInfo.status === "downloaded"
-                    ? `새 버전 v${updateInfo.version} 다운로드 완료 — 앱을 종료(트레이 메뉴 → 종료) 후 재시작하면 적용됩니다.`
+                    ? `새 버전 v${updateInfo.version} 다운로드 완료 — 클릭하면 즉시 재시작 후 적용됩니다.`
                     : updateInfo.status === "available"
-                      ? `새 버전 v${updateInfo.version} 다운로드 중 — 완료되면 재시작 시 적용됩니다.`
-                      : "최신 버전을 사용 중입니다 (30분마다 자동 체크)."
+                      ? `새 버전 v${updateInfo.version} 다운로드 중 — 완료되면 클릭하여 적용할 수 있습니다.`
+                      : updateInfo.status === "checking"
+                        ? "업데이트 확인 중..."
+                        : updateInfo.status === "error"
+                          ? `업데이트 확인 실패: ${updateInfo.error || "알 수 없음"}. 클릭해서 다시 시도.`
+                          : updateInfo.status === "current"
+                            ? `최신 버전 (마지막 확인 ${updateInfo.lastCheckedAt ? new Date(updateInfo.lastCheckedAt).toLocaleTimeString("ko-KR") : "방금"}). 클릭해서 지금 확인.`
+                            : "클릭해서 업데이트 지금 확인."
                 }
+                onClick={onVersionPillClick}
               >
                 <span className="versionTag">v{appVersion}</span>
                 {updateInfo.status === "downloaded" ? (
-                  <span className="versionBadge">v{updateInfo.version} 재시작 시 적용</span>
+                  <span className="versionBadge">v{updateInfo.version} 지금 재시작 ▶</span>
                 ) : updateInfo.status === "available" ? (
-                  <span className="versionBadge">v{updateInfo.version} 다운로드 중</span>
+                  <span className="versionBadge">v{updateInfo.version} 다운로드 중…</span>
+                ) : updateInfo.status === "checking" ? (
+                  <span className="versionBadge">확인 중…</span>
+                ) : updateInfo.status === "error" ? (
+                  <span className="versionBadge">확인 실패</span>
                 ) : (
                   <span className="versionBadge">최신</span>
                 )}
-              </span>
+              </button>
             ) : null}
             <time dateTime={snapshot.generated_at}>{new Date(snapshot.generated_at).toLocaleString("ko-KR")}</time>
           </div>

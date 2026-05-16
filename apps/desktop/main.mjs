@@ -63,10 +63,23 @@ const COMPACT_WINDOW = { width: 380, height: 560, minWidth: 320, minHeight: 420 
 
 // React renderer 가 mount 되기 전에 발생한 update-available/downloaded 이벤트도
 // 받을 수 있도록 마지막 상태를 main process 에 캐싱. IPC 로 조회 가능.
-//   status = "idle" — 업데이트 정보 없음 (앱 시작 직후 또는 미패키지 dev 환경)
-//          "available" — 새 버전 발견, 다운로드 중 또는 대기
-//          "downloaded" — 다운로드 완료, 재시작 시 적용
-let latestUpdateStatus = { status: "idle", version: "" };
+//   status = "idle"        — 업데이트 정보 없음 (앱 시작 직후 또는 미패키지 dev)
+//          "current"      — 최신 버전 확인 완료 (lastCheckedAt 함께 기록)
+//          "checking"     — 현재 업데이트 체크 중
+//          "available"    — 새 버전 발견, 다운로드 중
+//          "downloaded"   — 다운로드 완료, 재시작 시 적용 (또는 "지금 적용" 가능)
+//          "error"        — 체크/다운로드 실패
+let latestUpdateStatus = { status: "idle", version: "", lastCheckedAt: 0, error: "" };
+// quitAndInstall 호출 가능하도록 autoUpdater 인스턴스를 모듈 스코프에 보관.
+let autoUpdaterRef = null;
+
+function emitUpdateStatus() {
+  if (mainWindow && !mainWindow.isDestroyed() && !mainWindow.webContents.isDestroyed()) {
+    mainWindow.webContents.send("agentapp:update-status", latestUpdateStatus);
+  }
+  // 다운로드 완료 시 트레이 메뉴에 "지금 재시작하여 적용" 항목 노출.
+  rebuildTrayMenu();
+}
 
 async function bootstrapAutoUpdater() {
   if (!app.isPackaged) return;
@@ -75,36 +88,101 @@ async function bootstrapAutoUpdater() {
     const updaterModule = await import("electron-updater");
     const autoUpdater = updaterModule.autoUpdater || updaterModule.default?.autoUpdater;
     if (!autoUpdater) return;
+    autoUpdaterRef = autoUpdater;
     autoUpdater.autoDownload = true;
     autoUpdater.autoInstallOnAppQuit = true;
-    autoUpdater.on("checking-for-update", () => process.stderr.write("[updater] checking\n"));
+    autoUpdater.on("checking-for-update", () => {
+      process.stderr.write("[updater] checking\n");
+      latestUpdateStatus = { ...latestUpdateStatus, status: "checking", error: "" };
+      emitUpdateStatus();
+    });
     autoUpdater.on("update-available", (info) => {
       process.stderr.write(`[updater] available ${info?.version}\n`);
-      latestUpdateStatus = { status: "available", version: String(info?.version || "") };
+      latestUpdateStatus = {
+        status: "available",
+        version: String(info?.version || ""),
+        lastCheckedAt: Date.now(),
+        error: "",
+      };
+      // backward-compat (이전 채널 청취자 유지)
       if (mainWindow && !mainWindow.isDestroyed()) {
         mainWindow.webContents.send("agentapp:update-available", { version: info?.version });
       }
+      emitUpdateStatus();
     });
-    autoUpdater.on("update-not-available", () => process.stderr.write("[updater] up-to-date\n"));
+    autoUpdater.on("update-not-available", (info) => {
+      process.stderr.write("[updater] up-to-date\n");
+      latestUpdateStatus = {
+        status: "current",
+        version: String(info?.version || app.getVersion() || ""),
+        lastCheckedAt: Date.now(),
+        error: "",
+      };
+      emitUpdateStatus();
+    });
     autoUpdater.on("download-progress", (p) => {
       process.stderr.write(`[updater] download ${Math.round(p.percent || 0)}%\n`);
     });
     autoUpdater.on("update-downloaded", (info) => {
       process.stderr.write(`[updater] downloaded ${info?.version}\n`);
-      latestUpdateStatus = { status: "downloaded", version: String(info?.version || "") };
+      latestUpdateStatus = {
+        status: "downloaded",
+        version: String(info?.version || ""),
+        lastCheckedAt: Date.now(),
+        error: "",
+      };
       if (mainWindow && !mainWindow.isDestroyed()) {
         mainWindow.webContents.send("agentapp:update-downloaded", { version: info?.version });
       }
-      // 사용자가 종료할 때 자동 적용. 즉시 적용은 사용자가 quitAndInstall 명시 호출 시.
+      emitUpdateStatus();
+      // 사용자가 종료할 때 자동 적용. 즉시 적용은 trayMenu 또는 헤더 pill 의
+      // quitAndInstall 명시 호출 시.
     });
     autoUpdater.on("error", (error) => {
-      process.stderr.write(`[updater] error: ${error?.message || error}\n`);
+      const msg = error?.message || String(error);
+      process.stderr.write(`[updater] error: ${msg}\n`);
+      latestUpdateStatus = {
+        ...latestUpdateStatus,
+        status: "error",
+        error: msg,
+        lastCheckedAt: Date.now(),
+      };
+      emitUpdateStatus();
     });
     // 첫 체크는 창이 뜨고 5초 후, 이후 30분마다.
     setTimeout(() => autoUpdater.checkForUpdates().catch(() => {}), 5000);
     setInterval(() => autoUpdater.checkForUpdates().catch(() => {}), 30 * 60 * 1000);
   } catch (error) {
     process.stderr.write(`[updater] init failed: ${error instanceof Error ? error.message : String(error)}\n`);
+  }
+}
+
+// 사용자가 헤더 pill / 트레이 메뉴 / 알림에서 "지금 재시작하여 적용" 을 누를 때
+// 호출. autoInstallOnAppQuit 만으로는 사용자가 X 버튼만 누르고 트레이로 내려
+// 가면 quit 이벤트가 안 발생해 영원히 적용 안 되는 문제를 해결한다.
+function installUpdateNow() {
+  if (!autoUpdaterRef) return false;
+  if (latestUpdateStatus.status !== "downloaded") return false;
+  try {
+    isQuitting = true;
+    // isSilent=true → UI 없이 백그라운드 설치, isForceRunAfter=true → 설치 후 자동 실행
+    autoUpdaterRef.quitAndInstall(true, true);
+    return true;
+  } catch (error) {
+    process.stderr.write(`[updater] quitAndInstall failed: ${error instanceof Error ? error.message : String(error)}\n`);
+    return false;
+  }
+}
+
+// 헤더 pill "지금 확인" 버튼이 누르는 수동 체크. 30 분 자동 체크와 별개로
+// 사용자가 즉시 결과를 보고 싶을 때.
+async function checkForUpdatesNow() {
+  if (!autoUpdaterRef) return { ok: false, reason: "updater_not_initialized" };
+  try {
+    await autoUpdaterRef.checkForUpdates();
+    return { ok: true };
+  } catch (error) {
+    return { ok: false, reason: error instanceof Error ? error.message : String(error) };
   }
 }
 
@@ -265,7 +343,7 @@ async function bootstrapTray() {
 function rebuildTrayMenu() {
   if (!tray) return;
   const compact = windowMode === "compact";
-  const menu = Menu.buildFromTemplate([
+  const template = [
     { label: "열기", click: () => showMainWindow() },
     {
       label: "컴팩트 채팅 모드",
@@ -273,16 +351,26 @@ function rebuildTrayMenu() {
       checked: compact,
       click: () => setWindowMode(compact ? "full" : "compact"),
     },
-    { type: "separator" },
-    {
-      label: "종료",
-      click: () => {
-        isQuitting = true;
-        app.quit();
-      },
+  ];
+  // 새 버전이 다운로드 완료 상태면 트레이 메뉴에 "지금 재시작하여 적용" 노출.
+  // X 버튼 닫기는 quit 이 아니므로 autoInstallOnAppQuit 가 영원히 안 도는
+  // 사용자 케이스를 위한 안전한 적용 경로.
+  if (latestUpdateStatus.status === "downloaded" && latestUpdateStatus.version) {
+    template.push({ type: "separator" });
+    template.push({
+      label: `v${latestUpdateStatus.version} 으로 지금 재시작하여 적용`,
+      click: () => installUpdateNow(),
+    });
+  }
+  template.push({ type: "separator" });
+  template.push({
+    label: "종료",
+    click: () => {
+      isQuitting = true;
+      app.quit();
     },
-  ]);
-  tray.setContextMenu(menu);
+  });
+  tray.setContextMenu(Menu.buildFromTemplate(template));
 }
 
 function showMainWindow() {
@@ -347,6 +435,12 @@ ipcMain.handle("agentapp:get-app-version", () => app.getVersion());
 // 따라잡을 수 있도록 마지막 상태를 IPC 로 제공. 첫 렌더에서 한 번 호출하면
 // "이미 다운로드된 새 버전 있음" 같은 상태가 즉시 헤더에 반영된다.
 ipcMain.handle("agentapp:get-update-status", () => latestUpdateStatus);
+// 사용자가 "지금 재시작하여 적용" 을 명시적으로 누를 때 호출. X 버튼만 누르면
+// 트레이로 내려가 quit 이벤트가 발생 안 해 autoInstallOnAppQuit 가 영원히
+// 동작 안 하던 문제를 해결.
+ipcMain.handle("agentapp:install-update", () => installUpdateNow());
+// 사용자가 "지금 확인" 으로 즉시 업데이트 체크를 트리거.
+ipcMain.handle("agentapp:check-for-updates", () => checkForUpdatesNow());
 
 app.whenReady().then(createMainWindow);
 

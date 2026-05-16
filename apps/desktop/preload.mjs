@@ -27,4 +27,11 @@ contextBridge.exposeInMainWorld("agentapp", {
   getUpdateStatus: () => ipcRenderer.invoke("agentapp:get-update-status"),
   onUpdateAvailable: (handler) => onChannel("agentapp:update-available", handler),
   onUpdateDownloaded: (handler) => onChannel("agentapp:update-downloaded", handler),
+  // 통합 상태 채널 — checking/current/available/downloaded/error 모두 한 채널로 받음.
+  onUpdateStatus: (handler) => onChannel("agentapp:update-status", handler),
+  // 사용자가 "지금 재시작하여 적용" 을 누를 때. X 버튼만 누르면 트레이로 내려가
+  // quit 이 발생 안 해 autoInstallOnAppQuit 가 동작 안 하는 문제를 직접 해결.
+  installUpdate: () => ipcRenderer.invoke("agentapp:install-update"),
+  // 30 분 자동 체크와 별개로 사용자가 즉시 확인하고 싶을 때.
+  checkForUpdates: () => ipcRenderer.invoke("agentapp:check-for-updates"),
 });
