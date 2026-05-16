@@ -32,23 +32,21 @@
 
 ## 대기
 
+(없음)
+
+## 해결됨
+
 ### DEC-20260509-003 — 주간 사용량 입력 방식
 
-- Status: pending
+- Status: resolved
 - Priority: high
 - Category: usage_budget
 - Requested by: user
-- Blocks: 사용량 예산/모델 라우팅 CLI 구현
-- Context: Claude Pro, Codex Plus 등 정상 보유 계정의 남은 주간 사용량을 어떻게 입력받을지 정해야 한다.
-- Options:
-  - A: 사용자 수동 입력만 허용. 가장 안전하고 비밀값/세션 접근이 없다.
-  - B: 사용자가 명시 제공한 read-only 화면 값까지 허용. 편하지만 브라우저/화면 접근 정책이 추가로 필요하다.
-- Recommended: A로 MVP를 시작한다. B는 별도 승인 정책과 read-only 검증 후 추가한다.
-- Decision needed: 사용량 입력은 수동 입력만 허용할까, 사용자가 명시 제공한 read-only 화면 값까지 허용할까?
-- After decision: 계정 수/요금제/남은 주간 사용량 설정 스키마와 budget CLI에 반영한다.
-- Created: 2026-05-09
-
-## 해결됨
+- Blocks: (해소됨) 사용량 예산/모델 라우팅 CLI
+- Context: 원래 "수동 입력 vs 사용자 제공 read-only 화면 값" 둘 중 하나를 결정해야 했음.
+- Decision: 둘 다 채택하지 않고 **CLI 자동 인식** 으로 우회. worker 가 quota/rate-limit 오류를 출력하면 `parseQuotaReset` 가 reset 시각을 추출하고 `applyQuotaLockout` 이 해당 계정을 자동 잠금. reset 시각이 지나면 selectRoute 단계에서 자동 복구. 사용자는 화면 값 입력도, 수동 숫자 입력도 강제되지 않음 (수정은 가능하지만 선택사항).
+- Resolved: 2026-05-16
+- Result: `scripts/dashboard-runtime.mjs` 의 `parseQuotaReset`, `applyQuotaLockout`, `probeAccountLockout`, `clearAccountQuotaLockout` + `worker-launch-adapter.mjs` 의 `onLine` quota 감지 훅으로 구현. dashboard 사이드바에서 잠긴 계정의 reset 시각 표시와 '강제 해제' 버튼 제공.
 
 ### DEC-20260516-001 — 이 PC 에서 gh CLI 누락 → 자동 릴리즈 불가
 
