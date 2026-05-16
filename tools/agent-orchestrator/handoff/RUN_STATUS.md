@@ -827,3 +827,12 @@ NEXT_TASK.md 템플릿 확정: agent-next 생성물을 Required Reads, Execution
 - Git: not recorded
 - Decisions: none
 - Next: Claude/Gemini CLI 인증 cycle 재검증은 기존 NEXT_TASK 그대로 유지
+
+## 2026-05-16T14:35:40.881Z
+
+- Status: completed
+- Summary: hanilnetworks.com 회사 계정 프롬프트 시작 태그 패치를 main 에 push했고, 자동 패치 릴리즈 v0.4.7 을 발행했다. 릴리즈 자산은 NSIS Setup, blockmap, latest.yml 업로드 확인.
+- Verification: pnpm validate; pnpm desktop:release -- --bump patch; gh release view v0.4.7; pnpm agent:status
+- Git: not recorded
+- Decisions: none
+- Next: Claude/Gemini CLI 인증 cycle 재검증은 기존 NEXT_TASK 그대로 유지
