@@ -10,6 +10,7 @@ AgentApp 공용 memory index.
 - [작업 후 commit/push 필수](feedback_commit_push.md) — 의미 있는 작업 끝에 검증→commit→push까지 묻지 않고 진행
 - [push 후 자동 릴리즈](feedback_auto_release.md) — 데스크탑 트리거 경로 변경 push 직후 `pnpm desktop:release -- --bump patch` 까지 한 사이클로 진행
 - [계정/한도 우회 자동화 거부](feedback_no_bypass.md) — 자동 로그인·강제 계정 전환·CAPTCHA/MFA 우회는 사용자가 요청해도 구현 안 함
+- [계정 라우팅 정책](feedback_account_routing.md) — 회사 계정은 오류분석/검증/C#/T-SQL 만 우선, 정책 거절시 24h 잠금 안 함, UI 추천 모델=실제 라우팅 일관성
 
 ## 운영 규칙
 

@@ -1,5 +1,19 @@
 # RUN_STATUS
 
+## 2026-05-16T_routing_polish
+
+라우팅 일관성 정리 후속 보완 4 건:
+
+1. `ORG_POLICY_PATTERNS` false positive 수정. 기존 `/.../C#\s*(?:코드|개발)\s*(?:만|외)|T-SQL|스키마|에러 분석/` 가 `T-SQL`/`스키마`/`에러 분석` 단독 매칭을 허용해, maintenance 분류 보수화 후 회사 계정이 더 정확하게 받는 정상 응답(`T-SQL 스키마를 검토하겠습니다`)까지 policy_blocked 로 잘못 분류하는 위험이 있었음. 거절 컨텍스트(`만`/`외`/`이외`/`이외에는`/`에 한해`) 와 함께 매칭하도록 패턴을 좁히고, 어순 역전 (`외에는 T-SQL`) 도 별도 패턴으로 추가. 13 케이스 테스트 (정상 응답 4 + 실제 거절문 6 + 어순 변형 + 정상 false-positive risk 2) 중 12 통과, 미통과 1 건은 기존 패턴도 못 잡던 영문 케이스 (관련 없음).
+2. `selectRoute` 반환 구조에 `domainPreferred`/`preferAccountDomain` 필드 추가, reason 문자열에 도메인 필터 적용 여부를 한국어로 노출 ("유지보수 작업 분류 — hanilnetworks.com 도메인 계정 우선" / "유지보수 작업 분류였으나 도메인 후보 없어 일반 풀로 폴백"). UI 가 추가 가공 없이 사용자에게 라우팅 의도를 보여줄 수 있다.
+3. `MAINTENANCE_DOMAIN` 코드 상수 (`"hanilnetworks.com"`) 를 `settings.maintenanceDomain` 으로 노출. `normalizeSettings` 가 소문자 정규화 + 기본값 `"hanilnetworks.com"` 적용. 빈 문자열 지정 시 도메인 우선 자체가 비활성화돼 어떤 사이트에서도 일반 풀 라우팅이 가능. 사이트별 override 경로 확보.
+4. `tryQuotaRetry` 의 `retryCount` 카운터 공유 의도를 주석으로 명확화. policy retry 가 먼저 1 회 발동한 경우 quota retry 는 `quotaRetryMaxAttempts - 1` 만큼만 추가 시도 — 이는 정책+한도 연쇄 cascade 방지 목적이며 분리하면 cascade 폭주 위험이 증가하므로 의도된 동작으로 유지.
+
+검증:
+- pnpm validate 통과
+- ORG_POLICY_PATTERNS 13 케이스 (정상 응답 4 / 거절문 6 / 어순 변형 1 / 동일 키워드 정상 결합 2) 분리 검증
+- selectRoute 6 케이스 (일반 / maintenance / 회사 계정 비활성 / quota lock / 도메인 보너스 제거 / domainPreferred 필드)
+
 ## 2026-05-16T_account_routing_consistency
 
 라우팅이 "멍청하게 동작"하는 4가지 원인을 정리해서 한꺼번에 수정.

@@ -38,6 +38,10 @@ const DEFAULT_RUNTIME = {
     // 계정으로 돌리는 동작도 사용자 입장에선 토큰 폭주로 보일 수 있어
     // 2 로 축소.
     quotaRetryMaxAttempts: 2,
+    // 유지보수 분류(오류분석/검증/C#/T-SQL 등) 시 1 순위로 라우팅할 회사 도메인.
+    // 빈 값 또는 미지정이면 도메인 우선 비활성화. 코드 상수 대신 settings 로
+    // 노출해 사이트별로 다른 도메인을 쓸 수 있게 한다.
+    maintenanceDomain: "hanilnetworks.com",
   },
 };
 
@@ -55,6 +59,12 @@ function normalizeSettings(raw) {
   const quotaRetryMaxAttempts = Number.isFinite(Number(source.quotaRetryMaxAttempts))
     ? Math.max(0, Math.min(10, Number(source.quotaRetryMaxAttempts)))
     : 2;
+  // maintenanceDomain: 빈 문자열 / null / undefined → 도메인 우선 비활성.
+  // 정상 값이면 소문자로 정규화해서 저장 (이메일 비교가 소문자 기준).
+  const maintenanceDomainRaw = source.maintenanceDomain;
+  const maintenanceDomain = typeof maintenanceDomainRaw === "string"
+    ? maintenanceDomainRaw.trim().toLowerCase()
+    : "hanilnetworks.com";
   return {
     idleWarnMs,
     idleKillMs,
@@ -63,6 +73,7 @@ function normalizeSettings(raw) {
     autoChainOverrideOnChainDone,
     quotaRetryEnabled,
     quotaRetryMaxAttempts,
+    maintenanceDomain,
   };
 }
 
@@ -1439,6 +1450,17 @@ export function selectRoute(accounts, request) {
   const mismatchNote = !overrideCompatible
     ? ` (요청 모델 '${modelOverride}' 은 ${selected.account.provider} 계정과 호환되지 않아 ${resolvedModel} 으로 폴백)`
     : "";
+  // 도메인 필터 적용 여부를 사용자에게 노출 — UI 일관성. 회사 도메인 우선
+  // 분류가 동작한 경우와, 후보 부재로 일반 풀로 폴백된 경우를 구분해서 보여
+  // 준다.
+  let domainNote = "";
+  if (preferAccountDomain) {
+    if (usingDomainFilter) {
+      domainNote = ` (유지보수 작업 분류 — ${preferAccountDomain} 도메인 계정 우선)`;
+    } else {
+      domainNote = ` (유지보수 작업 분류였으나 ${preferAccountDomain} 도메인 후보 없어 일반 풀로 폴백)`;
+    }
+  }
   return {
     status: "recommended",
     accountId: selected.account.id,
@@ -1450,10 +1472,12 @@ export function selectRoute(accounts, request) {
     reasoningEffort: selected.profile.reasoningEffort,
     estimatedUnits: Number(selected.profile.estimatedUnits || ESTIMATED_UNITS[complexity] || 8),
     complexity,
+    domainPreferred: Boolean(usingDomainFilter),
+    preferAccountDomain,
     reason:
       (complexity === "routine"
         ? "단순 작업이므로 남은 사용량이 충분한 가장 효율적인 프로필을 선택했습니다."
-        : "품질 우선 기준으로 남은 사용량이 충분한 가장 강한 프로필을 선택했습니다.") + mismatchNote,
+        : "품질 우선 기준으로 남은 사용량이 충분한 가장 강한 프로필을 선택했습니다.") + mismatchNote + domainNote,
   };
 }
 
@@ -2403,12 +2427,20 @@ export async function quickHandoff(input = {}) {
 // 계정 → 다른 provider 의 ready 계정 순으로 후보를 넓힌다. 사용자가 worker
 // 를 명시했더라도, 그 worker provider 가 통째로 잠겼다면 다른 provider 로
 // 넘어가는 게 사용자 의도(작업 자체를 끊지 않기)에 더 가깝다.
-// 최대 시도 횟수를 넘기면 null 반환. 호출자는 사용자 알림으로 마감해야 한다.
+//
+// 카운터 의도: `retryCount` 는 quota/policy retry 가 공유하는 전체 cascade
+// 카운터다. 따라서 정책 거절 retry 가 먼저 1 회 발동한 뒤 quota 도달이
+// 이어지면 quota retry 는 `quotaRetryMaxAttempts - 1` 만큼만 추가 시도된다.
+// 이는 의도된 cascade 폭주 방지(정책+한도 연쇄 발동 시 무한 retry 차단)
+// 효과이며, 일반적인 quota retry 단독 발동 시 max attempts 까지 정상 시도된다.
 export async function tryQuotaRetry(failedRun) {
   const runtime = await readRuntime();
   const settings = normalizeSettings(runtime.settings);
   if (!settings.quotaRetryEnabled) return null;
   if (chainCancelled(runtime, failedRun)) return null;
+  // attempts = "다음 시도 번호" — 정책 retry 가 이미 retryCount 를 1 올린
+  // 상태라면 이 값이 2 부터 시작. quotaRetryMaxAttempts 기본값 2 와 비교
+  // 해서 정책+한도 연쇄 cascade 의 총 retry 횟수를 제한한다.
   const attempts = Number(failedRun.retryCount || 0) + 1;
   if (attempts > settings.quotaRetryMaxAttempts) return null;
   const failedAccountId = String(failedRun.routing?.accountId || "");
@@ -2847,15 +2879,16 @@ export async function startRun(input) {
   // 도메인 우선 — prompt 가 유지보수성 (오류/분석/C#/T-SQL/검증 등) 이면 회사 계정을
   // 1순위로 라우팅. 회사 조직 정책상 이런 작업은 회사 계정에서 정상 처리되므로
   // 정책 거절을 피하면서 개인 계정 quota 를 아낀다. 호출자가 명시 override 한 경우 그대로 사용
-  // (정책 거절 retry 등에서 빈 문자열을 넘기면 회귀 방지 위해 도메인 보너스 비활성화).
-  // (settings 로 도메인을 노출하기 전 단계라 도메인은 코드 상수로 유지)
-  const MAINTENANCE_DOMAIN = "hanilnetworks.com";
+  // (정책 거절 retry 등에서 빈 문자열을 넘기면 회귀 방지 위해 도메인 우선 비활성화).
+  // 도메인 값은 settings.maintenanceDomain 에서 가져온다 (사이트별 override 가능).
+  const settingsForRouting = normalizeSettings(runtime.settings);
+  const maintenanceDomain = settingsForRouting.maintenanceDomain || "";
   const taskDomain = classifyTaskDomain(input.prompt);
   const hasExplicitDomain = Object.prototype.hasOwnProperty.call(input, "preferAccountDomain");
   const resolvedPreferDomain = hasExplicitDomain
     ? String(input.preferAccountDomain || "")
     : taskDomain === "maintenance"
-      ? MAINTENANCE_DOMAIN
+      ? maintenanceDomain
       : "";
 
   // 실패 계정/provider 제외 — tryPolicyRetry 가 명시 전달. 명시 안 됐으면 빈 배열.
