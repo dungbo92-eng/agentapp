@@ -896,3 +896,12 @@ NEXT_TASK.md 템플릿 확정: agent-next 생성물을 Required Reads, Execution
 - Git: not recorded
 - Decisions: none
 - Next: Desktop release patch after commit/push
+
+## 2026-05-17T23:25:06.701Z
+
+- Status: completed
+- Summary: runtime corruption fix pushed and desktop release v0.8.5 published; local AppData runtime restored with 5 accounts and 2 projects
+- Verification: pnpm validate; pnpm dashboard:build; pnpm desktop:release -- --bump patch; gh release view v0.8.5
+- Git: not recorded
+- Decisions: none
+- Next: Monitor installed app update; if a project is still missing, re-add it from the dashboard
