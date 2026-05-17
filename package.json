@@ -52,6 +52,12 @@
     "appId": "com.agentapp.orchestrator",
     "productName": "AgentApp",
     "asar": true,
+    "asarUnpack": [
+      "node_modules/@homebridge/node-pty-prebuilt-multiarch/**/*",
+      "**/*.node"
+    ],
+    "npmRebuild": false,
+    "buildDependenciesFromSource": false,
     "directories": {
       "output": "dist-desktop"
     },
