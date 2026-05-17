@@ -710,11 +710,7 @@ function TerminalPanel({ onClose }: { onClose: () => void }) {
       const result = await desktop.terminal.create({ cols, rows });
       if (disposed) return;
       if (!result?.ok) {
-        const reason = String(result?.reason || "unknown");
-        const friendly = reason.includes("node-pty") || reason.includes("Cannot find module")
-          ? "터미널 native module (node-pty) 가 이 빌드에 포함되지 않았습니다. 다음 릴리즈에서 prebuilt 바이너리로 제공 예정 — 그동안은 외부 PowerShell/cmd 를 사용해 주세요."
-          : `터미널 시작 실패: ${reason}`;
-        setError(friendly);
+        setError(`터미널 시작 실패: ${result?.reason || "unknown"}`);
         setStatus("");
         return;
       }

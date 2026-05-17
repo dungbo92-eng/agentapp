@@ -532,15 +532,15 @@ let ptyModule = null;
 async function loadPtyModule() {
   if (ptyModule) return ptyModule;
   try {
-    // node-pty 는 CommonJS native 모듈 — createRequire 로 로드.
-    // 현재 빌드 환경에서 winpty native build 가 실패해 의존성에서 제외된 상태이므로
-    // require 가 실패할 수 있다. 그 경우 graceful degrade (null 반환).
+    // Homebridge 의 node-pty prebuilt fork — Windows 에서 ConPTY 바이너리를
+    // postinstall 시 자동 복사하므로 winpty native 빌드가 필요 없음. Linux/macOS
+    // 도 prebuilt 제공. CommonJS native 모듈이라 createRequire 로 로드.
     const { createRequire } = await import("node:module");
     const requireFn = createRequire(import.meta.url);
-    ptyModule = requireFn("node-pty");
+    ptyModule = requireFn("@homebridge/node-pty-prebuilt-multiarch");
     return ptyModule;
   } catch (error) {
-    process.stderr.write(`[pty] load failed (node-pty not installed): ${error?.message || error}\n`);
+    process.stderr.write(`[pty] load failed: ${error?.message || error}\n`);
     return null;
   }
 }
