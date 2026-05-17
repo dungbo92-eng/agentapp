@@ -1322,6 +1322,12 @@ async function launchCommandWorker(run, files, adapter, promptText) {
     onLine: async (line, level) => {
       // Claude stream-json: stdout 의 NDJSON 라인을 사람용으로 변환해 event log
       // 에 보여주고, 원본 JSON 라인은 숨긴다. stderr 는 그대로 통과.
+      //
+      // 라인을 parseQuotaReset 에 그대로 넘기지 않는다. tool_result 블록 본문에
+      // 우연히 "limit", "quota" 같은 단어가 섞이면 false-positive 잠금이 발생해
+      // 정상 계정이 routing 후보에서 제외되는 사고가 있었다 (DEC-20260516-003).
+      // 대신: stderr 는 그대로, stream-json stdout 은 interpret 결과만 검사한다.
+      let quotaScanLine = "";
       if (claudeStream.enabled && level === "stdout") {
         const interp = interpretClaudeStreamLine(line);
         if (interp.skip) {
@@ -1337,17 +1343,29 @@ async function launchCommandWorker(run, files, adapter, promptText) {
             level: "info",
             message: interp.display.length > 240 ? `${interp.display.slice(0, 240)}...` : interp.display,
           });
+          // 실제 한도 메시지는 Claude CLI 의 final `result` 이벤트로 도착한다.
+          // result 이벤트의 finalText 만 quota 검사 대상으로 삼는다. assistant
+          // 텍스트나 tool_use/tool_result preview 는 검사하지 않는다 — 모델이
+          // 인용한 단어가 잠금을 일으키는 false-positive 를 차단.
+          if (typeof interp.finalText === "string" && interp.finalText) {
+            quotaScanLine = interp.finalText;
+          }
         } else if (interp.keep) {
+          // JSON 으로 해석되지 않은 stdout 라인 (드물게 CLI 가 plain text 를
+          // stream-json 모드 중 섞어 보낸 경우). 정상 텍스트로 보고 검사 대상.
           await appendRunEvent(run.id, {
             level: "info",
             message: line.length > 220 ? `${line.slice(0, 220)}...` : line,
           });
+          quotaScanLine = line;
         }
       } else {
         await appendRunEvent(run.id, {
           level: level === "stderr" ? "warn" : "info",
           message: line.length > 220 ? `${line.slice(0, 220)}...` : line,
         });
+        // 비 stream-json 모드 또는 stderr 라인은 종전대로 raw line 을 검사.
+        quotaScanLine = line;
       }
       // 진행 상황 표면화 — '[STATUS] ...' 라인이 보이면 run.currentStatus 에 저장.
       // dashboard 가 이 필드를 topbar/컴팩트 모드에 실시간 표시.
@@ -1359,15 +1377,16 @@ async function launchCommandWorker(run, files, adapter, promptText) {
       } catch {
         /* status marker is opportunistic */
       }
+      if (!quotaScanLine) return;
       try {
         const { parseQuotaReset, applyQuotaLockout, providerForWorker } = await import("./dashboard-runtime.mjs");
         const providerHint = run.routing?.provider || providerForWorker(run.workerId) || "";
-        const resetAt = parseQuotaReset(line, providerHint);
+        const resetAt = parseQuotaReset(quotaScanLine, providerHint);
         if (resetAt && run.routing?.accountId) {
           await applyQuotaLockout(
             run.routing.accountId,
             resetAt,
-            line.length > 200 ? `${line.slice(0, 200)}...` : line,
+            quotaScanLine.length > 200 ? `${quotaScanLine.slice(0, 200)}...` : quotaScanLine,
           );
           await appendRunEvent(run.id, {
             level: "warn",
