@@ -887,3 +887,12 @@ NEXT_TASK.md 템플릿 확정: agent-next 생성물을 Required Reads, Execution
 - Git: not recorded
 - Decisions: none
 - Next: Claude/Gemini CLI 인증 cycle 재검증은 기존 NEXT_TASK 그대로 유지
+
+## 2026-05-17T23:22:11.487Z
+
+- Status: completed
+- Summary: runtime 0-byte corruption recovery hardening and local account/project restore
+- Verification: pnpm validate; pnpm dashboard:build
+- Git: not recorded
+- Decisions: none
+- Next: Desktop release patch after commit/push

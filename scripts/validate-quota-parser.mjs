@@ -11,6 +11,7 @@ const tempDir = path.join(os.tmpdir(), `agentapp-quota-validate-${realDateNow()}
 
 await mkdir(tempDir, { recursive: true });
 process.env.AGENTAPP_DATA_DIR = tempDir;
+process.env.AGENTAPP_DISABLE_LEGACY_RUNTIME_RECOVERY = "1";
 
 const {
   classifyTaskDomain,
@@ -21,6 +22,7 @@ const {
   setAccountSession,
   startRun,
   tryAutoChain,
+  writeRuntime,
 } = await import("./dashboard-runtime.mjs");
 const { detectInterruption, interpretClaudeStreamLine } = await import("./worker-launch-adapter.mjs");
 
@@ -75,6 +77,37 @@ try {
   }
 
   const runtimeFile = path.join(tempDir, "dashboard-runtime.json");
+
+  await writeRuntime({
+    version: 1,
+    accounts: [
+      {
+        id: "recovery-account",
+        provider: "codex",
+        plan: "plus",
+        loginLabel: "recovery",
+        sessionStatus: "ready",
+        remainingUnits: 10,
+        weeklyUnits: 80,
+      },
+    ],
+    projects: [{ id: "recovery-project", name: "recovery", path: tempDir }],
+    activeRuns: [],
+    activeRun: null,
+    runHistory: [],
+    pendingRuns: [],
+    settings: {},
+  });
+  await writeFile(runtimeFile, "", "utf8");
+  await writeFile(`${runtimeFile}.bak`, "", "utf8");
+  const recoveredRuntime = await readRuntime();
+  if (
+    !recoveredRuntime.accounts.some((account) => account.id === "recovery-account")
+    || !recoveredRuntime.projects.some((project) => project.id === "recovery-project")
+  ) {
+    throw new Error("last-good runtime recovery did not restore accounts/projects");
+  }
+  console.log("[validate-quota-parser] ok last-good runtime recovery");
 
   const softInterruption = detectInterruption("codex", "- API Rate Limit applied, retry/backoff needed");
   if (softInterruption.kind !== "") {

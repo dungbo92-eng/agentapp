@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 
-import { copyFile, mkdir, readdir, readFile, rename, stat, unlink, writeFile } from "node:fs/promises";
+import { mkdir, readdir, readFile, rename, stat, unlink, writeFile } from "node:fs/promises";
 import { spawn } from "node:child_process";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
@@ -9,6 +9,8 @@ import { deleteCredential, storeCredential } from "./credential-vault.mjs";
 const REPO_ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 const DATA_DIR = path.resolve(process.env.AGENTAPP_DATA_DIR || path.join(REPO_ROOT, "data"));
 const RUNTIME_FILE = path.join(DATA_DIR, "dashboard-runtime.json");
+const RUNTIME_BACKUP_FILE = `${RUNTIME_FILE}.bak`;
+const RUNTIME_LAST_GOOD_FILE = `${RUNTIME_FILE}.last-good`;
 const HANDOFF_DIR = path.resolve(
   process.env.AGENTAPP_HANDOFF_DIR || path.join(REPO_ROOT, "tools", "agent-orchestrator", "handoff"),
 );
@@ -675,47 +677,121 @@ async function enrichRuntime(runtime) {
   return next;
 }
 
-export async function readRuntime() {
-  let raw;
-  try {
-    raw = await readFile(RUNTIME_FILE, "utf8");
-  } catch {
-    // primary missing; try backup
-    try {
-      raw = await readFile(`${RUNTIME_FILE}.bak`, "utf8");
-      process.stderr.write(`[runtime] primary file missing, restored from backup.\n`);
-    } catch {
-      return clone(DEFAULT_RUNTIME);
+function runtimeCollections(input) {
+  return {
+    accounts: Array.isArray(input?.accounts) ? input.accounts.length : 0,
+    projects: Array.isArray(input?.projects) ? input.projects.length : 0,
+  };
+}
+
+function hasRuntimeCollections(input) {
+  const counts = runtimeCollections(input);
+  return counts.accounts > 0 || counts.projects > 0;
+}
+
+function hasRuntimeActivity(input) {
+  return Boolean(input?.activeRun)
+    || (Array.isArray(input?.activeRuns) && input.activeRuns.length > 0)
+    || (Array.isArray(input?.runHistory) && input.runHistory.length > 0)
+    || (Array.isArray(input?.pendingRuns) && input.pendingRuns.length > 0);
+}
+
+function hasNonDefaultRuntimeSettings(input) {
+  if (!input?.settings || typeof input.settings !== "object") return false;
+  return JSON.stringify(normalizeSettings(input.settings)) !== JSON.stringify(normalizeSettings(DEFAULT_RUNTIME.settings));
+}
+
+function isTriviallyEmptyRuntime(input) {
+  return !hasRuntimeCollections(input) && !hasRuntimeActivity(input) && !hasNonDefaultRuntimeSettings(input);
+}
+
+function runtimeRecoveryCandidates({ skipPrimary = false, includeLegacy = true } = {}) {
+  const candidates = [];
+  if (!skipPrimary) candidates.push({ file: RUNTIME_FILE, label: "primary" });
+  candidates.push(
+    { file: RUNTIME_BACKUP_FILE, label: "backup" },
+    { file: RUNTIME_LAST_GOOD_FILE, label: "last-good" },
+  );
+  if (includeLegacy && process.env.AGENTAPP_DISABLE_LEGACY_RUNTIME_RECOVERY !== "1" && process.env.APPDATA) {
+    const legacyFile = path.join(process.env.APPDATA, "Electron", "data", "dashboard-runtime.json");
+    if (path.resolve(legacyFile) !== path.resolve(RUNTIME_FILE)) {
+      candidates.push({ file: legacyFile, label: "legacy-electron" });
     }
+  }
+  return candidates;
+}
+
+async function readRuntimeJsonCandidate(candidate, { quiet = false } = {}) {
+  try {
+    const raw = await readFile(candidate.file, "utf8");
+    if (!raw.trim()) throw new Error("empty runtime file");
+    return {
+      ...candidate,
+      parsed: JSON.parse(raw),
+      bytes: Buffer.byteLength(raw, "utf8"),
+    };
+  } catch (error) {
+    if (!quiet && candidate.label === "primary") {
+      process.stderr.write(
+        `[runtime] primary runtime unavailable: ${error instanceof Error ? error.message : String(error)}\n`,
+      );
+    }
+    return null;
+  }
+}
+
+async function readFirstValidRuntimeSource(options = {}) {
+  const { requireCollections = false } = options;
+  for (const candidate of runtimeRecoveryCandidates(options)) {
+    const source = await readRuntimeJsonCandidate(candidate, { quiet: candidate.label !== "primary" });
+    if (!source) continue;
+    if (requireCollections && !hasRuntimeCollections(source.parsed)) continue;
+    return source;
+  }
+  return null;
+}
+
+async function writeRuntimeSnapshot(normalized, { backupSource } = {}) {
+  await mkdir(DATA_DIR, { recursive: true });
+
+  if (backupSource && hasRuntimeCollections(backupSource)) {
+    const backup = normalizeRuntime(backupSource);
+    await atomicWriteJson(RUNTIME_BACKUP_FILE, `${JSON.stringify(backup, null, 2)}\n`);
   }
 
-  let parsed;
-  try {
-    parsed = JSON.parse(raw);
-  } catch (error) {
-    process.stderr.write(`[runtime] JSON parse failed: ${error instanceof Error ? error.message : String(error)}\n`);
-    // try backup before giving up
-    try {
-      const backup = await readFile(`${RUNTIME_FILE}.bak`, "utf8");
-      parsed = JSON.parse(backup);
-      process.stderr.write(`[runtime] using backup after parse failure.\n`);
-    } catch {
-      return clone(DEFAULT_RUNTIME);
+  const content = `${JSON.stringify(normalized, null, 2)}\n`;
+  await atomicWriteJson(RUNTIME_FILE, content);
+  await atomicWriteJson(RUNTIME_LAST_GOOD_FILE, content);
+}
+
+export async function readRuntime() {
+  let source = await readFirstValidRuntimeSource();
+  if (source && isTriviallyEmptyRuntime(source.parsed)) {
+    const recovery = await readFirstValidRuntimeSource({ skipPrimary: true, requireCollections: true });
+    if (recovery) {
+      const counts = runtimeCollections(recovery.parsed);
+      process.stderr.write(
+        `[runtime] primary runtime was empty; restored from ${recovery.label} (${counts.accounts} accounts, ${counts.projects} projects).\n`,
+      );
+      source = recovery;
     }
   }
+  if (!source) return clone(DEFAULT_RUNTIME);
 
   let normalized;
   try {
-    normalized = normalizeRuntime(parsed);
+    normalized = normalizeRuntime(source.parsed);
   } catch (error) {
     process.stderr.write(`[runtime] normalize failed: ${error instanceof Error ? error.message : String(error)}\n`);
     normalized = {
       version: 1,
-      accounts: Array.isArray(parsed?.accounts) ? parsed.accounts : [],
-      projects: Array.isArray(parsed?.projects) ? parsed.projects : [],
-      activeRun: parsed?.activeRun || null,
-      runHistory: Array.isArray(parsed?.runHistory) ? parsed.runHistory : [],
-      pendingRuns: Array.isArray(parsed?.pendingRuns) ? parsed.pendingRuns : [],
+      accounts: Array.isArray(source.parsed?.accounts) ? source.parsed.accounts : [],
+      projects: Array.isArray(source.parsed?.projects) ? source.parsed.projects : [],
+      activeRun: source.parsed?.activeRun || null,
+      activeRuns: Array.isArray(source.parsed?.activeRuns) ? source.parsed.activeRuns : [],
+      runHistory: Array.isArray(source.parsed?.runHistory) ? source.parsed.runHistory : [],
+      pendingRuns: Array.isArray(source.parsed?.pendingRuns) ? source.parsed.pendingRuns : [],
+      settings: source.parsed?.settings || {},
     };
   }
 
@@ -744,9 +820,8 @@ export async function readRuntime() {
   try {
     const reconciled = await reconcileStaleActiveRun(normalized);
     normalized = reconciled.runtime;
-    if (reconciled.changed) {
-      await mkdir(DATA_DIR, { recursive: true });
-      await writeFile(RUNTIME_FILE, `${JSON.stringify(normalized, null, 2)}\n`, "utf8");
+    if (reconciled.changed || source.file !== RUNTIME_FILE) {
+      await writeRuntimeSnapshot(normalized, { backupSource: source.parsed });
     }
     return await enrichRuntime(normalized);
   } catch (error) {
@@ -756,12 +831,9 @@ export async function readRuntime() {
 }
 
 async function readDiskRuntimeRaw() {
-  try {
-    const raw = await readFile(RUNTIME_FILE, "utf8");
-    return JSON.parse(raw);
-  } catch {
-    return null;
-  }
+  const source = await readFirstValidRuntimeSource({ requireCollections: true })
+    || await readFirstValidRuntimeSource();
+  return source?.parsed || null;
 }
 
 // 같은 프로세스 안에서 writeRuntime 두 개가 동시에 await 사이에 끼면 두 호출이
@@ -825,16 +897,19 @@ export async function writeRuntime(runtime) {
 
     await mkdir(DATA_DIR, { recursive: true });
 
-    // 직전 live 파일을 .bak 로 복사. copyFile 은 단일 OS 호출이라 writeFile 보다
-    // 빠르고 부분 쓰기로 인한 corrupt 가 안 생긴다. lock 으로 직렬화돼 있으므로
-    // 이 시점의 live 는 "마지막 정상 상태" 이며 안전한 백업이 된다.
+    // Store a backup only from a valid persisted runtime. A zero-byte or
+    // unparsable primary must never replace the last usable backup.
     try {
-      await copyFile(RUNTIME_FILE, `${RUNTIME_FILE}.bak`);
+      if (onDisk && hasRuntimeCollections(onDisk)) {
+        const backup = normalizeRuntime(onDisk);
+        await atomicWriteJson(RUNTIME_BACKUP_FILE, `${JSON.stringify(backup, null, 2)}\n`);
+      }
     } catch {
       // 첫 쓰기라 live 파일이 아직 없을 수 있음 — 그 경우 backup 불필요.
     }
 
     await atomicWriteJson(RUNTIME_FILE, `${JSON.stringify(normalized, null, 2)}\n`);
+    await atomicWriteJson(RUNTIME_LAST_GOOD_FILE, `${JSON.stringify(normalized, null, 2)}\n`);
     return normalized;
   });
 }
