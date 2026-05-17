@@ -275,6 +275,20 @@ type RuntimeSettings = {
   autoChainOverrideOnChainDone?: boolean;
   quotaRetryEnabled?: boolean;
   quotaRetryMaxAttempts?: number;
+  notifyWebhookUrl?: string;
+  notifyEnabled?: boolean;
+  strictUserWait?: boolean;
+};
+
+type RuntimeNotification = {
+  id: string;
+  kind: "completed" | "awaiting" | "pending" | "blocked" | "error" | "info" | string;
+  title: string;
+  message: string;
+  runId?: string;
+  projectId?: string;
+  at: number;
+  delivered?: boolean;
 };
 
 type RuntimeState = {
@@ -285,6 +299,7 @@ type RuntimeState = {
   activeRuns?: RunRecord[];
   runHistory: RunRecord[];
   pendingRuns?: PendingRun[];
+  notifications?: RuntimeNotification[];
   handoff?: { status: string; targetAccountId?: string; reason: string };
   startRejected?: { reason: string; message: string; activeRunId?: string };
   settings?: RuntimeSettings;
@@ -894,6 +909,8 @@ function RuntimeSettingsPanel({
   const [chainDepthInput, setChainDepthInput] = React.useState<string>(String(settings?.autoChainMaxDepth ?? 8));
   const [overrideChainDone, setOverrideChainDone] = React.useState<boolean>(Boolean(settings?.autoChainOverrideOnChainDone));
   const [quotaRetry, setQuotaRetry] = React.useState<boolean>(settings?.quotaRetryEnabled !== false);
+  const [notifyEnabled, setNotifyEnabled] = React.useState<boolean>(settings?.notifyEnabled !== false);
+  const [notifyWebhookUrl, setNotifyWebhookUrl] = React.useState<string>(settings?.notifyWebhookUrl ?? "");
   const [saving, setSaving] = React.useState(false);
 
   React.useEffect(() => {
@@ -904,8 +921,10 @@ function RuntimeSettingsPanel({
       setChainDepthInput(String(settings.autoChainMaxDepth ?? 8));
       setOverrideChainDone(Boolean(settings.autoChainOverrideOnChainDone));
       setQuotaRetry(settings.quotaRetryEnabled !== false);
+      setNotifyEnabled(settings.notifyEnabled !== false);
+      setNotifyWebhookUrl(settings.notifyWebhookUrl ?? "");
     }
-  }, [settings?.idleWarnMs, settings?.idleKillMs, settings?.autoChainEnabled, settings?.autoChainMaxDepth, settings?.autoChainOverrideOnChainDone, settings?.quotaRetryEnabled]);
+  }, [settings?.idleWarnMs, settings?.idleKillMs, settings?.autoChainEnabled, settings?.autoChainMaxDepth, settings?.autoChainOverrideOnChainDone, settings?.quotaRetryEnabled, settings?.notifyEnabled, settings?.notifyWebhookUrl]);
 
   return (
     <section className="sidebarBlock">
@@ -984,6 +1003,27 @@ function RuntimeSettingsPanel({
           />
           <span>🔁 한도 도달 시 다른 계정으로 자동 재시도</span>
         </label>
+        <label className="toggleRow" title="작업 완료/대기/사용자 답변 필요 등 주요 이벤트가 발생하면 대시보드 우측 알림(2초) + OS 알림 + 등록된 webhook URL 로 전송합니다.">
+          <input
+            type="checkbox"
+            checked={notifyEnabled}
+            onChange={(event) => setNotifyEnabled(event.target.checked)}
+          />
+          <span>🔔 이벤트 알림 (완료/대기/사용자 답변 필요)</span>
+        </label>
+        <label className="toggleRow column" title="모바일 알림용 webhook. ntfy.sh / Discord / Slack incoming webhook URL 모두 지원. 비워두면 webhook 발송 안 함 (대시보드 토스트/OS 알림만).">
+          <span>📱 모바일 알림 webhook URL</span>
+          <input
+            type="text"
+            placeholder="https://ntfy.sh/agentapp-xxx  (또는 Discord/Slack webhook URL)"
+            value={notifyWebhookUrl}
+            onChange={(event) => setNotifyWebhookUrl(event.target.value)}
+            style={{ width: "100%", padding: "4px 6px", marginTop: 4 }}
+          />
+          <small style={{ color: "#64748b", fontSize: "0.7rem", marginTop: 2, display: "block" }}>
+            ntfy 사용: 폰에 ntfy 앱 설치 + 임의 토픽 구독 (예: agentapp-leemg-xyz) → 이 URL 에 https://ntfy.sh/&lt;토픽&gt; 입력
+          </small>
+        </label>
       </div>
       <button
         type="button"
@@ -1002,6 +1042,8 @@ function RuntimeSettingsPanel({
               autoChainMaxDepth: depth,
               autoChainOverrideOnChainDone: overrideChainDone,
               quotaRetryEnabled: quotaRetry,
+              notifyEnabled,
+              notifyWebhookUrl: notifyWebhookUrl.trim(),
             });
           } finally {
             setSaving(false);
@@ -1597,9 +1639,37 @@ function App() {
 
   React.useEffect(() => {
     if (!toast) return;
-    const timer = window.setTimeout(() => setToast(null), 5000);
+    // 사용자 요청: "2초 표시 후 사라짐". 액션이 필요한 알림은 awaitingUserRuns 패널이
+    // 별도로 표시해 사라져도 정보는 보존된다.
+    const timer = window.setTimeout(() => setToast(null), 2000);
     return () => window.clearTimeout(timer);
   }, [toast]);
+
+  // 런타임 notifications 배열 -> toast 자동 전환. 한 번 표시한 notification 은
+  // 서버에 dismiss 요청을 보내 큐에서 제거. 사용자가 dashboard 백그라운드에서
+  // 작업 중이면 OS Notification (main.mjs) + 모바일 webhook 으로도 같이 전달됨.
+  const lastNotifIdRef = React.useRef<string>("");
+  React.useEffect(() => {
+    const notifs = runtime.notifications || [];
+    if (notifs.length === 0) return;
+    const latest = notifs[0];
+    if (!latest || latest.id === lastNotifIdRef.current) return;
+    lastNotifIdRef.current = latest.id;
+    const kindToToast: Record<string, "success" | "warn" | "info"> = {
+      completed: "success",
+      awaiting: "warn",
+      pending: "info",
+      blocked: "warn",
+      error: "warn",
+      info: "info",
+    };
+    setToast({
+      kind: kindToToast[latest.kind] || "info",
+      message: latest.title ? `${latest.title} — ${latest.message}` : latest.message,
+    });
+    // 서버 큐에서 제거 (다음 polling 때 중복 표시 안 하도록)
+    void runtimeRequest("notifications/dismiss", { id: latest.id }).catch(() => { /* best-effort */ });
+  }, [runtime.notifications]);
 
   React.useEffect(() => {
     const critical = runtime.accounts.find(

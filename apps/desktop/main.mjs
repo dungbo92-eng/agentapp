@@ -1,4 +1,4 @@
-import { app, BrowserWindow, shell, globalShortcut, Tray, Menu, ipcMain, screen, nativeImage } from "electron";
+import { app, BrowserWindow, shell, globalShortcut, Tray, Menu, ipcMain, screen, nativeImage, Notification } from "electron";
 import { readFileSync, writeFileSync } from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
@@ -283,6 +283,8 @@ async function createMainWindow() {
 
   await mainWindow.loadURL(dashboardServer.url);
 
+  void bootstrapNotificationDispatcher();
+
   // 컴팩트 모드로 복원된 경우 우하단 위치로 이동 + alwaysOnTop floating 적용.
   // BrowserWindow 의 width/height 만으로는 위치가 가운데로 가서 컴팩트 모드의
   // 사용자 기대(우하단 작은 창) 와 어긋난다.
@@ -306,6 +308,63 @@ async function createMainWindow() {
   await bootstrapTray();
   void bootstrapAutoUpdater();
   void bootstrapAccountProbe();
+}
+
+// OS 알림 — dashboard-runtime 의 notifications 배열을 2 초마다 polling 해
+// 새 항목이 보이면 Electron Notification 으로 발송. dashboard UI 가 toast 로 표시
+// 하든 dismiss 하든 무관하게, 한 알림 id 는 한 번만 OS 알림으로 발송된다.
+// 사용자가 dashboard 를 트레이로 내려도 OS 알림으로 작업 완료/대기/사용자 답변
+// 필요 같은 이벤트를 인지할 수 있다.
+const seenNotificationIds = new Set();
+async function bootstrapNotificationDispatcher() {
+  let osSupported = Notification.isSupported();
+  if (!osSupported) {
+    process.stderr.write("[notify] Electron Notification not supported on this platform\n");
+  }
+  const tick = async () => {
+    try {
+      const mod = await import("../../scripts/dashboard-runtime.mjs");
+      const runtime = await mod.readRuntime();
+      const notifs = Array.isArray(runtime.notifications) ? runtime.notifications : [];
+      for (const n of notifs) {
+        if (!n?.id || seenNotificationIds.has(n.id)) continue;
+        seenNotificationIds.add(n.id);
+        if (osSupported) {
+          try {
+            const urgency = n.kind === "awaiting" || n.kind === "blocked" || n.kind === "error" ? "critical" : "normal";
+            const notif = new Notification({
+              title: String(n.title || "AgentApp"),
+              body: String(n.message || ""),
+              urgency,
+              silent: false,
+            });
+            // 사용자가 OS 알림 클릭하면 dashboard 창을 다시 띄움
+            notif.on("click", () => {
+              if (mainWindow && !mainWindow.isDestroyed()) {
+                if (mainWindow.isMinimized()) mainWindow.restore();
+                mainWindow.show();
+                mainWindow.focus();
+              }
+            });
+            notif.show();
+          } catch (error) {
+            process.stderr.write(`[notify] show failed: ${error?.message || error}\n`);
+          }
+        }
+      }
+      // seen set 정리 — 너무 커지지 않게.
+      if (seenNotificationIds.size > 200) {
+        const arr = Array.from(seenNotificationIds);
+        seenNotificationIds.clear();
+        arr.slice(-100).forEach((id) => seenNotificationIds.add(id));
+      }
+    } catch {
+      /* runtime not ready yet; ignore */
+    }
+  };
+  // 첫 tick 은 2 초 후, 이후 2 초 간격으로.
+  setTimeout(() => { void tick(); }, 2000);
+  setInterval(() => { void tick(); }, 2000);
 }
 
 async function bootstrapAccountProbe() {

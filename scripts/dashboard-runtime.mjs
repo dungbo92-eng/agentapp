@@ -68,6 +68,12 @@ const DEFAULT_RUNTIME = {
     //                  (escalation, wait for user approval/decision/input,
     //                  사용자 승인/결재 필요 등). 보수적 운영용.
     strictUserWait: false,
+    // 외부 알림 webhook. 이벤트(완료/대기/사용자 답변 필요) 발생 시 POST.
+    // ntfy.sh / Discord / Slack incoming webhook 호환 (자동 형식 감지).
+    // 예: https://ntfy.sh/agentapp-xxx (ntfy 앱 설치 후 토픽 구독으로 모바일 알림).
+    notifyWebhookUrl: "",
+    // 알림 켜기/끄기 (true=웹훅 + dashboard toast + OS Notification 모두 발생).
+    notifyEnabled: true,
   },
 };
 
@@ -94,6 +100,12 @@ function normalizeSettings(raw) {
   const strictUserWait = source.strictUserWait === undefined
     ? false
     : Boolean(source.strictUserWait);
+  const notifyWebhookUrl = typeof source.notifyWebhookUrl === "string"
+    ? source.notifyWebhookUrl.trim()
+    : "";
+  const notifyEnabled = source.notifyEnabled === undefined
+    ? true
+    : Boolean(source.notifyEnabled);
   const lanAccessEnabled = source.lanAccessEnabled === undefined
     ? false
     : Boolean(source.lanAccessEnabled);
@@ -116,6 +128,8 @@ function normalizeSettings(raw) {
     quotaRetryMaxAttempts,
     maintenanceDomain,
     strictUserWait,
+    notifyWebhookUrl,
+    notifyEnabled,
     lanAccessEnabled,
     lanAccessToken,
   };
@@ -2447,7 +2461,141 @@ export async function finishRunRecord(runId, patch, handoff = null) {
   } catch {
     // best-effort: never block run completion on this bookkeeping
   }
+  // 작업 종료 알림 — 사용자가 dashboard 백그라운드일 때 OS/모바일로 알린다.
+  // 완료/한도도달/정책거절/실패 모두 사용자가 알아야 다음 액션 결정.
+  try {
+    const finishedStatus = String(patch?.status || "").toLowerCase();
+    const finishedRun = result.runHistory?.find((item) => item.id === runId);
+    const projectIdForNotif = finishedRun?.projectId || "";
+    const shortPrompt = String(finishedRun?.prompt || "").replace(/\[[^\]]*\]/g, "").trim().slice(0, 80);
+    if (finishedStatus === "completed") {
+      await pushNotification({
+        kind: "completed",
+        title: "AgentApp — 작업 완료",
+        message: shortPrompt ? `[${projectIdForNotif}] ${shortPrompt}` : `[${projectIdForNotif}] 작업이 완료됐습니다.`,
+        runId, projectId: projectIdForNotif,
+      });
+    } else if (finishedStatus === "quota_limited") {
+      await pushNotification({
+        kind: "blocked",
+        title: "AgentApp — 한도 도달",
+        message: `[${projectIdForNotif}] 사용량 한도로 작업이 중단됐습니다. 다른 계정 준비 또는 reset 시각 대기.`,
+        runId, projectId: projectIdForNotif,
+      });
+    } else if (finishedStatus === "policy_blocked") {
+      await pushNotification({
+        kind: "blocked",
+        title: "AgentApp — 정책 거절",
+        message: `[${projectIdForNotif}] 조직 정책으로 작업 거절. 다른 provider 로 자동 재시도 중이거나 사용자 결정 필요.`,
+        runId, projectId: projectIdForNotif,
+      });
+    } else if (finishedStatus === "failed") {
+      await pushNotification({
+        kind: "error",
+        title: "AgentApp — 작업 실패",
+        message: `[${projectIdForNotif}] ${shortPrompt || "작업"} 이 실패했습니다.`,
+        runId, projectId: projectIdForNotif,
+      });
+    }
+  } catch {
+    /* best-effort */
+  }
   return result;
+}
+
+// 이벤트 알림 — 작업 완료 / 사용자 답변 대기 / 큐 대기 등 사용자가 알아야 할
+// 상태 변경을 한 곳에서 발사. runtime.notifications 배열에 push (UI polling
+// 으로 toast 표시) + settings.notifyWebhookUrl 로 외부 발송 (모바일 ntfy/Discord/
+// Slack). main.mjs 의 polling 으로 OS Notification 까지 띄운다.
+//
+// kind: "completed" | "awaiting" | "pending" | "blocked" | "error" | "info"
+// title/message: 사람용 짧은 텍스트
+// runId/projectId: 클릭 시 컨텍스트 복원에 사용
+export async function pushNotification({
+  kind = "info",
+  title = "",
+  message = "",
+  runId = "",
+  projectId = "",
+} = {}) {
+  if (!title && !message) return;
+  const runtime = await readRuntime();
+  const settings = normalizeSettings(runtime.settings);
+  if (!settings.notifyEnabled) return;
+  const entry = {
+    id: `notif-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
+    kind: String(kind || "info"),
+    title: String(title || "").slice(0, 200),
+    message: String(message || "").slice(0, 800),
+    runId: String(runId || ""),
+    projectId: String(projectId || ""),
+    at: Date.now(),
+    delivered: false,
+  };
+  const prev = Array.isArray(runtime.notifications) ? runtime.notifications : [];
+  runtime.notifications = [entry, ...prev].slice(0, 40);
+  await writeRuntime(runtime);
+
+  // 외부 webhook — 본인이 등록한 ntfy/Discord/Slack 같은 푸시 채널.
+  // ntfy.sh: plain text body + Title 헤더로 충분 (priority=high 면 잠금화면 푸시).
+  // Discord webhook: { content } JSON, Slack incoming webhook: { text } JSON.
+  // URL 호스트로 자동 분기.
+  if (settings.notifyWebhookUrl) {
+    try {
+      const url = settings.notifyWebhookUrl;
+      const isNtfy = /ntfy\.(sh|io)/i.test(url);
+      const isDiscord = /discord\.com\/api\/webhooks/i.test(url);
+      const headers = { "Content-Type": "application/json" };
+      let body;
+      if (isNtfy) {
+        body = `${entry.title}\n\n${entry.message}`;
+        headers["Content-Type"] = "text/plain; charset=utf-8";
+        headers["Title"] = encodeNtfyHeader(entry.title);
+        headers["Priority"] = kind === "awaiting" || kind === "blocked" || kind === "error" ? "high" : "default";
+        headers["Tags"] = kind === "completed" ? "white_check_mark"
+          : kind === "awaiting" ? "question"
+          : kind === "blocked" ? "no_entry"
+          : kind === "error" ? "warning"
+          : "bell";
+      } else if (isDiscord) {
+        body = JSON.stringify({ content: `**[${kind}] ${entry.title}**\n${entry.message}` });
+      } else {
+        // Slack incoming webhook 또는 일반 JSON 호환
+        body = JSON.stringify({ text: `*[${kind}] ${entry.title}*\n${entry.message}` });
+      }
+      const controller = new AbortController();
+      const timeout = setTimeout(() => controller.abort(), 5000);
+      await fetch(url, { method: "POST", body, headers, signal: controller.signal })
+        .catch(() => { /* webhook 실패는 silent */ })
+        .finally(() => clearTimeout(timeout));
+    } catch {
+      /* best-effort */
+    }
+  }
+}
+
+// ntfy 의 Title 헤더는 ISO-8859-1 만 허용. 한글 등 비ASCII 가 들어가면 invalid.
+// RFC 8187 형식 (UTF-8 base64) 으로 인코딩하거나 ASCII 만 남기는 게 안전.
+// 간단히 ASCII 외 문자를 ? 로 치환하고, 더 정확한 표시는 body 에 맡긴다.
+function encodeNtfyHeader(text) {
+  return String(text || "").replace(/[^\x20-\x7E]/g, "?").slice(0, 200);
+}
+
+// 사용자가 알림을 읽었거나 dismiss 할 때 호출 — 배열에서 제거.
+export async function dismissNotification(input = {}) {
+  const id = String(input?.id || "").trim();
+  if (!id) return readRuntime();
+  const runtime = await readRuntime();
+  const before = Array.isArray(runtime.notifications) ? runtime.notifications : [];
+  runtime.notifications = before.filter((n) => n?.id !== id);
+  return writeRuntime(runtime);
+}
+
+// 한 번에 모두 제거 (사용자가 "모두 읽음" 누르거나, UI 가 일정 시간 지난 항목 정리).
+export async function clearNotifications() {
+  const runtime = await readRuntime();
+  runtime.notifications = [];
+  return writeRuntime(runtime);
 }
 
 function buildPendingRecord(input, routing) {
@@ -2901,6 +3049,16 @@ export async function tryAutoChain(prevRun, opts = {}) {
     } catch {
       /* best-effort */
     }
+    // 사용자 답변 대기 알림 — 빨리 답변 줘야 진행 가능하므로 high priority.
+    try {
+      await pushNotification({
+        kind: "awaiting",
+        title: "AgentApp — 사용자 답변 필요",
+        message: `[${prevRun.projectId || "?"}] ${nextStepsParsed.reason || "다음 작업 없음"}`,
+        runId: prevRun.id,
+        projectId: prevRun.projectId || "",
+      });
+    } catch { /* best-effort */ }
     return {
       stopped: true,
       awaitingUserInput: true,
@@ -2945,6 +3103,15 @@ export async function tryAutoChain(prevRun, opts = {}) {
       } catch {
         /* best-effort */
       }
+      try {
+        await pushNotification({
+          kind: "awaiting",
+          title: "AgentApp — 사용자 결재 필요",
+          message: `[${prevRun.projectId || "?"}] worker 가 명시적 결재/escalation 신호를 보냈습니다.`,
+          runId: prevRun.id,
+          projectId: prevRun.projectId || "",
+        });
+      } catch { /* best-effort */ }
       return {
         stopped: true,
         awaitingUserInput: true,
@@ -3475,6 +3642,19 @@ export async function startRun(input) {
   const saved = await writeRuntime(runtime);
 
   if (run.status !== "running") {
+    // 사용자 알림 — 작업이 즉시 시작 못 하고 대기로 들어간 경우.
+    // 사용자가 백그라운드에서 모를 수 있으므로 webhook 으로도 보냄.
+    if (routing.status === "blocked") {
+      try {
+        await pushNotification({
+          kind: "pending",
+          title: "AgentApp — 작업 대기 중",
+          message: `[${run.projectId}] ${routing.reason || "준비된 계정이 없습니다."} 계정 준비 시 자동 시작.`,
+          runId: run.id,
+          projectId: run.projectId,
+        });
+      } catch { /* best-effort */ }
+    }
     return saved;
   }
 
