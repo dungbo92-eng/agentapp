@@ -43,4 +43,13 @@ contextBridge.exposeInMainWorld("agentapp", {
   // 같은 Wi-Fi 의 폰/태블릿에서 대시보드 접속용. 현재 LAN bind 상태 + 적용된 token
   // + 추정 LAN IP 와 그로 만든 접속 URL 들. UI 는 이걸 받아 QR / 복사 버튼을 띄운다.
   getLanAccess: () => ipcRenderer.invoke("agentapp:get-lan-access"),
+  // 인앱 터미널 (node-pty 기반) — 다중 세션을 sessionId 로 구분.
+  terminal: {
+    create: (options) => ipcRenderer.invoke("agentapp:terminal-create", options || {}),
+    write: (sessionId, data) => ipcRenderer.invoke("agentapp:terminal-write", { sessionId, data }),
+    resize: (sessionId, cols, rows) => ipcRenderer.invoke("agentapp:terminal-resize", { sessionId, cols, rows }),
+    kill: (sessionId) => ipcRenderer.invoke("agentapp:terminal-kill", { sessionId }),
+    onData: (handler) => onChannel("agentapp:terminal-data", handler),
+    onExit: (handler) => onChannel("agentapp:terminal-exit", handler),
+  },
 });

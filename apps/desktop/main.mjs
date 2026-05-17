@@ -232,6 +232,9 @@ async function createMainWindow() {
       nodeIntegration: false,
       sandbox: false, // preload 가 require('electron') 을 쓰려면 sandbox 꺼야 함
       devTools: true,
+      // 인앱 브라우저 (<webview> 태그) 활성화. React 안에서 <webview src="..." />
+      // 로 외부 사이트를 안전한 격리 환경에서 렌더할 수 있다.
+      webviewTag: true,
       preload: PRELOAD_PATH,
     },
   });
@@ -519,6 +522,110 @@ ipcMain.handle("agentapp:get-update-status", () => latestUpdateStatus);
 ipcMain.handle("agentapp:install-update", () => installUpdateNow());
 // 사용자가 "지금 확인" 으로 즉시 업데이트 체크를 트리거.
 ipcMain.handle("agentapp:check-for-updates", () => checkForUpdatesNow());
+
+// ===== 인앱 터미널 (node-pty 기반) =====
+// renderer 가 terminal:create 로 새 PTY 시작 → main 이 stdout 을 terminal:data 로
+// 푸시 → renderer 의 xterm.js 가 화면에 그림. renderer 입력은 terminal:write 로 전달.
+// 다중 탭을 위해 sessionId 로 관리. renderer 가 종료(unmount)할 때 terminal:kill 호출.
+const ptySessions = new Map();
+let ptyModule = null;
+async function loadPtyModule() {
+  if (ptyModule) return ptyModule;
+  try {
+    // node-pty 는 CommonJS native 모듈 — createRequire 로 로드.
+    const { createRequire } = await import("node:module");
+    const requireFn = createRequire(import.meta.url);
+    ptyModule = requireFn("node-pty");
+    return ptyModule;
+  } catch (error) {
+    process.stderr.write(`[pty] load failed: ${error?.message || error}\n`);
+    return null;
+  }
+}
+function defaultShell() {
+  if (process.platform === "win32") {
+    // Windows 10 / 11 / Server 2019+ 는 powershell.exe, 그 외 fallback cmd.
+    return process.env.COMSPEC || "powershell.exe";
+  }
+  return process.env.SHELL || "/bin/bash";
+}
+ipcMain.handle("agentapp:terminal-create", async (_event, options = {}) => {
+  const pty = await loadPtyModule();
+  if (!pty) return { ok: false, reason: "node-pty 로드 실패. native module 빌드를 확인하세요." };
+  const sessionId = String(options?.sessionId || `pty-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`);
+  const cwd = String(options?.cwd || process.cwd());
+  const cols = Number(options?.cols || 100);
+  const rows = Number(options?.rows || 28);
+  const shell = String(options?.shell || defaultShell());
+  try {
+    const proc = pty.spawn(shell, [], {
+      name: "xterm-color",
+      cols,
+      rows,
+      cwd,
+      env: { ...process.env, TERM: "xterm-256color" },
+    });
+    ptySessions.set(sessionId, proc);
+    proc.onData((data) => {
+      if (mainWindow && !mainWindow.isDestroyed() && !mainWindow.webContents.isDestroyed()) {
+        mainWindow.webContents.send("agentapp:terminal-data", { sessionId, data });
+      }
+    });
+    proc.onExit(({ exitCode, signal }) => {
+      if (mainWindow && !mainWindow.isDestroyed() && !mainWindow.webContents.isDestroyed()) {
+        mainWindow.webContents.send("agentapp:terminal-exit", { sessionId, exitCode, signal });
+      }
+      ptySessions.delete(sessionId);
+    });
+    return { ok: true, sessionId, shell, cwd };
+  } catch (error) {
+    return { ok: false, reason: error?.message || String(error) };
+  }
+});
+ipcMain.handle("agentapp:terminal-write", (_event, options = {}) => {
+  const sessionId = String(options?.sessionId || "");
+  const data = String(options?.data || "");
+  const proc = ptySessions.get(sessionId);
+  if (!proc) return { ok: false, reason: "no-session" };
+  try {
+    proc.write(data);
+    return { ok: true };
+  } catch (error) {
+    return { ok: false, reason: error?.message || String(error) };
+  }
+});
+ipcMain.handle("agentapp:terminal-resize", (_event, options = {}) => {
+  const sessionId = String(options?.sessionId || "");
+  const cols = Math.max(1, Number(options?.cols || 100));
+  const rows = Math.max(1, Number(options?.rows || 28));
+  const proc = ptySessions.get(sessionId);
+  if (!proc) return { ok: false, reason: "no-session" };
+  try {
+    proc.resize(cols, rows);
+    return { ok: true };
+  } catch (error) {
+    return { ok: false, reason: error?.message || String(error) };
+  }
+});
+ipcMain.handle("agentapp:terminal-kill", (_event, options = {}) => {
+  const sessionId = String(options?.sessionId || "");
+  const proc = ptySessions.get(sessionId);
+  if (!proc) return { ok: false, reason: "no-session" };
+  try {
+    proc.kill();
+    ptySessions.delete(sessionId);
+    return { ok: true };
+  } catch (error) {
+    return { ok: false, reason: error?.message || String(error) };
+  }
+});
+// 앱 종료 시 모든 PTY 세션 정리.
+app.on("before-quit", () => {
+  for (const proc of ptySessions.values()) {
+    try { proc.kill(); } catch { /* ignore */ }
+  }
+  ptySessions.clear();
+});
 
 // 같은 Wi-Fi 의 폰/태블릿에서 대시보드 접속할 때 사용. main 이 알고 있는 정보는
 // 현재 LAN bind 여부 + 시작 시 적용된 token + 추정 LAN IP. URL 변경 (settings toggle)

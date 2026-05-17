@@ -9,6 +9,7 @@ import {
   FolderGit2,
   Gauge,
   GitBranch,
+  Globe,
   KeyRound,
   MessageSquareText,
   Play,
@@ -19,10 +20,11 @@ import {
   ShieldCheck,
   Smartphone,
   Square,
-  Terminal,
+  Terminal as TerminalIcon,
   TimerReset,
   Trash2,
   UserCheck,
+  X,
   Zap,
   type LucideIcon,
 } from "lucide-react";
@@ -554,6 +556,223 @@ function ResumeWithUserInput({
         </button>
       </div>
     </form>
+  );
+}
+
+// ===== 인앱 브라우저 (Electron <webview> 기반) =====
+// 외부 사이트를 안전한 격리 환경에서 로드. URL 입력 + 뒤로/앞으로/새로고침/홈 버튼.
+// 사용자가 사이드바에서 "브라우저" 선택 시 메인 영역에 전체 노출.
+function BrowserPanel({ onClose }: { onClose: () => void }) {
+  const [urlInput, setUrlInput] = React.useState<string>("https://www.google.com");
+  const [currentUrl, setCurrentUrl] = React.useState<string>("https://www.google.com");
+  const [loading, setLoading] = React.useState<boolean>(false);
+  const webviewRef = React.useRef<HTMLElement | null>(null);
+
+  function normalize(u: string) {
+    const s = u.trim();
+    if (!s) return "";
+    if (/^[a-z]+:\/\//i.test(s)) return s;
+    if (/^[\w.-]+\.[a-z]{2,}/i.test(s)) return `https://${s}`;
+    // 검색어로 취급 — Google
+    return `https://www.google.com/search?q=${encodeURIComponent(s)}`;
+  }
+
+  React.useEffect(() => {
+    const wv = webviewRef.current as unknown as {
+      addEventListener: (event: string, handler: (e: Event & { url?: string }) => void) => void;
+      removeEventListener: (event: string, handler: (e: Event & { url?: string }) => void) => void;
+    } | null;
+    if (!wv) return;
+    const onStart = () => setLoading(true);
+    const onStop = () => setLoading(false);
+    const onNav = (e: Event & { url?: string }) => {
+      if (e.url) {
+        setCurrentUrl(e.url);
+        setUrlInput(e.url);
+      }
+    };
+    wv.addEventListener("did-start-loading", onStart);
+    wv.addEventListener("did-stop-loading", onStop);
+    wv.addEventListener("did-navigate", onNav);
+    wv.addEventListener("did-navigate-in-page", onNav);
+    return () => {
+      wv.removeEventListener("did-start-loading", onStart);
+      wv.removeEventListener("did-stop-loading", onStop);
+      wv.removeEventListener("did-navigate", onNav);
+      wv.removeEventListener("did-navigate-in-page", onNav);
+    };
+  }, []);
+
+  function go(target: string) {
+    const u = normalize(target);
+    if (!u) return;
+    setCurrentUrl(u);
+    setUrlInput(u);
+    const wv = webviewRef.current as unknown as { loadURL: (url: string) => void } | null;
+    try {
+      wv?.loadURL?.(u);
+    } catch { /* webview not ready */ }
+  }
+  function back() {
+    const wv = webviewRef.current as unknown as { goBack: () => void; canGoBack: () => boolean } | null;
+    if (wv?.canGoBack?.()) wv.goBack();
+  }
+  function fwd() {
+    const wv = webviewRef.current as unknown as { goForward: () => void; canGoForward: () => boolean } | null;
+    if (wv?.canGoForward?.()) wv.goForward();
+  }
+  function reload() {
+    const wv = webviewRef.current as unknown as { reload: () => void } | null;
+    wv?.reload?.();
+  }
+
+  return (
+    <div className="inAppPanel browserPanel">
+      <header className="inAppPanelHeader">
+        <button type="button" className="metaToggleBtn" onClick={back} title="뒤로">←</button>
+        <button type="button" className="metaToggleBtn" onClick={fwd} title="앞으로">→</button>
+        <button type="button" className="metaToggleBtn" onClick={reload} title={loading ? "로딩 중..." : "새로고침"}>{loading ? "⏳" : "↻"}</button>
+        <form
+          className="browserUrlForm"
+          onSubmit={(e) => { e.preventDefault(); go(urlInput); }}
+        >
+          <input
+            type="text"
+            value={urlInput}
+            onChange={(e) => setUrlInput(e.target.value)}
+            placeholder="URL 또는 검색어"
+            spellCheck={false}
+          />
+          <button type="submit" className="primaryButton small">이동</button>
+        </form>
+        <button type="button" className="metaToggleBtn" onClick={onClose} title="브라우저 패널 닫기">
+          <X size={14} />
+        </button>
+      </header>
+      <div className="browserContainer">
+        {/* eslint-disable-next-line @typescript-eslint/no-explicit-any */}
+        {React.createElement("webview", {
+          ref: webviewRef as any,
+          src: currentUrl,
+          style: { width: "100%", height: "100%", border: 0, display: "flex", flex: "1" },
+          allowpopups: "true",
+        } as any)}
+      </div>
+    </div>
+  );
+}
+
+// ===== 인앱 터미널 (xterm.js + node-pty 기반) =====
+// 사용자 시스템 셸을 그대로 띄움 — PowerShell (Windows), bash/zsh (macOS/Linux).
+// 사이드바 "터미널" 선택 시 메인 영역 전체 차지.
+function TerminalPanel({ onClose }: { onClose: () => void }) {
+  const containerRef = React.useRef<HTMLDivElement | null>(null);
+  const [status, setStatus] = React.useState<string>("초기화 중...");
+  const [error, setError] = React.useState<string>("");
+  const sessionIdRef = React.useRef<string>("");
+
+  React.useEffect(() => {
+    let disposed = false;
+    let term: import("@xterm/xterm").Terminal | null = null;
+    let fit: import("@xterm/addon-fit").FitAddon | null = null;
+    let offData: (() => void) | undefined;
+    let offExit: (() => void) | undefined;
+    let resizeObserver: ResizeObserver | null = null;
+
+    async function init() {
+      const desktop = (typeof window !== "undefined" ? (window as any).agentapp : null);
+      if (!desktop?.terminal) {
+        setError("터미널 API 가 없습니다 (데스크탑 앱에서만 사용 가능).");
+        setStatus("");
+        return;
+      }
+      // xterm.js 동적 import — vite 가 ESM 으로 처리.
+      const xtermMod = await import("@xterm/xterm");
+      const fitMod = await import("@xterm/addon-fit");
+      // @ts-expect-error CSS side-effect import — Vite 가 처리, TS declarations 없음
+      await import("@xterm/xterm/css/xterm.css");
+      if (disposed) return;
+      term = new xtermMod.Terminal({
+        fontFamily: "Consolas, 'Cascadia Mono', Menlo, monospace",
+        fontSize: 13,
+        theme: { background: "#0b1220", foreground: "#e5e7eb", cursor: "#34d399" },
+        cursorBlink: true,
+        scrollback: 5000,
+      });
+      fit = new fitMod.FitAddon();
+      term.loadAddon(fit);
+      if (containerRef.current) {
+        term.open(containerRef.current);
+        try { fit.fit(); } catch { /* container 아직 layout 안 됨 */ }
+      }
+      const cols = term.cols || 100;
+      const rows = term.rows || 28;
+      const result = await desktop.terminal.create({ cols, rows });
+      if (disposed) return;
+      if (!result?.ok) {
+        setError(`터미널 시작 실패: ${result?.reason || "unknown"}`);
+        setStatus("");
+        return;
+      }
+      sessionIdRef.current = String(result.sessionId);
+      setStatus(`연결됨 — ${result.shell || "shell"} @ ${result.cwd || ""}`);
+      // 입력 → main 으로 전달
+      term.onData((data) => {
+        if (sessionIdRef.current) {
+          void desktop.terminal.write(sessionIdRef.current, data);
+        }
+      });
+      // 리사이즈 — 컨테이너 크기 변경 시 fit + main 에 resize 전달
+      term.onResize(({ cols: c, rows: r }) => {
+        if (sessionIdRef.current) {
+          void desktop.terminal.resize(sessionIdRef.current, c, r);
+        }
+      });
+      // main → renderer 데이터 push
+      offData = desktop.terminal.onData(({ sessionId, data }: { sessionId: string; data: string }) => {
+        if (sessionId === sessionIdRef.current && term) term.write(data);
+      });
+      offExit = desktop.terminal.onExit(({ sessionId, exitCode }: { sessionId: string; exitCode: number }) => {
+        if (sessionId === sessionIdRef.current) {
+          setStatus(`종료됨 (exit ${exitCode})`);
+          sessionIdRef.current = "";
+        }
+      });
+      // 컨테이너 리사이즈 관찰 — fit 자동 적용
+      if (containerRef.current) {
+        resizeObserver = new ResizeObserver(() => {
+          try { fit?.fit(); } catch { /* ignore */ }
+        });
+        resizeObserver.observe(containerRef.current);
+      }
+    }
+    void init();
+    return () => {
+      disposed = true;
+      offData?.();
+      offExit?.();
+      resizeObserver?.disconnect();
+      if (sessionIdRef.current) {
+        const desktop = (typeof window !== "undefined" ? (window as any).agentapp : null);
+        void desktop?.terminal?.kill?.(sessionIdRef.current);
+        sessionIdRef.current = "";
+      }
+      term?.dispose();
+    };
+  }, []);
+
+  return (
+    <div className="inAppPanel terminalPanel">
+      <header className="inAppPanelHeader">
+        <strong>터미널</strong>
+        <span className="terminalStatus" title="현재 세션 상태">{status}</span>
+        {error ? <span className="terminalError">{error}</span> : null}
+        <button type="button" className="metaToggleBtn" onClick={onClose} title="터미널 패널 닫기" style={{ marginLeft: "auto" }}>
+          <X size={14} />
+        </button>
+      </header>
+      <div className="terminalContainer" ref={containerRef} />
+    </div>
   );
 }
 
@@ -1270,6 +1489,10 @@ function App() {
   // 수동 사용량 편집은 제거됨 — 한도는 worker stderr 패턴 + quota lockout 으로 자동 추적.
   const [now, setNow] = React.useState<number>(Date.now());
   const [activeSection, setActiveSection] = React.useState("run");
+  // 메인 패널 모드 — 대시보드(기본), 인앱 브라우저, 인앱 터미널 중 하나. 사이드바
+  // nav 의 '브라우저'/'터미널' 클릭으로 전환. 컴팩트 모드(viewMode)와 직교 — 컴팩트
+  // 모드에서는 항상 dashboard 패널을 사용.
+  const [mainPanel, setMainPanel] = React.useState<"dashboard" | "browser" | "terminal">("dashboard");
   const [viewMode, setViewMode] = React.useState<"full" | "compact">("full");
   // electron preload 가 주입한 IPC bridge. 데스크탑이 아니면 undefined.
   type UpdateStatus = "idle" | "checking" | "current" | "available" | "downloaded" | "error";
@@ -2334,12 +2557,18 @@ function App() {
   }
 
   return (
-    <main className="appShell">
+    <main className={`appShell${mainPanel !== "dashboard" ? " inAppPanelMode" : ""}`}>
       {toast ? (
         <div className={`toast ${toast.kind}`} role="status">
           <span>{toast.message}</span>
           <button type="button" onClick={() => setToast(null)} aria-label="알림 닫기">×</button>
         </div>
+      ) : null}
+      {mainPanel === "browser" ? (
+        <BrowserPanel onClose={() => setMainPanel("dashboard")} />
+      ) : null}
+      {mainPanel === "terminal" ? (
+        <TerminalPanel onClose={() => setMainPanel("dashboard")} />
       ) : null}
       <aside className="sidebar">
         <div className="brand">
@@ -2351,21 +2580,37 @@ function App() {
         </div>
 
         <nav className="navStack" aria-label="작업 영역 섹션">
-          <a className={activeSection === "run" ? "active" : ""} href="#run" onClick={() => setActiveSection("run")}>
+          <a className={mainPanel === "dashboard" && activeSection === "run" ? "active" : ""} href="#run"
+            onClick={(e) => { e.preventDefault(); setMainPanel("dashboard"); setActiveSection("run"); }}>
             <Zap aria-hidden="true" size={16} />
             실행
           </a>
-          <a className={activeSection === "projects" ? "active" : ""} href="#projects" onClick={() => setActiveSection("projects")}>
+          <a className={mainPanel === "dashboard" && activeSection === "projects" ? "active" : ""} href="#projects"
+            onClick={(e) => { e.preventDefault(); setMainPanel("dashboard"); setActiveSection("projects"); }}>
             <FolderGit2 aria-hidden="true" size={16} />
             프로젝트
           </a>
-          <a className={activeSection === "accounts" ? "active" : ""} href="#accounts" onClick={() => setActiveSection("accounts")}>
+          <a className={mainPanel === "dashboard" && activeSection === "accounts" ? "active" : ""} href="#accounts"
+            onClick={(e) => { e.preventDefault(); setMainPanel("dashboard"); setActiveSection("accounts"); }}>
             <KeyRound aria-hidden="true" size={16} />
             계정
           </a>
-          <a className={activeSection === "handoff" ? "active" : ""} href="#handoff" onClick={() => setActiveSection("handoff")}>
+          <a className={mainPanel === "dashboard" && activeSection === "handoff" ? "active" : ""} href="#handoff"
+            onClick={(e) => { e.preventDefault(); setMainPanel("dashboard"); setActiveSection("handoff"); }}>
             <ClipboardList aria-hidden="true" size={16} />
             인수인계
+          </a>
+          <a className={mainPanel === "browser" ? "active" : ""} href="#browser"
+            onClick={(e) => { e.preventDefault(); setMainPanel("browser"); }}
+            title="인앱 웹 브라우저 — 외부 사이트를 안전한 격리 환경에서 열기">
+            <Globe aria-hidden="true" size={16} />
+            브라우저
+          </a>
+          <a className={mainPanel === "terminal" ? "active" : ""} href="#terminal"
+            onClick={(e) => { e.preventDefault(); setMainPanel("terminal"); }}
+            title="인앱 터미널 — 시스템 셸 (PowerShell/cmd/bash) 을 직접 실행">
+            <TerminalIcon aria-hidden="true" size={16} />
+            터미널
           </a>
         </nav>
 
@@ -3183,7 +3428,7 @@ function App() {
           <section className="panel">
             <div className="sectionTitle">
               <h2>명령</h2>
-              <Terminal aria-hidden="true" size={17} />
+              <TerminalIcon aria-hidden="true" size={17} />
             </div>
             {isExternal ? (
               <p className="emptyState">
