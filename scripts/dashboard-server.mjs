@@ -29,6 +29,7 @@ import {
   cancelPendingRun,
   retryPendingRun,
   resumeRunWithUserInput,
+  dismissAwaitingRun,
   dismissNotification,
   clearNotifications,
 } from "./dashboard-runtime.mjs";
@@ -189,6 +190,11 @@ async function handleApi(req, res, url) {
   if (req.method === "POST" && url === "/api/agentapp/runs/resume") {
     // 사용자가 멈춘 run 에 답변을 입력하고 "이어 진행" 을 누를 때.
     sendJson(res, 200, await resumeRunWithUserInput(await readBody(req)));
+    return true;
+  }
+  if (req.method === "POST" && url === "/api/agentapp/runs/awaiting/dismiss") {
+    // 사용자가 awaiting 패널을 "닫기" 로 무시할 때 — 새 run spawn 없이 플래그만 해제.
+    sendJson(res, 200, await dismissAwaitingRun(await readBody(req)));
     return true;
   }
   if (req.method === "POST" && url === "/api/agentapp/notifications/dismiss") {

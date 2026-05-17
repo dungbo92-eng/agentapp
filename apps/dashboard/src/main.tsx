@@ -1850,6 +1850,9 @@ function App() {
   }, [refreshEnvironment]);
 
   const [toast, setToast] = React.useState<{ kind: "success" | "warn" | "info"; message: string } | null>(null);
+  // 사용자가 awaiting 패널을 "닫기" 로 무시한 run id 모음 — fallback detect 가
+  // lastMessageText 의 NEXT_NONE 마커를 계속 잡아도 한 번 닫으면 다시 안 보이게.
+  const [dismissedAwaitingIds, setDismissedAwaitingIds] = React.useState<Set<string>>(() => new Set());
   const missingInstallableToolCount =
     environment?.targets.filter((target) => !target.ok && target.installable !== false && Boolean(target.installCommand)).length || 0;
   const autoInstallAiCli = environment?.autoInstall?.aiCli !== false;
@@ -2012,25 +2015,50 @@ function App() {
     (run) => run.projectId === selectedProjectRecord.id,
   );
   // 사용자 답변을 기다리는 stopped run — 가장 최근 것만 보여줘서 답변 입력 가능하게.
-  // 1) 새 dashboard runtime (v0.6.0+) 은 awaitingUserInput 플래그를 직접 마킹.
-  // 2) 옛 runtime 또는 worker 가 직접 [NEXT_NONE] 마커만 보낸 경우에도 fallback —
-  //    가장 최근 run 의 lastMessageText / currentStatus 에 [NEXT_NONE] 이 있으면
-  //    awaiting 패널을 띄워 사용자가 답변할 수 있게 한다.
+  // 트리거 조건 (어느 하나라도 충족하면 패널 표시):
+  //   1) run.awaitingUserInput === true (v0.6.0+ 마킹)
+  //   2) run.status === "needs_user" (status pill 이 "사용자 확인 필요" 표시하는 케이스 전부)
+  //   3) adapter.status === "needs-user" / "policy-blocked" / "permission-prompt"
+  //   4) lastMessageText 에 [NEXT_NONE] 또는 DECISIONS_REQUIRED 마커
+  // 사용자가 status pill 만 보고 "어디서 답변하지?" 라며 막혔던 케이스 해결.
   const awaitingUserRuns = (() => {
-    const explicit = runHistoryForSelectedProject.find((run) => run.awaitingUserInput === true);
+    const explicit = runHistoryForSelectedProject.find(
+      (run) => run.awaitingUserInput === true && !dismissedAwaitingIds.has(run.id),
+    );
     if (explicit) return [explicit];
-    // fallback — 가장 최근 (history[0]) run 의 응답에 NEXT_NONE 마커가 있는지.
     const latest = runHistoryForSelectedProject[0];
     if (!latest) return [];
     if (latest.status === "running") return [];
+    if (dismissedAwaitingIds.has(latest.id)) return [];
+
     const text = String(latest.adapter?.lastMessageText || latest.currentStatus || "");
-    const match = text.match(/\[NEXT_NONE\]\s*([^\n]*)/);
-    if (!match) return [];
-    const synth: RunRecord = {
+    const markerMatch = text.match(/\[NEXT_NONE\]\s*([^\n]*)/);
+    const decisionMatch = /DECISIONS?_REQUIRED/i.test(text);
+    const statusNeedsUser = latest.status === "needs_user";
+    const adapterStatus = String(latest.adapter?.status || "");
+    const adapterNeedsUser = adapterStatus === "needs-user"
+      || adapterStatus === "policy-blocked"
+      || adapterStatus === "permission-prompt";
+    const handoffReason = String((latest as { handoffReason?: string }).handoffReason || "");
+
+    if (!markerMatch && !decisionMatch && !statusNeedsUser && !adapterNeedsUser) return [];
+
+    // 답변 유형 분류 — 입력으로 해결 가능한가, 외부 조치(로그인/계정 추가)가 필요한가?
+    const isExternal = /session[_-]?timeout|needs[_-]?login|login[_-]?required/i.test(handoffReason)
+      || /로그인|session expired/i.test(text);
+
+    const reason = latest.awaitingReason
+      || (markerMatch && markerMatch[1] ? markerMatch[1].trim() : "")
+      || (statusNeedsUser ? "worker 가 사용자 확인을 요청했습니다" : "")
+      || (adapterNeedsUser ? `상태 ${adapterStatus}` : "")
+      || (handoffReason || "다음 작업 없음");
+
+    const synth: RunRecord & { __external?: boolean } = {
       ...latest,
       awaitingUserInput: true,
-      awaitingReason: latest.awaitingReason || (match[1] || "").trim() || "다음 작업 없음",
+      awaitingReason: reason,
       awaitingPromptHint: latest.awaitingPromptHint || text.slice(-1500),
+      __external: isExternal,
     };
     return [synth];
   })();
@@ -3298,32 +3326,73 @@ function App() {
                 ))}
               </div>
             ) : null}
-            {/* 사용자 입력을 기다리는 stopped run — 답변 입력으로 이어 진행 */}
+            {/* 사용자 입력을 기다리는 stopped run — 답변 입력 또는 다시 시작 */}
             {awaitingUserRuns.length > 0 ? (
               <div className="awaitingList">
-                <h3>사용자 답변 대기</h3>
-                <p className="emptyState">worker 가 자율 처리하기 어려운 결정 사항을 보고했습니다. 답변을 입력하면 같은 worker 로 이어 진행합니다.</p>
-                {awaitingUserRuns.map((run) => (
-                  <article key={run.id} className="awaitingItem">
-                    <div className="awaitingHeader">
-                      <StatusPill status="stopped" />
-                      <strong>{run.prompt?.slice(0, 80) || "(빈 프롬프트)"}</strong>
-                    </div>
-                    <small className="awaitingReason">{run.awaitingReason || "사용자 입력 필요"}</small>
-                    {run.awaitingPromptHint ? (
-                      <details className="awaitingHint">
-                        <summary>worker 가 남긴 마지막 메시지</summary>
-                        <pre>{run.awaitingPromptHint.slice(-1200)}</pre>
-                      </details>
-                    ) : null}
-                    <ResumeWithUserInput
-                      runId={run.id}
-                      onResume={async (text) => {
-                        await resumeRunWithInput(run.id, text);
-                      }}
-                    />
-                  </article>
-                ))}
+                <h3>사용자 확인 필요</h3>
+                <p className="emptyState">worker 가 자율 처리하기 어려운 결정/외부 조치를 보고했습니다. 답변을 입력해 이어 진행하거나, 같은 prompt 를 다시 시작할 수 있습니다.</p>
+                {awaitingUserRuns.map((run) => {
+                  const isExternal = (run as { __external?: boolean }).__external === true;
+                  return (
+                    <article key={run.id} className="awaitingItem">
+                      <div className="awaitingHeader">
+                        <StatusPill status={run.status || "needs_user"} />
+                        <strong>{run.prompt?.slice(0, 80) || "(빈 프롬프트)"}</strong>
+                      </div>
+                      <small className="awaitingReason">{run.awaitingReason || "사용자 입력 필요"}</small>
+                      {isExternal ? (
+                        <small className="awaitingReason" style={{ color: "#92400e" }}>
+                          ⚠ 이 작업은 답변보다 외부 조치(로그인/계정 추가)가 필요할 수 있습니다. 사이드바에서 상태를 확인하세요.
+                        </small>
+                      ) : null}
+                      {run.awaitingPromptHint ? (
+                        <details className="awaitingHint" open>
+                          <summary>worker 가 남긴 마지막 메시지</summary>
+                          <pre>{run.awaitingPromptHint.slice(-1200)}</pre>
+                        </details>
+                      ) : null}
+                      <ResumeWithUserInput
+                        runId={run.id}
+                        onResume={async (text) => {
+                          await resumeRunWithInput(run.id, text);
+                        }}
+                      />
+                      <div className="awaitingActions">
+                        <button
+                          type="button"
+                          className="metaToggleBtn"
+                          title="같은 prompt 를 처음부터 다시 시작 (사용자 답변 없이)"
+                          onClick={async () => {
+                            await resumeRunWithInput(run.id, "위 worker 메시지를 참고해 작업을 다시 시작하세요. 가능한 부분부터 자율적으로 진행해 주세요.");
+                          }}
+                        >
+                          다시 시작
+                        </button>
+                        <button
+                          type="button"
+                          className="metaToggleBtn"
+                          title="이 항목을 무시하고 패널을 닫음 (history 는 그대로 보존)"
+                          onClick={async () => {
+                            // server 측 플래그 해제 + client 측 dismissed set 추가.
+                            // 두 가지 모두 해야 옛 runtime (마킹 미지원) 도 fallback detect 가
+                            // 다시 잡지 않도록 한다.
+                            setDismissedAwaitingIds((prev) => {
+                              const next = new Set(prev);
+                              next.add(run.id);
+                              return next;
+                            });
+                            try {
+                              await runtimeRequest("runs/awaiting/dismiss", { runId: run.id });
+                            } catch { /* best-effort — client state 만으로도 즉시 닫힘 */ }
+                            setToast({ kind: "info", message: "패널을 닫았습니다. history 는 그대로 보존됩니다." });
+                          }}
+                        >
+                          닫기
+                        </button>
+                      </div>
+                    </article>
+                  );
+                })}
               </div>
             ) : null}
             <div className="historyList">

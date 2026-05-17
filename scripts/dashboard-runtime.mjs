@@ -2615,6 +2615,23 @@ function buildPendingRecord(input, routing) {
   };
 }
 
+// 사용자가 "닫기" 로 awaiting 패널을 무시할 때 — run 의 awaitingUserInput 플래그만
+// 해제. 답변 새 run spawn 없이 history 보존. 사용자 환경의 옛 runtime 데이터에
+// awaitingUserInput 마킹이 없어도, UI fallback 이 detect 한 상태를 dismiss 하려면
+// run 에 dismissedByUser=true 플래그를 남기는 식으로 처리한다.
+export async function dismissAwaitingRun(input = {}) {
+  const runId = String(input?.runId || input?.id || "").trim();
+  if (!runId) return readRuntime();
+  try {
+    return await patchRunRecord(runId, {
+      awaitingUserInput: false,
+      awaitingDismissedAt: nowIso(),
+    });
+  } catch {
+    return readRuntime();
+  }
+}
+
 // awaitingUserInput 으로 멈춘 run 에 사용자가 답변을 적어 이어 진행할 때.
 // 같은 worker / 같은 projectId / 같은 계정으로 새 startRun 을 발사하고,
 // 원래 run 의 awaitingUserInput 플래그를 해제 (한 번만 답변 받게).

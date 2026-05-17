@@ -2248,6 +2248,12 @@ label {
   justify-content: flex-end;
 }
 
+.awaitingActions {
+  display: flex;
+  gap: 6px;
+  margin-top: 8px;
+}
+
 /* ------------------------------------------------------------------ */
 /* Responsive hardening                                                */
 /* ------------------------------------------------------------------ */
