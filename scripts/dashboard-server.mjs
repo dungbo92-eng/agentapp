@@ -26,6 +26,9 @@ import {
   stopRun,
   quickHandoff,
   clearAccountQuotaLockout,
+  cancelPendingRun,
+  retryPendingRun,
+  resumeRunWithUserInput,
 } from "./dashboard-runtime.mjs";
 import { inspectEnvironment, installMissingTargets } from "./agent-environment-setup.mjs";
 
@@ -171,6 +174,19 @@ async function handleApi(req, res, url) {
   }
   if (req.method === "POST" && url === "/api/agentapp/handoff/quickswitch") {
     sendJson(res, 200, await quickHandoff(await readBody(req)));
+    return true;
+  }
+  if (req.method === "POST" && url === "/api/agentapp/runs/pending/cancel") {
+    sendJson(res, 200, await cancelPendingRun(await readBody(req)));
+    return true;
+  }
+  if (req.method === "POST" && url === "/api/agentapp/runs/pending/retry") {
+    sendJson(res, 200, await retryPendingRun(await readBody(req)));
+    return true;
+  }
+  if (req.method === "POST" && url === "/api/agentapp/runs/resume") {
+    // 사용자가 멈춘 run 에 답변을 입력하고 "이어 진행" 을 누를 때.
+    sendJson(res, 200, await resumeRunWithUserInput(await readBody(req)));
     return true;
   }
   return false;

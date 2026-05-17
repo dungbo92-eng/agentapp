@@ -2068,13 +2068,96 @@ label {
 
 .pendingItem {
   display: grid;
-  grid-template-columns: auto 1fr;
+  grid-template-columns: auto 1fr auto;
   gap: 8px;
+  align-items: start;
   padding: 6px 0;
   border-top: 1px dashed #e2cf78;
 }
 
 .pendingItem:first-of-type { border-top: 0; }
+
+.pendingActions {
+  display: flex;
+  gap: 4px;
+  flex-shrink: 0;
+}
+
+/* 사용자 답변 대기 패널 — 빨갛게 강조해 사용자가 놓치지 않게. */
+.awaitingList {
+  margin-top: 12px;
+  padding: 12px;
+  background: #fef2f2;
+  border: 1px solid #fca5a5;
+  border-radius: 8px;
+}
+.awaitingList h3 {
+  font-size: 13px;
+  margin: 0 0 4px;
+  color: #991b1b;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+.awaitingList h3::before {
+  content: "❓";
+}
+.awaitingItem {
+  padding: 8px 0;
+  border-top: 1px dashed #fca5a5;
+}
+.awaitingItem:first-of-type { border-top: 0; }
+.awaitingHeader {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+}
+.awaitingHeader strong {
+  font-size: 0.85rem;
+}
+.awaitingReason {
+  display: block;
+  color: #991b1b;
+  margin: 4px 0 6px;
+  font-size: 0.78rem;
+}
+.awaitingHint {
+  margin: 6px 0 8px;
+}
+.awaitingHint > summary {
+  cursor: pointer;
+  font-size: 0.75rem;
+  color: #475569;
+}
+.awaitingHint pre {
+  margin: 6px 0 0;
+  padding: 8px;
+  background: #f8fafc;
+  border: 1px solid #e2e8f0;
+  border-radius: 4px;
+  font-size: 0.72rem;
+  max-height: 200px;
+  overflow: auto;
+  white-space: pre-wrap;
+  word-break: break-word;
+}
+.resumeForm {
+  margin-top: 6px;
+}
+.resumeForm textarea {
+  width: 100%;
+  padding: 8px;
+  border: 1px solid #cbd5e1;
+  border-radius: 6px;
+  font-size: 0.82rem;
+  font-family: inherit;
+  resize: vertical;
+}
+.resumeFormActions {
+  margin-top: 6px;
+  display: flex;
+  justify-content: flex-end;
+}
 
 /* ------------------------------------------------------------------ */
 /* Responsive hardening                                                */

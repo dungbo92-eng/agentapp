@@ -201,6 +201,7 @@ type RunRecord = {
   id: string;
   status: string;
   workerId: string;
+  workerAuto?: boolean;
   projectId: string;
   prompt: string;
   complexity: string;
@@ -210,6 +211,9 @@ type RunRecord = {
   completedAt?: string;
   handoffPath?: string;
   currentStatus?: string; // [STATUS] 마커가 마지막으로 보고한 현재 작업
+  awaitingUserInput?: boolean;
+  awaitingReason?: string;
+  awaitingPromptHint?: string;
   interruptedWorktree?: {
     path: string;
     dirty: boolean;
@@ -487,6 +491,54 @@ function StatusPill({ status }: { status: string }) {
       {liveClass ? <span className={`statusDot ${liveClass}`} aria-hidden="true" /> : null}
       <span>{statusLabel(status || "unknown")}</span>
     </span>
+  );
+}
+
+// awaitingUserInput 으로 멈춘 run 옆에 붙는 인라인 입력 패널. 사용자가 답변을
+// 적고 "이어 진행" 누르면 같은 worker 가 그 답변을 받아 작업을 계속한다.
+function ResumeWithUserInput({
+  runId,
+  onResume,
+}: {
+  runId: string;
+  onResume: (text: string) => Promise<void> | void;
+}) {
+  const [value, setValue] = React.useState("");
+  const [busy, setBusy] = React.useState(false);
+  return (
+    <form
+      className="resumeForm"
+      onSubmit={async (e) => {
+        e.preventDefault();
+        if (!value.trim() || busy) return;
+        setBusy(true);
+        try {
+          await onResume(value);
+          setValue("");
+        } finally {
+          setBusy(false);
+        }
+      }}
+    >
+      <textarea
+        value={value}
+        onChange={(e) => setValue(e.target.value)}
+        placeholder="답변을 입력하면 worker 가 같은 컨텍스트로 이어서 진행합니다 (예: 'A 방향으로 가세요', '이 함수는 살려둬'). Shift+Enter 줄바꿈"
+        rows={3}
+        onKeyDown={(e) => {
+          if (e.key === "Enter" && !e.shiftKey) {
+            e.preventDefault();
+            (e.currentTarget.form as HTMLFormElement)?.requestSubmit();
+          }
+        }}
+        data-runid={runId}
+      />
+      <div className="resumeFormActions">
+        <button type="submit" className="primaryButton small" disabled={!value.trim() || busy}>
+          {busy ? "전달 중…" : "답변하고 이어 진행"}
+        </button>
+      </div>
+    </form>
   );
 }
 
@@ -1666,6 +1718,11 @@ function App() {
   const runHistoryForSelectedProject = runtime.runHistory.filter(
     (run) => run.projectId === selectedProjectRecord.id,
   );
+  // 사용자 답변을 기다리는 stopped run — 가장 최근 것만 보여줘서 답변 입력 가능하게.
+  // 같은 run 에 답변 보내면 awaitingUserInput=false 로 갱신돼 자동으로 패널이 사라진다.
+  const awaitingUserRuns = runHistoryForSelectedProject
+    .filter((run) => run.awaitingUserInput === true)
+    .slice(0, 1);
   const approvalCount = snapshot.approval_queue.pending_decisions.length + snapshot.approval_queue.held_tasks.length;
   // 선택된 프로젝트가 외부 프로젝트면 그 프로젝트의 NEXT_TASK 만 사용.
   // (없으면 chip 자체를 숨기기 위해 빈 문자열 유지 — AgentApp 자체 NEXT_TASK 로 폴백하면
@@ -1856,6 +1913,52 @@ function App() {
     const runId = activeRunForSelectedProject?.id || "";
     if (!runId) return;
     void updateRuntime(runtimeRequest("runs/stop", { runId }));
+  }
+
+  // 대기 큐 항목 삭제/재시작 (사용자가 "영원히 대기" 상황을 직접 해결).
+  async function cancelPending(id: string) {
+    try {
+      const next = (await runtimeRequest("runs/pending/cancel", { id })) as RuntimeState;
+      setRuntime(next);
+      setLastRuntimeSyncAt(new Date().toLocaleTimeString("ko-KR"));
+    } catch (caught) {
+      setToast({ kind: "warn", message: caught instanceof Error ? caught.message : "대기 항목 삭제 실패" });
+    }
+  }
+  async function retryPending(id: string) {
+    try {
+      const next = (await runtimeRequest("runs/pending/retry", { id })) as RuntimeState & {
+        startRejected?: { reason: string; message: string };
+      };
+      setRuntime(next);
+      setLastRuntimeSyncAt(new Date().toLocaleTimeString("ko-KR"));
+      if (next.startRejected) {
+        setToast({ kind: "warn", message: next.startRejected.message });
+      }
+    } catch (caught) {
+      setToast({ kind: "warn", message: caught instanceof Error ? caught.message : "대기 항목 재시작 실패" });
+    }
+  }
+  // 사용자 답변 입력으로 이어 진행 — awaitingUserInput run 에 prompt 보냄.
+  async function resumeRunWithInput(runId: string, userText: string) {
+    if (!userText.trim()) {
+      setToast({ kind: "warn", message: "답변 내용을 입력하세요." });
+      return;
+    }
+    try {
+      const next = (await runtimeRequest("runs/resume", { runId, prompt: userText })) as RuntimeState & {
+        startRejected?: { reason: string; message: string };
+      };
+      setRuntime(next);
+      setLastRuntimeSyncAt(new Date().toLocaleTimeString("ko-KR"));
+      if (next.startRejected) {
+        setToast({ kind: "warn", message: next.startRejected.message });
+      } else {
+        setToast({ kind: "success", message: "답변을 worker 에 전달해 이어 진행합니다." });
+      }
+    } catch (caught) {
+      setToast({ kind: "warn", message: caught instanceof Error ? caught.message : "이어 진행 실패" });
+    }
   }
 
   async function quickSwitchAccount(targetAccountId?: string) {
@@ -2840,6 +2943,52 @@ function App() {
                         {pending.workerAuto ? "auto" : pending.workerId} / {complexityLabel(pending.complexity)} / {pending.blockedReason}
                       </span>
                     </div>
+                    <div className="pendingActions">
+                      <button
+                        type="button"
+                        className="metaToggleBtn"
+                        title="지금 다시 시작 — 준비된 계정이 있으면 즉시 실행"
+                        onClick={() => void retryPending(pending.id)}
+                      >
+                        다시 시작
+                      </button>
+                      <button
+                        type="button"
+                        className="metaToggleBtn"
+                        title="대기 큐에서 제거"
+                        onClick={() => void cancelPending(pending.id)}
+                      >
+                        삭제
+                      </button>
+                    </div>
+                  </article>
+                ))}
+              </div>
+            ) : null}
+            {/* 사용자 입력을 기다리는 stopped run — 답변 입력으로 이어 진행 */}
+            {awaitingUserRuns.length > 0 ? (
+              <div className="awaitingList">
+                <h3>사용자 답변 대기</h3>
+                <p className="emptyState">worker 가 자율 처리하기 어려운 결정 사항을 보고했습니다. 답변을 입력하면 같은 worker 로 이어 진행합니다.</p>
+                {awaitingUserRuns.map((run) => (
+                  <article key={run.id} className="awaitingItem">
+                    <div className="awaitingHeader">
+                      <StatusPill status="stopped" />
+                      <strong>{run.prompt?.slice(0, 80) || "(빈 프롬프트)"}</strong>
+                    </div>
+                    <small className="awaitingReason">{run.awaitingReason || "사용자 입력 필요"}</small>
+                    {run.awaitingPromptHint ? (
+                      <details className="awaitingHint">
+                        <summary>worker 가 남긴 마지막 메시지</summary>
+                        <pre>{run.awaitingPromptHint.slice(-1200)}</pre>
+                      </details>
+                    ) : null}
+                    <ResumeWithUserInput
+                      runId={run.id}
+                      onResume={async (text) => {
+                        await resumeRunWithInput(run.id, text);
+                      }}
+                    />
                   </article>
                 ))}
               </div>

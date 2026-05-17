@@ -2467,6 +2467,72 @@ function buildPendingRecord(input, routing) {
   };
 }
 
+// awaitingUserInput 으로 멈춘 run 에 사용자가 답변을 적어 이어 진행할 때.
+// 같은 worker / 같은 projectId / 같은 계정으로 새 startRun 을 발사하고,
+// 원래 run 의 awaitingUserInput 플래그를 해제 (한 번만 답변 받게).
+export async function resumeRunWithUserInput(input = {}) {
+  const runId = String(input?.runId || input?.id || "").trim();
+  const userText = String(input?.prompt || input?.userInput || "").trim();
+  if (!runId || !userText) {
+    return readRuntime();
+  }
+  const runtime = await readRuntime();
+  const stoppedRun = (runtime.runHistory || []).find((r) => r?.id === runId);
+  if (!stoppedRun) return runtime;
+  // 답변 prompt — 사용자 입력 + 직전 worker 가 남긴 마지막 메시지를 컨텍스트로 묶어
+  // 같은 worker 가 이어서 진행하게 한다.
+  const lastHint = String(stoppedRun.awaitingPromptHint || stoppedRun.adapter?.lastMessageText || "").trim();
+  const contextNote = lastHint
+    ? `\n\n[직전 worker 가 멈추며 남긴 메시지 — 답변 컨텍스트]\n${lastHint.slice(-1500)}`
+    : "";
+  const resumePrompt = `[사용자 답변]\n${userText}${contextNote}\n\n위 답변으로 이전 작업을 이어서 진행하세요.`;
+  // 원래 run 의 awaitingUserInput 플래그 해제 (중복 답변 방지).
+  try {
+    await patchRunRecord(runId, { awaitingUserInput: false });
+  } catch {
+    /* best-effort */
+  }
+  return startRun({
+    workerId: stoppedRun.workerAuto ? "auto" : (stoppedRun.workerId || "auto"),
+    projectId: stoppedRun.projectId,
+    prompt: resumePrompt,
+    complexity: stoppedRun.complexity || "auto",
+    modelOverride: stoppedRun.modelOverride || "auto",
+    handoffFrom: stoppedRun.routing?.accountId || "",
+  });
+}
+
+// 사용자가 대기 큐의 항목을 더 이상 원하지 않을 때 호출. id 일치 항목만 제거.
+// 일치 항목이 없어도 silent (no-op) — UI 더블 클릭 등으로 같은 요청이 두 번 와도 안전.
+export async function cancelPendingRun(input = {}) {
+  const id = String(input?.id || input?.pendingId || "").trim();
+  if (!id) return readRuntime();
+  const runtime = await readRuntime();
+  const before = Array.isArray(runtime.pendingRuns) ? runtime.pendingRuns : [];
+  runtime.pendingRuns = before.filter((item) => item?.id !== id);
+  return writeRuntime(runtime);
+}
+
+// 대기 큐 항목을 다시 startRun 으로 시도. 준비된 계정이 있으면 즉시 running,
+// 없으면 새 pending 으로 다시 들어간다. 사용자가 "지금 다시 시도" 라고 누를 때.
+export async function retryPendingRun(input = {}) {
+  const id = String(input?.id || input?.pendingId || "").trim();
+  if (!id) return readRuntime();
+  const runtime = await readRuntime();
+  const pending = (runtime.pendingRuns || []).find((item) => item?.id === id);
+  if (!pending) return runtime;
+  // 기존 entry 는 빼고 startRun 으로 재시도. startRun 이 같은 pendingId 를 받으면
+  // 안에서 자동으로 entry 정리 — pendingId 를 그대로 넘긴다.
+  return startRun({
+    workerId: pending.workerId,
+    projectId: pending.projectId,
+    prompt: pending.prompt,
+    complexity: pending.complexity,
+    modelOverride: pending.modelOverride,
+    pendingId: id,
+  });
+}
+
 function pendingMatchesAccount(pending, account) {
   if (!pending || !account) return false;
   const provider = pending.provider || providerForWorker(pending.workerId);
@@ -2824,9 +2890,21 @@ export async function tryAutoChain(prevRun, opts = {}) {
   // 기반 추정 같은 간접 신호보다 그게 더 정확하다.
   const nextStepsParsed = parseNextSteps(lastMessageText);
   if (nextStepsParsed.done) {
+    // 사용자가 답변을 입력해 이어 진행할 수 있도록 prevRun 에 awaitingUserInput
+    // 플래그를 마킹. UI 가 이걸 보고 입력 패널을 띄운다.
+    try {
+      await patchRunRecord(prevRun.id, {
+        awaitingUserInput: true,
+        awaitingReason: nextStepsParsed.reason || "다음 작업 없음",
+        awaitingPromptHint: lastMessageText.slice(-1500),
+      });
+    } catch {
+      /* best-effort */
+    }
     return {
       stopped: true,
-      reason: `worker 가 [NEXT_NONE] 으로 다음 작업 없음을 보고했습니다 — ${nextStepsParsed.reason}`,
+      awaitingUserInput: true,
+      reason: `worker 가 [NEXT_NONE] 으로 다음 작업 없음을 보고했습니다 — ${nextStepsParsed.reason}. 사용자 답변 입력으로 이어 진행할 수 있습니다.`,
     };
   }
   const markerStep = nextStepsParsed.steps[0] || null;
@@ -2858,9 +2936,19 @@ export async function tryAutoChain(prevRun, opts = {}) {
     // NEXT_TASK 에 명확한 후속 항목이 있으면 override 해서 계속 진행 (사용자 요청:
     // 최대한 멈추지 말기). hasNewTask 가 false 일 때만 정말로 멈춤.
     if (isWaitingForUser && !hasNewTask) {
+      try {
+        await patchRunRecord(prevRun.id, {
+          awaitingUserInput: true,
+          awaitingReason: "사용자 결재/escalation 신호",
+          awaitingPromptHint: lastMessageText.slice(-1500),
+        });
+      } catch {
+        /* best-effort */
+      }
       return {
         stopped: true,
-        reason: "worker 가 명시적 사용자 결재/escalation 신호와 CHAIN_DONE 을 보냈고 NEXT_TASK 에도 새 항목이 없습니다. 사용자 입력 필요.",
+        awaitingUserInput: true,
+        reason: "worker 가 명시적 사용자 결재/escalation 신호와 CHAIN_DONE 을 보냈고 NEXT_TASK 에도 새 항목이 없습니다. 답변 입력으로 이어 진행할 수 있습니다.",
       };
     }
     // 기본 정책: CHAIN_DONE 이 와도 NEXT_TASK / 진행률을 보고 override. 사용자가
