@@ -2012,10 +2012,28 @@ function App() {
     (run) => run.projectId === selectedProjectRecord.id,
   );
   // 사용자 답변을 기다리는 stopped run — 가장 최근 것만 보여줘서 답변 입력 가능하게.
-  // 같은 run 에 답변 보내면 awaitingUserInput=false 로 갱신돼 자동으로 패널이 사라진다.
-  const awaitingUserRuns = runHistoryForSelectedProject
-    .filter((run) => run.awaitingUserInput === true)
-    .slice(0, 1);
+  // 1) 새 dashboard runtime (v0.6.0+) 은 awaitingUserInput 플래그를 직접 마킹.
+  // 2) 옛 runtime 또는 worker 가 직접 [NEXT_NONE] 마커만 보낸 경우에도 fallback —
+  //    가장 최근 run 의 lastMessageText / currentStatus 에 [NEXT_NONE] 이 있으면
+  //    awaiting 패널을 띄워 사용자가 답변할 수 있게 한다.
+  const awaitingUserRuns = (() => {
+    const explicit = runHistoryForSelectedProject.find((run) => run.awaitingUserInput === true);
+    if (explicit) return [explicit];
+    // fallback — 가장 최근 (history[0]) run 의 응답에 NEXT_NONE 마커가 있는지.
+    const latest = runHistoryForSelectedProject[0];
+    if (!latest) return [];
+    if (latest.status === "running") return [];
+    const text = String(latest.adapter?.lastMessageText || latest.currentStatus || "");
+    const match = text.match(/\[NEXT_NONE\]\s*([^\n]*)/);
+    if (!match) return [];
+    const synth: RunRecord = {
+      ...latest,
+      awaitingUserInput: true,
+      awaitingReason: latest.awaitingReason || (match[1] || "").trim() || "다음 작업 없음",
+      awaitingPromptHint: latest.awaitingPromptHint || text.slice(-1500),
+    };
+    return [synth];
+  })();
   const approvalCount = snapshot.approval_queue.pending_decisions.length + snapshot.approval_queue.held_tasks.length;
   // 선택된 프로젝트가 외부 프로젝트면 그 프로젝트의 NEXT_TASK 만 사용.
   // (없으면 chip 자체를 숨기기 위해 빈 문자열 유지 — AgentApp 자체 NEXT_TASK 로 폴백하면
