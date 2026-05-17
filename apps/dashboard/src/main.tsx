@@ -278,6 +278,7 @@ type RuntimeState = {
   accounts: ManagedAccount[];
   projects: ManagedProject[];
   activeRun: RunRecord | null;
+  activeRuns?: RunRecord[];
   runHistory: RunRecord[];
   pendingRuns?: PendingRun[];
   handoff?: { status: string; targetAccountId?: string; reason: string };
@@ -1650,11 +1651,15 @@ function App() {
     placeholderProject;
   const activeRun = runtime.activeRun;
   // 현재 실행 패널은 선택된 프로젝트 기준으로만 active run / pending / history 를
-  // 표시해야 한다. runtime.activeRun 은 글로벌 단일 슬롯이라 다른 프로젝트가 실행
-  // 중일 때 그대로 노출하면 "선택된 프로젝트의 현재 실행" 이라는 사용자 멘탈모델과
-  // 어긋난다. compact view 의 필터링과 동일한 규칙을 적용한다.
-  const activeRunForSelectedProject =
-    activeRun && activeRun.projectId === selectedProjectRecord.id ? activeRun : null;
+  // 표시해야 한다. 다중 active run 환경에서는 runtime.activeRuns 배열에 여러
+  // 프로젝트의 running run 이 동시에 있을 수 있으므로 선택된 프로젝트의 run 만
+  // 찾는다. runtime.activeRun 은 backward compat 단일 슬롯이라 fallback 으로만 사용.
+  const activeRunForSelectedProject = (
+    (runtime.activeRuns || []).find(
+      (r) => r?.projectId === selectedProjectRecord.id && r?.status === "running",
+    )
+    || (activeRun && activeRun.projectId === selectedProjectRecord.id && activeRun.status === "running" ? activeRun : null)
+  );
   const pendingRunsForSelectedProject = (runtime.pendingRuns || []).filter(
     (pending) => pending.projectId === selectedProjectRecord.id,
   );
@@ -1815,8 +1820,10 @@ function App() {
       setToast({ kind: "warn", message });
       return;
     }
-    if (activeRun && activeRun.status === "running") {
-      const message = "이미 실행 중인 작업이 있습니다. 먼저 중지하거나 '다른 계정으로 이어가기' 를 사용하세요.";
+    // 같은 프로젝트가 이미 실행 중이면 차단. 다른 프로젝트는 동시 실행 허용
+    // (다중 active run 모델 — server side 가드도 active_run_running_for_project 로 차단).
+    if (activeRunForSelectedProject && activeRunForSelectedProject.status === "running") {
+      const message = "이 프로젝트는 이미 실행 중입니다. 먼저 중지하거나 '다른 계정으로 이어가기' 를 사용하세요. (다른 프로젝트는 사이드바에서 자유롭게 시작 가능합니다)";
       setRunError(message);
       setToast({ kind: "warn", message });
       return;
@@ -1844,8 +1851,11 @@ function App() {
   }
 
   function stopRun() {
-    if (!activeRun) return;
-    void updateRuntime(runtimeRequest("runs/stop", {}));
+    // 다중 active run 환경 — 선택된 프로젝트의 run 만 정지. body 의 runId 가
+    // 비어 있으면 모든 active 정지하므로 명시 전달.
+    const runId = activeRunForSelectedProject?.id || "";
+    if (!runId) return;
+    void updateRuntime(runtimeRequest("runs/stop", { runId }));
   }
 
   async function quickSwitchAccount(targetAccountId?: string) {
@@ -1937,9 +1947,13 @@ function App() {
     const compactProjects = projects.filter((p) => p.id !== "none");
     const compactSelected =
       compactProjects.find((p) => p.id === selectedProject) || compactProjects[0] || null;
-    const activeForProject = activeRun && activeRun.projectId === (compactSelected?.id || "")
-      ? activeRun
-      : null;
+    // 다중 active run — activeRuns 배열에서 이 프로젝트의 running run 우선 검색.
+    const activeForProject = (
+      (runtime.activeRuns || []).find(
+        (r) => r?.projectId === (compactSelected?.id || "") && r?.status === "running",
+      )
+      || (activeRun && activeRun.projectId === (compactSelected?.id || "") && activeRun.status === "running" ? activeRun : null)
+    );
     const historyForProject = !activeForProject && compactSelected
       ? runtime.runHistory.find((r) => r.projectId === compactSelected.id) || null
       : null;
@@ -2014,7 +2028,12 @@ function App() {
             ) : (
               compactProjects.map((p) => {
                 const isSel = compactSelected?.id === p.id;
-                const projActive = activeRun?.projectId === p.id;
+                // 다중 active run — runtime.activeRuns 배열에서 이 프로젝트의 running run 검색.
+                // activeRun (단일) 도 backward compat 으로 같이 본다.
+                const projActiveRun =
+                  (runtime.activeRuns || []).find((r) => r?.projectId === p.id && r?.status === "running")
+                  || (activeRun?.projectId === p.id && activeRun.status === "running" ? activeRun : null);
+                const projActive = Boolean(projActiveRun);
                 const lastRun = runtime.runHistory.find((run) => run.projectId === p.id);
                 return (
                   <button
@@ -2628,13 +2647,13 @@ function App() {
             </div>
             <div className="runControls">
               <IconButton
-                icon={activeRun ? Square : Play}
-                variant={activeRun ? "danger" : "primary"}
-                title={activeRun ? "현재 실행 중인 작업을 중지합니다" : "입력한 프롬프트로 작업을 시작합니다"}
-                disabled={!activeRun && !localRecommendation}
-                onClick={activeRun ? stopRun : startRun}
+                icon={activeRunForSelectedProject ? Square : Play}
+                variant={activeRunForSelectedProject ? "danger" : "primary"}
+                title={activeRunForSelectedProject ? "이 프로젝트의 실행을 중지합니다" : "입력한 프롬프트로 작업을 시작합니다"}
+                disabled={!activeRunForSelectedProject && !localRecommendation}
+                onClick={activeRunForSelectedProject ? stopRun : startRun}
               >
-                {activeRun ? "중지" : "시작"}
+                {activeRunForSelectedProject ? "중지" : "시작"}
               </IconButton>
             </div>
           </div>

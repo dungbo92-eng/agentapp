@@ -164,7 +164,9 @@ async function handleApi(req, res, url) {
     return true;
   }
   if (req.method === "POST" && url === "/api/agentapp/runs/stop") {
-    sendJson(res, 200, await stopRun());
+    // body 의 runId 가 지정되면 그 run 만, 없으면 모든 active run 정지.
+    // 다중 active run 환경에서 UI 가 "이 프로젝트만 중지" 를 보낼 수 있게 한다.
+    sendJson(res, 200, await stopRun(await readBody(req)));
     return true;
   }
   if (req.method === "POST" && url === "/api/agentapp/handoff/quickswitch") {
