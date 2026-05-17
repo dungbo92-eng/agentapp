@@ -310,9 +310,19 @@ function extractToken(req) {
   return "";
 }
 
+// 기본 포트 — 모바일 즐겨찾기가 깨지지 않도록 매 시작 동일 포트를 사용한다.
+// 51820 은 사설 영역에서 잘 안 쓰이는 값. 사용자가 옮기고 싶으면 env 또는 settings 로 override.
+// 포트 충돌 시 51821..51829 순차 시도 후, 그래도 안 되면 OS 임의 할당으로 fallback.
+const DEFAULT_DASHBOARD_PORT = 51820;
+const PORT_FALLBACK_RANGE = 10;
+
 export async function createDashboardServer(options = {}) {
   const host = options.host || "127.0.0.1";
-  const port = Number(options.port || process.env.AGENTAPP_DESKTOP_PORT || 0);
+  const requestedPort = Number(
+    options.port
+      || process.env.AGENTAPP_DESKTOP_PORT
+      || DEFAULT_DASHBOARD_PORT,
+  );
   const staticDir = path.resolve(options.staticDir || DEFAULT_STATIC_DIR);
   // LAN access 토큰 — getServerRequireToken() 으로 매 요청마다 최신 setting 을 읽어
   // 토글 변경이 재시작 없이 반영되도록 한다.
@@ -364,13 +374,48 @@ export async function createDashboardServer(options = {}) {
     }
   });
 
-  await new Promise((resolve, reject) => {
-    server.once("error", reject);
-    server.listen(port, host, resolve);
-  });
+  // 요청 포트가 사용 중이면 +1..+N 으로 순차 시도, 그래도 실패하면 0 (OS 임의 할당) 으로
+  // 마지막 fallback. 일반적으로 첫 번째 시도에서 성공해 모바일 즐겨찾기가 안정적으로 동작.
+  const portCandidates = [requestedPort];
+  for (let i = 1; i <= PORT_FALLBACK_RANGE; i += 1) {
+    portCandidates.push(requestedPort + i);
+  }
+  portCandidates.push(0); // OS 임의 할당 (절대 실패 안 함)
+
+  let bound = false;
+  let lastError = null;
+  for (const candidate of portCandidates) {
+    try {
+      await new Promise((resolve, reject) => {
+        const onError = (err) => {
+          server.off("error", onError);
+          reject(err);
+        };
+        server.once("error", onError);
+        server.listen(candidate, host, () => {
+          server.off("error", onError);
+          resolve();
+        });
+      });
+      bound = true;
+      break;
+    } catch (error) {
+      lastError = error;
+      if (error?.code !== "EADDRINUSE") throw error;
+      // 다음 후보로 진행
+    }
+  }
+  if (!bound) {
+    throw lastError || new Error("dashboard-server: all port candidates failed");
+  }
 
   const address = server.address();
-  const actualPort = typeof address === "object" && address ? address.port : port;
+  const actualPort = typeof address === "object" && address ? address.port : requestedPort;
+  if (actualPort !== requestedPort) {
+    process.stderr.write(
+      `[dashboard] requested port ${requestedPort} busy, using ${actualPort}\n`,
+    );
+  }
   // 클라이언트 (Electron renderer, 또는 같은 PC 의 다른 fetch) 가 접속할 때 쓸 URL.
   // host 가 0.0.0.0 / :: (모든 인터페이스) 면 그 주소로는 connect 가 불가능하므로
   // 로컬 클라이언트 URL 은 무조건 127.0.0.1 으로. (LAN 접속은 detectLanIps 가 별도로

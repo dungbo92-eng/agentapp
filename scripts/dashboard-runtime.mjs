@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 
-import { mkdir, readdir, readFile, stat, writeFile } from "node:fs/promises";
+import { copyFile, mkdir, readdir, readFile, rename, stat, unlink, writeFile } from "node:fs/promises";
 import { spawn } from "node:child_process";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
@@ -672,6 +672,28 @@ export async function readRuntime() {
     };
   }
 
+  // 디스크의 live 가 비어 있지만 백업에는 데이터가 있으면 자동 복구. 백업 또한
+  // 깨졌을 가능성을 감안해 best-effort 로만 시도하고 본 흐름은 그대로 유지.
+  if (
+    (!Array.isArray(normalized.accounts) || normalized.accounts.length === 0)
+    && (!Array.isArray(normalized.projects) || normalized.projects.length === 0)
+  ) {
+    try {
+      const bakRaw = await readFile(`${RUNTIME_FILE}.bak`, "utf8");
+      const bakParsed = JSON.parse(bakRaw);
+      const bakAccounts = Array.isArray(bakParsed?.accounts) ? bakParsed.accounts : [];
+      const bakProjects = Array.isArray(bakParsed?.projects) ? bakParsed.projects : [];
+      if (bakAccounts.length > 0 || bakProjects.length > 0) {
+        process.stderr.write(
+          `[runtime] live 가 비어 있어 백업에서 자동 복구 (${bakAccounts.length} accounts, ${bakProjects.length} projects).\n`,
+        );
+        normalized = normalizeRuntime({ ...bakParsed, ...normalized, accounts: bakAccounts, projects: bakProjects });
+      }
+    } catch {
+      // 백업도 못 읽으면 그냥 빈 상태 유지.
+    }
+  }
+
   try {
     const reconciled = await reconcileStaleActiveRun(normalized);
     normalized = reconciled.runtime;
@@ -695,40 +717,79 @@ async function readDiskRuntimeRaw() {
   }
 }
 
+// 같은 프로세스 안에서 writeRuntime 두 개가 동시에 await 사이에 끼면 두 호출이
+// 각자 fd 를 열어 같은 파일에 비-truncating 으로 덮어쓰기 시작. 짧은 쓰기 위에
+// 긴 쓰기의 꼬리가 남아 .bak 가 손상되고 → 다음 사이클의 safety net 우회 →
+// 빈 accounts/projects 가 그대로 live 로 persist 되는 데이터 소실 회귀. 직렬화로 차단.
+let runtimeWriteLock = Promise.resolve();
+function withRuntimeLock(fn) {
+  const next = runtimeWriteLock.then(() => fn(), () => fn());
+  // chain 으로 직렬화하되 실패도 다음 호출을 막지 않도록 .then 의 두 번째 인자 사용.
+  runtimeWriteLock = next.catch(() => undefined);
+  return next;
+}
+
+// writeFile 은 truncate-then-write 이지만 두 writer 가 동시에 들어가면 결과 파일 길이가
+// 짧은 쪽이 되어도 더 긴 쓰기의 꼬리가 남는 OS 동작이 발생 가능. temp 파일에 다 쓰고
+// rename 으로 교체하면 같은 inode 를 두 writer 가 만지지 않아 race 차단 + 부분 쓰기로
+// 인한 corrupt 도 동시에 해결.
+async function atomicWriteJson(targetPath, content) {
+  const tmpPath = `${targetPath}.tmp-${process.pid}-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
+  await writeFile(tmpPath, content, "utf8");
+  try {
+    await rename(tmpPath, targetPath);
+  } catch (error) {
+    // rename 실패 시 tmp 정리 후 에러 전파.
+    try { await unlink(tmpPath); } catch { /* ignore */ }
+    throw error;
+  }
+}
+
 export async function writeRuntime(runtime) {
-  const normalized = normalizeRuntime(runtime);
+  return withRuntimeLock(async () => {
+    const normalized = normalizeRuntime(runtime);
 
-  // Safety net: never blow away the persisted accounts list. If somewhere
-  // upstream produced a payload with 0 accounts (transient bug, partial
-  // mutation, etc.) while the disk has 1+, restore from disk and log so
-  // the issue is visible without losing user data.
-  const onDisk = await readDiskRuntimeRaw();
-  if (
-    onDisk
-    && Array.isArray(onDisk.accounts)
-    && onDisk.accounts.length > 0
-    && normalized.accounts.length === 0
-  ) {
-    process.stderr.write(
-      `[runtime] writeRuntime would have wiped ${onDisk.accounts.length} accounts; restoring from disk.\n`,
-    );
-    normalized.accounts = onDisk.accounts.map(normalizeAccount);
-  }
-
-  await mkdir(DATA_DIR, { recursive: true });
-
-  // Best-effort backup of the prior file so we can recover if something
-  // does corrupt the live file mid-write.
-  if (onDisk) {
-    try {
-      await writeFile(`${RUNTIME_FILE}.bak`, `${JSON.stringify(onDisk, null, 2)}\n`, "utf8");
-    } catch {
-      // backup is opportunistic; never block real writes on it
+    // Safety net: 디스크에 데이터가 있는데 호출자가 빈 배열로 덮어쓰려는 시도는 차단.
+    // accounts 뿐 아니라 projects 도 같이 보호 (이전엔 accounts 만 보호해 projects 가
+    // 회귀로 날아가는 케이스가 있었음).
+    const onDisk = await readDiskRuntimeRaw();
+    if (
+      onDisk
+      && Array.isArray(onDisk.accounts)
+      && onDisk.accounts.length > 0
+      && normalized.accounts.length === 0
+    ) {
+      process.stderr.write(
+        `[runtime] writeRuntime would have wiped ${onDisk.accounts.length} accounts; restoring from disk.\n`,
+      );
+      normalized.accounts = onDisk.accounts.map(normalizeAccount);
     }
-  }
+    if (
+      onDisk
+      && Array.isArray(onDisk.projects)
+      && onDisk.projects.length > 0
+      && normalized.projects.length === 0
+    ) {
+      process.stderr.write(
+        `[runtime] writeRuntime would have wiped ${onDisk.projects.length} projects; restoring from disk.\n`,
+      );
+      normalized.projects = onDisk.projects.map(normalizeProject);
+    }
 
-  await writeFile(RUNTIME_FILE, `${JSON.stringify(normalized, null, 2)}\n`, "utf8");
-  return normalized;
+    await mkdir(DATA_DIR, { recursive: true });
+
+    // 직전 live 파일을 .bak 로 복사. copyFile 은 단일 OS 호출이라 writeFile 보다
+    // 빠르고 부분 쓰기로 인한 corrupt 가 안 생긴다. lock 으로 직렬화돼 있으므로
+    // 이 시점의 live 는 "마지막 정상 상태" 이며 안전한 백업이 된다.
+    try {
+      await copyFile(RUNTIME_FILE, `${RUNTIME_FILE}.bak`);
+    } catch {
+      // 첫 쓰기라 live 파일이 아직 없을 수 있음 — 그 경우 backup 불필요.
+    }
+
+    await atomicWriteJson(RUNTIME_FILE, `${JSON.stringify(normalized, null, 2)}\n`);
+    return normalized;
+  });
 }
 
 export function defaultFourAccountPreset() {

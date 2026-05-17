@@ -1,5 +1,26 @@
 # RUN_STATUS
 
+## 2026-05-17T_writeruntime_race_and_fixed_port
+
+사용자 보고: (1) "프로젝트/계정 설정이 다 날아감" (2) "모바일 접속 포트가 매 시작 바뀜".
+
+원인:
+1. **writeRuntime race** — 같은 프로세스의 await 사이 두 호출이 동시에 들어가면 각자 fd 로 같은 .bak 파일을 열어 OS 레벨에서 interleave. 짧은 쓰기 위에 긴 쓰기의 꼬리가 남아 .bak 가 invalid JSON 으로 corrupt → 다음 writeRuntime 의 readDiskRuntimeRaw 가 null 반환 → accounts safety net 우회 → 빈 accounts 가 그대로 live 에 persist. 게다가 safety net 이 accounts 만 보호하고 projects 는 무보호.
+2. **포트 random** — dashboard-server 가 port=0 (OS 임의 할당) 로 listen → 매 재시작마다 다른 포트 → 모바일 즐겨찾기 깨짐.
+
+수정:
+- `writeRuntime` 을 `withRuntimeLock` 으로 직렬화. 동시 호출은 chain 으로 순차 처리.
+- `atomicWriteJson` — `<file>.tmp-<pid>-<ts>-<rand>` 에 다 쓴 뒤 `rename` 으로 교체. partial write 로 인한 corrupt 차단.
+- 백업은 `copyFile(live → .bak)` 로 변경 (단일 syscall, write 보다 안전).
+- safety net 에 projects 도 추가.
+- `readRuntime` 이 live 가 비어 있으면 .bak 자동 복구 시도.
+- `dashboard-server` 기본 포트 `51820`, 충돌 시 +1..+10 시도 후 OS 임의 할당 fallback. 단일 인스턴스에선 항상 51820.
+
+검증:
+- 같은 PC 에서 사용자 데이터 복구: `.bak` 가 손상 (끝부분 잔여 바이트) 됐지만 본문 4 accounts + 4 projects 살아 있어 `.recovered` 로 추출 후 live 에 병합.
+- 100 동시 빈 writeRuntime 부하 테스트: accounts/projects 모두 보존, live/.bak 둘 다 valid JSON.
+- 포트 시퀀스: 첫 인스턴스 51820, 2 번째 51821, 3 번째 51822 (fallback 정상).
+
 ## 2026-05-16T_loopback_url_when_lan_bind
 
 v0.5.0 / v0.5.1 에서 사용자가 "모바일 접속" 토글을 켠 뒤 재시작하면 빈 화면만 뜨는 회귀. 원인: dashboard-server 가 bind host 와 client URL 을 같은 변수로 만들어, host=0.0.0.0 일 때 `http://0.0.0.0:<port>/` 라는 connect 불가 URL 을 반환. Electron renderer 가 그걸 그대로 loadURL → did-fail-load → 빈 화면.
