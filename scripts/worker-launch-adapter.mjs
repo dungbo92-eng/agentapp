@@ -1074,6 +1074,14 @@ async function streamProcess(command, args, options = {}) {
       : null;
 
     const tryAutoConfirm = async (trimmed) => {
+      // stream-json mode 의 NDJSON 라인 (assistant / tool_use / tool_result / result)
+      // 안에는 모델이 인용한 임의 텍스트가 들어 있다. 그 텍스트가 우연히 "Continue?",
+      // "Are you sure?", "Trust this workspace?", "loginDesc" 같은 권한 prompt 패턴
+      // 단어를 포함하면 (예: 사용자 코드의 i18n ko/en.json 메시지) false positive 로
+      // worker 가 즉시 kill 되는 사고가 있었다. NDJSON 은 항상 `{` 또는 `[` 로 시작
+      // 하므로 그 라인은 권한 prompt 검사에서 제외한다. 실제 CLI 권한 prompt 는
+      // plain text 로 나오므로 영향 없음.
+      if (trimmed.startsWith("{") || trimmed.startsWith("[")) return false;
       // 권한 prompt 패턴: y/N, allow/deny, continue?, proceed?
       if (!PERMISSION_PROMPT_PATTERNS.some((pattern) => pattern.test(trimmed))) return false;
       // stdin 이 아직 열려있다면 자동 응답 시도 (인터랙티브 mode 가능성).
