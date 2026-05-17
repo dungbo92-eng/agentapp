@@ -19,7 +19,13 @@ const DEFAULT_RUNTIME = {
   version: 1,
   accounts: [],
   projects: [],
+  // 가장 최근에 시작된 running run. 호환용 별칭 — UI/하위 코드가 단일 필드를 보던
+  // 곳을 깨지 않기 위해 유지. 실제 동시 실행 여부는 activeRuns 가 source of truth.
   activeRun: null,
+  // 프로젝트별로 동시 실행이 가능하도록 한 모든 running run 목록. 각 worker 는
+  // 자기 run-<id> 폴더와 별도 자식 프로세스를 갖기 때문에 OS 레벨 충돌은 없다.
+  // 같은 프로젝트 안에서는 1 개만 동시 실행 (file/git 충돌 방지) — startRun 가드.
+  activeRuns: [],
   runHistory: [],
   pendingRuns: [],
   settings: {
@@ -32,7 +38,10 @@ const DEFAULT_RUNTIME = {
     // CHAIN_DONE 을 worker 가 보냈는데도 진행률 등을 이유로 무시하고 다시
     // 강제 실행하는 동작은 기본 OFF. 워커가 명시적으로 끝났다고 했을 때는
     // 그 신호를 존중한다. 토큰 절약 우선. 사용자가 켜고 싶으면 settings 에서.
-    autoChainOverrideOnChainDone: false,
+    // 기본 on — 사용자가 "최대한 멈추지 말고 끈질기게 진행" 을 원해 CHAIN_DONE 이 와도
+    // NEXT_TASK / 진행률 기반으로 한 번 더 이어간다. override 횟수는 CHAIN_DONE_OVERRIDE_CAP
+    // 으로 제한해 무한 루프는 막는다. 사용자가 명시적으로 멈추고 싶을 때만 off.
+    autoChainOverrideOnChainDone: true,
     quotaRetryEnabled: true,
     // 한도 도달 시 다른 ready 계정으로 시도. 같은 prompt 를 3 번까지 다른
     // 계정으로 돌리는 동작도 사용자 입장에선 토큰 폭주로 보일 수 있어
@@ -48,6 +57,17 @@ const DEFAULT_RUNTIME = {
     // 와야 받아준다. 토큰은 toggle ON 시 자동 생성 (영구 보관).
     lanAccessEnabled: false,
     lanAccessToken: "",
+    // worker 가 CHAIN_DONE 과 함께 "사용자 결정 대기" 신호를 보낼 때 어디까지
+    // 엄격하게 stop 할지 결정. 사용자가 "대기/사용자 확인으로 멈추는 케이스를
+    // 최대한 줄여달라" 고 요청해 기본 false 로 둔다.
+    //   false (기본) — DECISIONS_REQUIRED / [NEXT_NONE] 마커처럼 가장 명확한
+    //                  종료 신호만 stop. wait/no-actionable/사용자 승인 같은
+    //                  약한 신호는 무시하고 진행률·NEXT_TASK 기반으로 끈질기게
+    //                  이어 진행.
+    //   true         — 기존 STRICT_WAIT_FOR_USER_PATTERNS 4 개 패턴 모두 stop
+    //                  (escalation, wait for user approval/decision/input,
+    //                  사용자 승인/결재 필요 등). 보수적 운영용.
+    strictUserWait: false,
   },
 };
 
@@ -60,7 +80,7 @@ function normalizeSettings(raw) {
     ? Math.max(1, Math.min(500, Number(source.autoChainMaxDepth)))
     : 8;
   const autoChainOverrideOnChainDone =
-    source.autoChainOverrideOnChainDone === undefined ? false : Boolean(source.autoChainOverrideOnChainDone);
+    source.autoChainOverrideOnChainDone === undefined ? true : Boolean(source.autoChainOverrideOnChainDone);
   const quotaRetryEnabled = source.quotaRetryEnabled === undefined ? true : Boolean(source.quotaRetryEnabled);
   const quotaRetryMaxAttempts = Number.isFinite(Number(source.quotaRetryMaxAttempts))
     ? Math.max(0, Math.min(10, Number(source.quotaRetryMaxAttempts)))
@@ -71,6 +91,9 @@ function normalizeSettings(raw) {
   const maintenanceDomain = typeof maintenanceDomainRaw === "string"
     ? maintenanceDomainRaw.trim().toLowerCase()
     : "hanilnetworks.com";
+  const strictUserWait = source.strictUserWait === undefined
+    ? false
+    : Boolean(source.strictUserWait);
   const lanAccessEnabled = source.lanAccessEnabled === undefined
     ? false
     : Boolean(source.lanAccessEnabled);
@@ -92,6 +115,7 @@ function normalizeSettings(raw) {
     quotaRetryEnabled,
     quotaRetryMaxAttempts,
     maintenanceDomain,
+    strictUserWait,
     lanAccessEnabled,
     lanAccessToken,
   };
@@ -381,11 +405,20 @@ function uniqueById(items) {
 
 function normalizeRuntime(input) {
   const runtime = { ...clone(DEFAULT_RUNTIME), ...(input || {}) };
+  // activeRuns 가 비었는데 activeRun (구버전) 만 있으면 거기에 묶어 마이그레이션.
+  // 반대로 activeRuns 가 있고 activeRun 이 비었으면 가장 최근 것을 alias.
+  const activeRunsRaw = Array.isArray(runtime.activeRuns) ? runtime.activeRuns.filter(Boolean) : [];
+  const legacyActiveRun = runtime.activeRun && !activeRunsRaw.some((r) => r?.id === runtime.activeRun.id)
+    ? runtime.activeRun
+    : null;
+  const activeRuns = legacyActiveRun ? [legacyActiveRun, ...activeRunsRaw] : activeRunsRaw;
   return {
     version: 1,
     accounts: Array.isArray(runtime.accounts) ? runtime.accounts.map(normalizeAccount) : [],
     projects: Array.isArray(runtime.projects) ? runtime.projects.map(normalizeProject) : [],
-    activeRun: runtime.activeRun || null,
+    activeRuns,
+    // 가장 최근 (배열 첫 번째) = legacy alias. UI 가 단일 카드만 보던 부분 호환.
+    activeRun: activeRuns[0] || null,
     runHistory: Array.isArray(runtime.runHistory) ? runtime.runHistory.slice(0, 20) : [],
     pendingRuns: Array.isArray(runtime.pendingRuns) ? runtime.pendingRuns.slice(0, 20) : [],
     settings: normalizeSettings(runtime.settings),
@@ -1726,9 +1759,25 @@ async function mutateRuntimeRun(runId, mutator, options = {}) {
     return nextRun;
   };
 
+  // activeRuns 배열에서 해당 run 찾아 갱신. clearActive 시 배열에서 제거 + history 로 이동.
+  const activeRuns = Array.isArray(runtime.activeRuns) ? [...runtime.activeRuns] : [];
+  const idxInActive = activeRuns.findIndex((r) => r && r.id === runId);
+  if (idxInActive >= 0) {
+    const updated = buildNext(activeRuns[idxInActive]);
+    if (options.clearActive) {
+      activeRuns.splice(idxInActive, 1);
+      // history 에 보존 — 아래 runHistory.map 이 처리하지 못하는 신규 항목이면 prepend.
+      if (!runtime.runHistory.some((item) => item.id === runId)) {
+        runtime.runHistory = [updated, ...runtime.runHistory].slice(0, 20);
+      }
+    } else {
+      activeRuns[idxInActive] = updated;
+    }
+  }
+  runtime.activeRuns = activeRuns;
+  // legacy alias 동기화 — 같은 run 이면 같이 갱신, clearActive 면 다음 후보로.
   if (runtime.activeRun?.id === runId) {
-    const updated = buildNext(runtime.activeRun);
-    runtime.activeRun = options.clearActive ? null : updated;
+    runtime.activeRun = options.clearActive ? activeRuns[0] || null : nextRun || runtime.activeRun;
   }
 
   runtime.runHistory = runtime.runHistory.map((item) => (item.id === runId ? buildNext(item) : item));
@@ -1741,6 +1790,7 @@ async function mutateRuntimeRun(runId, mutator, options = {}) {
       options.handoffReason || "unknown",
     );
     if (runtime.activeRun?.id === runId) runtime.activeRun = nextRun;
+    runtime.activeRuns = runtime.activeRuns.map((item) => (item && item.id === runId ? nextRun : item));
     runtime.runHistory = runtime.runHistory.map((item) => (item.id === runId ? nextRun : item));
   }
 
@@ -2609,7 +2659,9 @@ export async function tryQuotaRetry(failedRun) {
 // override 모드를 사용자가 켰을 때도 1 회만 허용. 같은 prompt 를 두 번 우긴
 // 다음에도 worker 가 또 CHAIN_DONE 을 보내면 그 시점에서는 사용자 판단이
 // 필요하다.
-const CHAIN_DONE_OVERRIDE_CAP = 1;
+// 사용자가 "최대한 멈추지 말고 끈질기게" 를 원해 3 회까지 override 허용. 그 이상은
+// 분명히 무한 루프이거나 worker 가 같은 결론을 반복하는 상태이므로 종료.
+const CHAIN_DONE_OVERRIDE_CAP = 3;
 
 // worker 가 작업을 끝낼 때 응답 끝에 붙이는 마커. dashboard 는 이 마커를
 // 파싱해서 autoChain 의 다음 prompt 를 만든다. 기존 CHAIN_DONE / NEXT_TASK.md
@@ -2779,40 +2831,44 @@ export async function tryAutoChain(prevRun, opts = {}) {
   }
   const markerStep = nextStepsParsed.steps[0] || null;
 
-  const WAIT_FOR_USER_PATTERNS = [
-    /사용자\s*(?:방향성|결정|지시|입력|확인|선택)\s*(?:대기|필요|없)/,
-    /사용자\s+방향/,
-    /wait(?:ing)?\s+for\s+user/i,
-    /no\s+actionable\s+(?:next\s+)?item/i,
-    /actionable\s+(?:next\s+)?item\s*(?:이|가)?\s*없/,
+  // 사용자가 "대기/사용자 확인으로 멈추는 케이스를 최대한 줄여달라" 고 요청.
+  // 기본은 가장 명확한 종료 신호 (DECISIONS_REQUIRED) 만 stop 으로 인정한다.
+  // [NEXT_NONE] 마커는 이미 위에서 처리해 즉시 종료. 그 외 wait/no-actionable/
+  // 사용자 승인 같은 약한 신호는 무시하고 진행률·NEXT_TASK 기반으로 끈질기게
+  // 이어 진행한다. settings.strictUserWait=true 면 기존 STRICT 4 패턴 모두 stop.
+  const MINIMAL_WAIT_FOR_USER_PATTERNS = [
     /DECISIONS?_REQUIRED/i,
-    /자율(?:적|로|으로)?\s*(?:인|적인)?\s*(?:진행할|작업|진행)\s*(?:수\s+)?(?:이|은|는|도)?\s*없/,
-    /추가(?:로|적으로)?\s*(?:할|진행할|손댈)?\s*(?:일|작업|항목)?\s*(?:이|는|도)?\s*없/,
-    /임의\s*(?:로|자동)?\s*(?:자동\s+)?진행하지\s+않/,
-    /escalation된?\s+상태/,
-    /게이팅(?:되어|돼)\s+있/,
   ];
+  const STRICT_WAIT_FOR_USER_PATTERNS = [
+    /DECISIONS?_REQUIRED/i,
+    /escalation된?\s+상태/,
+    /\bwait(?:ing)?\s+for\s+user\s+(?:approval|decision|input)\b/i,
+    /사용자\s*(?:승인|결재)\s*(?:필요|대기)/,
+  ];
+  const waitPatterns = settings.strictUserWait
+    ? STRICT_WAIT_FOR_USER_PATTERNS
+    : MINIMAL_WAIT_FOR_USER_PATTERNS;
   const isWaitingForUser = chainDoneSignaled
-    && WAIT_FOR_USER_PATTERNS.some((re) => re.test(lastMessageText));
+    && waitPatterns.some((re) => re.test(lastMessageText));
 
   const prevOverrides = Number(prevRun.chainDoneOverrides || 0);
   let chainDoneOverride = false;
   if (chainDoneSignaled) {
-    // 사용자 대기 신호가 있으면 무조건 stop (기존 동작 유지)
-    if (isWaitingForUser) {
+    // 사용자 대기 신호 — DECISIONS_REQUIRED 같은 명시적 escalation 만 stop. 그것도
+    // NEXT_TASK 에 명확한 후속 항목이 있으면 override 해서 계속 진행 (사용자 요청:
+    // 최대한 멈추지 말기). hasNewTask 가 false 일 때만 정말로 멈춤.
+    if (isWaitingForUser && !hasNewTask) {
       return {
         stopped: true,
-        reason: "worker 가 사용자 결정 대기를 보고하고 CHAIN_DONE 을 보냈습니다. 토큰 소진 방지를 위해 자동 진행 중지 — 사용자 입력 필요.",
+        reason: "worker 가 명시적 사용자 결재/escalation 신호와 CHAIN_DONE 을 보냈고 NEXT_TASK 에도 새 항목이 없습니다. 사용자 입력 필요.",
       };
     }
-    // 기본 정책: CHAIN_DONE = 절대 stop. worker 가 명시적으로 끝났다고 했으면
-    // app 이 진행률 같은 간접 정보로 뒤집지 않는다. 사용자가 settings 에서
-    // autoChainOverrideOnChainDone=true 로 명시했을 때만 기존의 진행률/NEXT_TASK
-    // 기반 override 가 동작한다.
+    // 기본 정책: CHAIN_DONE 이 와도 NEXT_TASK / 진행률을 보고 override. 사용자가
+    // settings.autoChainOverrideOnChainDone=false 로 명시 꺼야만 정말 멈춤.
     if (!settings.autoChainOverrideOnChainDone) {
       return {
         stopped: true,
-        reason: "worker 가 CHAIN_DONE 을 보냈습니다. 토큰 소진 방지를 위해 자동 진행 중지 (override 비활성). settings.autoChainOverrideOnChainDone 을 켜면 진행률 기반 override 가 다시 동작합니다.",
+        reason: "worker 가 CHAIN_DONE 을 보냈습니다. settings.autoChainOverrideOnChainDone 가 off 라 그대로 종료.",
       };
     }
     const progressIncomplete = Number.isFinite(progressPercent) && progressPercent < 100;
@@ -3029,11 +3085,13 @@ function isAliveActiveRun(activeRun) {
   if (activeRun.status !== "running") return false;
   const adapter = activeRun.adapter || {};
   const status = String(adapter.status || "");
-  // launching / running / preflight 인 동안만 살아 있다고 본다.
-  if (!["launching", "running", "preflight"].includes(status)) return false;
+  // launching / running / preflight / queued 인 동안 살아 있다고 본다. queued 는
+  // startRun 이 막 만든 직후 launchDashboardWorker 가 adapter 를 launching 으로 patch
+  // 하기 전 짧은 윈도우 — 그 사이 새 startRun 이 들어오면 중복 spawn 회귀.
+  if (!["queued", "launching", "running", "preflight"].includes(status)) return false;
   const pid = Number(adapter.pid || adapter.runnerPid || 0);
   if (!Number.isInteger(pid) || pid <= 0) {
-    // PID 가 아직 안 잡힌 launching 단계도 살아 있다고 본다 (방금 startRun 직후).
+    // PID 가 아직 안 잡힌 launching/queued 단계도 살아 있다고 본다.
     return true;
   }
   try {
@@ -3042,6 +3100,16 @@ function isAliveActiveRun(activeRun) {
   } catch (error) {
     return error?.code === "EPERM";
   }
+}
+
+// project 단위 active run 검색. 같은 프로젝트에서 두 worker 가 동시에 같은 파일/git/
+// memory 를 만지는 충돌을 방지하면서, 다른 프로젝트는 자유롭게 동시에 실행 가능하게.
+function findAliveRunForProject(runtime, projectId) {
+  const pool = [
+    runtime.activeRun,
+    ...(Array.isArray(runtime.activeRuns) ? runtime.activeRuns : []),
+  ].filter(Boolean);
+  return pool.find((r) => r.projectId === projectId && isAliveActiveRun(r)) || null;
 }
 
 export async function startRun(input) {
@@ -3058,15 +3126,20 @@ export async function startRun(input) {
     Boolean(input.autoDispatched) ||
     Boolean(input.handoffFrom) ||
     Boolean(input.allowConcurrent);
-  if (!isContinuation && isAliveActiveRun(runtime.activeRun)) {
-    return {
-      ...runtime,
-      startRejected: {
-        reason: "active_run_running",
-        message: `이미 ${runtime.activeRun?.workerId || "worker"} (${runtime.activeRun?.id || "?"}) 가 실행 중입니다. 먼저 중지하거나 '다른 계정으로 이어가기' 를 사용하세요.`,
-        activeRunId: runtime.activeRun?.id || "",
-      },
-    };
+  // 같은 프로젝트에 이미 살아 있는 run 이 있으면 차단 (file/git/memory 충돌 방지).
+  // 다른 프로젝트는 동시에 시작 가능 — worker 는 cli 자식 프로세스라 OS 레벨 분리.
+  if (!isContinuation) {
+    const conflict = findAliveRunForProject(runtime, String(input.projectId || "current"));
+    if (conflict) {
+      return {
+        ...runtime,
+        startRejected: {
+          reason: "active_run_running_for_project",
+          message: `이 프로젝트는 이미 ${conflict.workerId || "worker"} (${conflict.id || "?"}) 가 실행 중입니다. 같은 프로젝트는 동시에 1 개만 실행돼 file/git 충돌을 막습니다. 다른 프로젝트는 자유롭게 시작 가능합니다.`,
+          activeRunId: conflict.id || "",
+        },
+      };
+    }
   }
 
   // complexity="auto" 또는 미지정이면 prompt 텍스트로 자동 분류.
@@ -3282,7 +3355,17 @@ export async function startRun(input) {
     routing.status === "blocked" ? "missing_credentials" : "in_progress",
   );
 
-  runtime.activeRun = run.status === "running" ? run : null;
+  // 다중 프로젝트 동시 실행 — running 인 새 run 을 activeRuns 배열 맨 앞에 추가.
+  // activeRun (legacy alias) 도 새 run 으로 갱신 (가장 최근). 같은 projectId 충돌은
+  // 위에서 이미 가드했으므로 여기엔 도달 안 함.
+  const prevActiveRuns = Array.isArray(runtime.activeRuns) ? runtime.activeRuns.filter((r) => r && r.id !== id) : [];
+  if (run.status === "running") {
+    runtime.activeRuns = [run, ...prevActiveRuns];
+    runtime.activeRun = run;
+  } else {
+    runtime.activeRuns = prevActiveRuns;
+    runtime.activeRun = prevActiveRuns[0] || null;
+  }
   runtime.runHistory = [run, ...runtime.runHistory.filter((item) => item.id !== id)].slice(0, 20);
 
   if (run.status !== "running" && routing.status === "blocked") {
@@ -3312,38 +3395,47 @@ export async function startRun(input) {
   return readRuntime();
 }
 
-export async function stopRun() {
+export async function stopRun(input = {}) {
   const runtime = await readRuntime();
-  // 사용자가 정지를 누른 시점을 기록 — 진행 중인 worker 의 close 핸들러에서
-  // tryQuotaRetry/tryAutoChain/tryPolicyRetry 가 새 run 을 spawn 하기 직전에
-  // 이 timestamp 를 보고 cascade 를 차단한다. activeRun 이 없어도 직전에 끝난
-  // run 이 비동기 retry 를 시도할 수 있으므로 항상 기록.
   runtime.cancelChainAt = Date.now();
-  if (!runtime.activeRun) return writeRuntime(runtime);
-  try {
-    const { stopDashboardWorker } = await import("./worker-launch-adapter.mjs");
-    await stopDashboardWorker(runtime.activeRun);
-  } catch {
-    // If the adapter is unavailable we still record a local stop.
-  }
-  const stopped = {
-    ...runtime.activeRun,
-    status: "stopped",
-    stoppedAt: new Date().toISOString(),
-    // 이 run 으로부터 파생되는 모든 자동 retry/autoChain 을 명시적으로 차단.
-    cancelRetryChain: true,
-    adapter: {
-      ...(runtime.activeRun.adapter || {}),
+  // 다중 active runs — 특정 runId 가 주어지면 그것만, 아니면 모두 정지.
+  const targetId = String(input?.runId || input?.id || "").trim();
+  const allActive = [
+    ...(Array.isArray(runtime.activeRuns) ? runtime.activeRuns : []),
+    ...(runtime.activeRun && !runtime.activeRuns?.some((r) => r?.id === runtime.activeRun.id)
+      ? [runtime.activeRun]
+      : []),
+  ].filter(Boolean);
+  const targets = targetId
+    ? allActive.filter((r) => r.id === targetId)
+    : allActive;
+  if (targets.length === 0) return writeRuntime(runtime);
+
+  const { stopDashboardWorker } = await import("./worker-launch-adapter.mjs");
+  for (const target of targets) {
+    try {
+      await stopDashboardWorker(target);
+    } catch {
+      // best-effort
+    }
+    const stopped = {
+      ...target,
       status: "stopped",
-    },
-    events: [
-      ...(runtime.activeRun.events || []),
-      { at: new Date().toISOString(), level: "warn", message: "대시보드에서 실행을 중지했습니다. 자동 재시도/이어 진행도 함께 취소됩니다." },
-    ],
-  };
-  stopped.handoffPath = await writeDashboardRunHandoff(stopped, "interrupted", "user_stopped");
-  runtime.activeRun = null;
-  runtime.runHistory = [stopped, ...runtime.runHistory.filter((item) => item.id !== stopped.id)].slice(0, 20);
+      stoppedAt: new Date().toISOString(),
+      cancelRetryChain: true,
+      adapter: { ...(target.adapter || {}), status: "stopped" },
+      events: [
+        ...(target.events || []),
+        { at: new Date().toISOString(), level: "warn", message: "대시보드에서 실행을 중지했습니다. 자동 재시도/이어 진행도 함께 취소됩니다." },
+      ],
+    };
+    stopped.handoffPath = await writeDashboardRunHandoff(stopped, "interrupted", "user_stopped");
+    runtime.activeRuns = (runtime.activeRuns || []).filter((r) => r?.id !== target.id);
+    if (runtime.activeRun?.id === target.id) runtime.activeRun = null;
+    runtime.runHistory = [stopped, ...runtime.runHistory.filter((item) => item.id !== stopped.id)].slice(0, 20);
+  }
+  // legacy activeRun 갱신 — 남은 running 이 있으면 가장 최근, 없으면 null.
+  if (!runtime.activeRun) runtime.activeRun = (runtime.activeRuns || [])[0] || null;
   return writeRuntime(runtime);
 }
 

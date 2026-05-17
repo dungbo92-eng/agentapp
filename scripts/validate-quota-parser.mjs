@@ -297,7 +297,8 @@ try {
   console.log("[validate-quota-parser] ok dirty stale run needs review");
 
   // ---- startRun activeRun 가드 ----
-  // 살아 있는 activeRun 위에 일반 startRun 이 또 들어오면 거절돼야 한다.
+  // 같은 프로젝트에 살아 있는 activeRun 위에 일반 startRun 이 또 들어오면
+  // 거절돼야 한다 (file/git/memory 충돌 방지). 다른 프로젝트는 동시 허용.
   // continuation flag (autoChain/retryCount/pendingId/handoffFrom/autoDispatched)
   // 가 없는 호출만 가드 대상.
   await writeFile(runtimeFile, JSON.stringify({
@@ -326,24 +327,34 @@ try {
       adapter: { status: "running", pid: process.pid, mode: "runner" },
       routing: { status: "recommended", accountId: "ready-claude", provider: "claude" },
     },
+    activeRuns: [
+      {
+        id: "running-run",
+        status: "running",
+        workerId: "claude-code",
+        projectId: "current",
+        prompt: "long task",
+        startedAt: "2026-05-13T00:00:00.000Z",
+        adapter: { status: "running", pid: process.pid, mode: "runner" },
+        routing: { status: "recommended", accountId: "ready-claude", provider: "claude" },
+      },
+    ],
     runHistory: [],
     pendingRuns: [],
     settings: {},
   }, null, 2), "utf8");
 
+  // 같은 프로젝트 ("current") 로 한 번 더 startRun → 거절돼야 함.
   const rejectAttempt = await startRun({
     workerId: "claude-code",
     projectId: "current",
     prompt: "concurrent attempt",
     complexity: "standard",
   });
-  if (!rejectAttempt.startRejected || rejectAttempt.startRejected.reason !== "active_run_running") {
-    throw new Error("startRun did not block concurrent run on live activeRun");
+  if (!rejectAttempt.startRejected || rejectAttempt.startRejected.reason !== "active_run_running_for_project") {
+    throw new Error(`startRun did not block concurrent run on same project; got ${JSON.stringify(rejectAttempt.startRejected)}`);
   }
-  if (rejectAttempt.activeRun?.id !== "running-run") {
-    throw new Error("startRun guard mutated activeRun");
-  }
-  console.log("[validate-quota-parser] ok startRun blocks concurrent run on live activeRun");
+  console.log("[validate-quota-parser] ok startRun blocks concurrent run on same project");
 
   // ---- CHAIN_DONE 기본 동작 = stop ----
   // settings.autoChainOverrideOnChainDone 가 꺼져 있으면 진행률이 99% 라도
