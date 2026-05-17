@@ -533,12 +533,14 @@ async function loadPtyModule() {
   if (ptyModule) return ptyModule;
   try {
     // node-pty 는 CommonJS native 모듈 — createRequire 로 로드.
+    // 현재 빌드 환경에서 winpty native build 가 실패해 의존성에서 제외된 상태이므로
+    // require 가 실패할 수 있다. 그 경우 graceful degrade (null 반환).
     const { createRequire } = await import("node:module");
     const requireFn = createRequire(import.meta.url);
     ptyModule = requireFn("node-pty");
     return ptyModule;
   } catch (error) {
-    process.stderr.write(`[pty] load failed: ${error?.message || error}\n`);
+    process.stderr.write(`[pty] load failed (node-pty not installed): ${error?.message || error}\n`);
     return null;
   }
 }
