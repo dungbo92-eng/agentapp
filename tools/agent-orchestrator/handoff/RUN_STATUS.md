@@ -941,3 +941,12 @@ NEXT_TASK.md 템플릿 확정: agent-next 생성물을 Required Reads, Execution
 - Git: not recorded
 - Decisions: none
 - Next: 현재 떠 있는 설치 앱은 구버전 writer가 AppData runtime을 계속 덮어쓸 수 있으므로 새 릴리즈 적용 후 재시작 확인
+
+## 2026-05-18T06:00:57.268Z
+
+- Status: completed
+- Summary: runtime active run 보존 패치를 main에 push했고 desktop 자동 업데이트용 v0.9.1 NSIS 릴리즈를 발행했다. run-1779082262470은 실제 작업이 완료되어 last-message와 sytleOsjang commit 58f070b가 확인됐지만, 현재 실행 중인 구버전 앱이 AppData runtime을 다시 recovered stub으로 덮어쓰므로 앱 재시작/업데이트가 필요하다.
+- Verification: pnpm validate; pnpm dashboard:build; pnpm desktop:release -- --bump patch; gh release view v0.9.1
+- Git: not recorded
+- Decisions: none
+- Next: AgentApp v0.9.1 적용 후 새 worker run이 activeRuns에 유지되고 완료 시 runHistory에 정상 표시되는지 확인
