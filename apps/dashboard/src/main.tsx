@@ -305,6 +305,8 @@ type RuntimeState = {
   runHistory: RunRecord[];
   pendingRuns?: PendingRun[];
   notifications?: RuntimeNotification[];
+  // OS Notification dispatcher 의 발사 결과 ring buffer — UI 알림 진단 패널이 표시.
+  notifyDebugLog?: { at: number; stage: string; ok: boolean; notifId?: string; kind?: string; title?: string; detail?: string }[];
   handoff?: { status: string; targetAccountId?: string; reason: string };
   startRejected?: { reason: string; message: string; activeRunId?: string };
   settings?: RuntimeSettings;
@@ -4193,6 +4195,59 @@ function App() {
         </section>
 
         {desktopApi ? (
+          <>
+          <section className="railPanel">
+            <div className="sectionTitle compact">
+              <h2>OS 알림 진단</h2>
+            </div>
+            <small style={{ color: "#64748b", marginBottom: 6 }}>
+              알림이 뜨지 않으면 아래 버튼으로 테스트하고 진단 로그를 확인하세요.
+              Windows 설정 &gt; 시스템 &gt; 알림에서 AgentApp 권한도 확인.
+            </small>
+            <button
+              type="button"
+              className="primaryButton small"
+              style={{ alignSelf: "flex-start" }}
+              onClick={async () => {
+                try {
+                  const res = await fetch("/api/agentapp/notifications/test", {
+                    method: "POST",
+                    headers: { "Content-Type": "application/json" },
+                    body: JSON.stringify({}),
+                  });
+                  if (!res.ok) throw new Error(`status ${res.status}`);
+                  setToast({ kind: "info", message: "테스트 알림 발사. 2~3초 안에 토스트가 뜨면 OK." });
+                  await refreshRuntime();
+                } catch (caught) {
+                  setToast({ kind: "warn", message: caught instanceof Error ? caught.message : "테스트 알림 실패" });
+                }
+              }}
+            >
+              테스트 알림 보내기
+            </button>
+            {Array.isArray(runtime.notifyDebugLog) && runtime.notifyDebugLog.length > 0 ? (
+              <details style={{ marginTop: 8 }}>
+                <summary style={{ cursor: "pointer", fontSize: 12, color: "#475569" }}>
+                  진단 로그 ({runtime.notifyDebugLog.length}건)
+                </summary>
+                <ul style={{ margin: "6px 0 0", padding: 0, listStyle: "none", fontSize: 11, fontFamily: "Consolas, monospace", color: "#334155", maxHeight: 240, overflow: "auto" }}>
+                  {runtime.notifyDebugLog.slice(0, 12).map((entry, idx) => (
+                    <li key={idx} style={{ padding: "3px 0", borderBottom: "1px solid #f1f5f9" }}>
+                      <span style={{ color: entry.ok ? "#059669" : "#dc2626" }}>{entry.ok ? "✓" : "✗"}</span>{" "}
+                      <strong>{entry.stage}</strong>
+                      {entry.title ? ` — ${entry.title}` : ""}
+                      {entry.detail ? <div style={{ color: "#94a3b8", paddingLeft: 14 }}>{entry.detail}</div> : null}
+                      <div style={{ color: "#94a3b8", paddingLeft: 14, fontSize: 10 }}>
+                        {entry.at ? new Date(entry.at).toLocaleTimeString() : ""}
+                        {entry.kind ? ` · ${entry.kind}` : ""}
+                      </div>
+                    </li>
+                  ))}
+                </ul>
+              </details>
+            ) : null}
+          </section>
+
           <section className="railPanel">
             <div className="sectionTitle compact">
               <h2>모바일 접속</h2>
@@ -4309,6 +4364,7 @@ function App() {
               <small>꺼져 있음. 켜면 같은 Wi-Fi 안의 다른 기기에서 토큰 URL 로 접속 가능 (인터넷엔 노출 안 됨).</small>
             )}
           </section>
+          </>
         ) : null}
               </div>
             ) : null}

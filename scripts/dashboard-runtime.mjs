@@ -3089,21 +3089,64 @@ function encodeNtfyHeader(text) {
   return String(text || "").replace(/[^\x20-\x7E]/g, "?").slice(0, 200);
 }
 
-// 사용자가 알림을 읽었거나 dismiss 할 때 호출 — 배열에서 제거.
+// 사용자가 알림을 읽었거나 dismiss 할 때 호출 — 배열에서 제거. atomic mutateRuntime
+// 으로 read-modify-write 가 같은 잠금 안에서 끝나야, dismiss 사이 다른 writer
+// 가 만든 새 run/notifications 를 stale 상태로 덮어쓰는 race 가 안 일어난다.
 export async function dismissNotification(input = {}) {
   const id = String(input?.id || "").trim();
   if (!id) return readRuntime();
-  const runtime = await readRuntime();
-  const before = Array.isArray(runtime.notifications) ? runtime.notifications : [];
-  runtime.notifications = before.filter((n) => n?.id !== id);
-  return writeRuntime(runtime);
+  return mutateRuntime((runtime) => {
+    const before = Array.isArray(runtime.notifications) ? runtime.notifications : [];
+    runtime.notifications = before.filter((n) => n?.id !== id);
+    return runtime;
+  });
 }
 
 // 한 번에 모두 제거 (사용자가 "모두 읽음" 누르거나, UI 가 일정 시간 지난 항목 정리).
 export async function clearNotifications() {
-  const runtime = await readRuntime();
-  runtime.notifications = [];
-  return writeRuntime(runtime);
+  return mutateRuntime((runtime) => {
+    runtime.notifications = [];
+    return runtime;
+  });
+}
+
+// OS Notification dispatcher (main.mjs) 가 발사 결과를 ring buffer 로 남긴다.
+// dashboard 가 이 배열을 보면 "알림이 안 뜨는 이유" 를 진단 가능 — OS API 자체가
+// 미지원인지, show 이벤트가 안 와서 토스트가 silently dropped 됐는지, 어떤 알림이
+// 발사됐고 어떤 게 실패했는지가 모두 보인다.
+export async function appendNotifyDebugLog(entry) {
+  return mutateRuntime((runtime) => {
+    const prev = Array.isArray(runtime.notifyDebugLog) ? runtime.notifyDebugLog : [];
+    runtime.notifyDebugLog = [
+      { ...entry, at: entry?.at || Date.now() },
+      ...prev,
+    ].slice(0, 30);
+    return runtime;
+  });
+}
+
+// 사용자가 "테스트 알림 보내기" 를 누르면 호출. settings.notifyEnabled 가 꺼져 있어도
+// 강제로 진행해 "알림이 정말 뜨는지" 자체를 검증 가능하게 한다.
+export async function sendTestNotification(input = {}) {
+  const title = String(input?.title || "AgentApp — 테스트 알림").slice(0, 200);
+  const message = String(input?.message || "알림 시스템이 정상 동작하고 있습니다. 이 메시지가 OS 알림으로 보이면 OK.").slice(0, 800);
+  const entry = {
+    id: `notif-test-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`,
+    kind: "info",
+    title,
+    message,
+    runId: "",
+    projectId: "",
+    at: Date.now(),
+    delivered: false,
+    test: true,
+  };
+  await mutateRuntime((runtime) => {
+    const prev = Array.isArray(runtime.notifications) ? runtime.notifications : [];
+    runtime.notifications = [entry, ...prev].slice(0, 40);
+    return runtime;
+  });
+  return { ok: true, id: entry.id };
 }
 
 function buildPendingRecord(input, routing) {

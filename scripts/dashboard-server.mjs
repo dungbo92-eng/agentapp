@@ -33,6 +33,7 @@ import {
   dismissAwaitingRun,
   dismissNotification,
   clearNotifications,
+  sendTestNotification,
 } from "./dashboard-runtime.mjs";
 import { inspectEnvironment, installMissingTargets } from "./agent-environment-setup.mjs";
 
@@ -216,6 +217,12 @@ async function handleApi(req, res, url) {
   }
   if (req.method === "POST" && url === "/api/agentapp/notifications/clear") {
     sendJson(res, 200, await clearNotifications());
+    return true;
+  }
+  if (req.method === "POST" && url === "/api/agentapp/notifications/test") {
+    // 사용자가 "PC 알림 안 옴" 진단할 때 사용. notifyEnabled 가 꺼져 있어도 강제로
+    // 푸시해서 OS Notification API 가 동작하는지 확인.
+    sendJson(res, 200, await sendTestNotification(await readBody(req)));
     return true;
   }
   return false;

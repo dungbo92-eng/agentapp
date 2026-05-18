@@ -367,13 +367,34 @@ async function getNotificationIcon() {
   cachedNotificationIcon = false;
   return undefined;
 }
+// Notification 발사 결과를 runtime 에 작은 ring buffer 로 남겨, 사용자가 대시보드
+// 에서 "왜 알림이 안 뜨지" 를 직접 진단할 수 있게 한다. Electron Notification API
+// 가 silent 로 무시되는 OS 환경 (포커스 어시스트, 알림 권한 off, AUMID 등록 누락
+// 후 portable 실행, Windows Action Center disabled 등) 에서도 try / show /
+// failed 가 다 기록된다.
+async function appendNotifyDebug(entry) {
+  try {
+    const mod = await import("../../scripts/dashboard-runtime.mjs");
+    if (typeof mod.appendNotifyDebugLog === "function") {
+      await mod.appendNotifyDebugLog(entry);
+    }
+  } catch {
+    /* best-effort */
+  }
+}
+
 async function bootstrapNotificationDispatcher() {
   let osSupported = Notification.isSupported();
-  if (!osSupported) {
-    process.stderr.write("[notify] Electron Notification not supported on this platform\n");
-  } else {
-    process.stderr.write(`[notify] dispatcher ready, AUMID=com.agentapp.orchestrator packaged=${app.isPackaged}\n`);
-  }
+  const bootLine = osSupported
+    ? `[notify] dispatcher ready, AUMID=com.agentapp.orchestrator packaged=${app.isPackaged}\n`
+    : "[notify] Electron Notification not supported on this platform\n";
+  process.stderr.write(bootLine);
+  void appendNotifyDebug({
+    at: Date.now(),
+    stage: "dispatcher_boot",
+    ok: osSupported,
+    detail: osSupported ? `packaged=${app.isPackaged} AUMID=com.agentapp.orchestrator` : "OS Notification API unavailable",
+  });
   const tick = async () => {
     try {
       const mod = await import("../../scripts/dashboard-runtime.mjs");
@@ -405,13 +426,45 @@ async function bootstrapNotificationDispatcher() {
             });
             notif.on("show", () => {
               process.stderr.write(`[notify] shown id=${n.id} kind=${n.kind} title=${String(n.title || "").slice(0, 60)}\n`);
+              void appendNotifyDebug({
+                at: Date.now(),
+                stage: "shown",
+                ok: true,
+                notifId: n.id,
+                kind: n.kind,
+                title: String(n.title || "").slice(0, 80),
+              });
             });
             notif.on("failed", (_event, error) => {
-              process.stderr.write(`[notify] failed id=${n.id}: ${error}\n`);
+              const detail = error instanceof Error ? error.message : String(error);
+              process.stderr.write(`[notify] failed id=${n.id}: ${detail}\n`);
+              void appendNotifyDebug({
+                at: Date.now(),
+                stage: "failed",
+                ok: false,
+                notifId: n.id,
+                kind: n.kind,
+                detail,
+              });
+              triggerFlashFrameFallback();
             });
             notif.show();
+            // 일부 Windows 환경에서는 show()/failed 이벤트가 발사 안 되고 토스트도 안 뜸.
+            // 사용자가 dashboard 외부에서도 알아챌 수 있도록 taskbar flash 를 fallback
+            // 으로 같이 발사. critical kind 만 깜빡임 (작업 완료는 시각적 잡음 최소화).
+            if (urgency === "critical") triggerFlashFrameFallback();
           } catch (error) {
-            process.stderr.write(`[notify] show failed: ${error?.message || error}\n`);
+            const detail = error instanceof Error ? error.message : String(error);
+            process.stderr.write(`[notify] show failed: ${detail}\n`);
+            void appendNotifyDebug({
+              at: Date.now(),
+              stage: "show_threw",
+              ok: false,
+              notifId: n.id,
+              kind: n.kind,
+              detail,
+            });
+            triggerFlashFrameFallback();
           }
         }
       }
@@ -425,6 +478,16 @@ async function bootstrapNotificationDispatcher() {
       /* runtime not ready yet; ignore */
     }
   };
+
+  function triggerFlashFrameFallback() {
+    if (!mainWindow || mainWindow.isDestroyed()) return;
+    try {
+      // 창이 포커스 없으면 taskbar 깜빡임. 포커스가 이미 있으면 효과 없음 (의도).
+      if (!mainWindow.isFocused()) mainWindow.flashFrame(true);
+    } catch {
+      /* best-effort */
+    }
+  }
   // 첫 tick 은 2 초 후, 이후 2 초 간격으로.
   setTimeout(() => { void tick(); }, 2000);
   setInterval(() => { void tick(); }, 2000);
