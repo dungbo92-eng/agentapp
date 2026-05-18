@@ -345,6 +345,25 @@ type EnvironmentState = {
 
 type ToolPanelId = "status" | "browser" | "terminal" | "code";
 
+// 다중 탭 모델 — 각 도구 종류 (browser/terminal/code) 마다 여러 탭을 동시에
+// 띄울 수 있다. 모든 탭을 mount 한 채 inactive 는 display:none 으로 숨겨
+// terminal PTY session 이나 browser webview 의 페이지 상태가 탭 전환 후에도
+// 보존된다. status 패널은 단일이라 탭 없이 항상 status 키로 매핑.
+type ToolTabKind = "browser" | "terminal" | "code";
+type ToolTab = {
+  id: string;
+  kind: ToolTabKind;
+  // 각 kind 별 초기 hint — code 는 초기에 열 파일 경로, browser 는 첫 URL,
+  // terminal 은 작업 디렉터리. 탭 컴포넌트가 props 로 받아 자체 상태로 보존.
+  initialPath?: string;
+  initialUrl?: string;
+  initialCwd?: string;
+  label?: string;
+};
+function newTabId(kind: ToolTabKind) {
+  return `${kind}-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`;
+}
+
 type CodeViewState = {
   ok: boolean;
   reason?: string;
@@ -587,9 +606,10 @@ function ResumeWithUserInput({
 
 // ===== 인앱 브라우저 (Electron <webview> 기반) =====
 // 외부 사이트를 안전한 격리 환경에서 로드. URL 입력 + 뒤로/앞으로/새로고침 버튼.
-function BrowserPanel({ onClose }: { onClose?: () => void }) {
-  const [urlInput, setUrlInput] = React.useState<string>("https://www.google.com");
-  const [currentUrl, setCurrentUrl] = React.useState<string>("https://www.google.com");
+function BrowserPanel({ onClose, initialUrl }: { onClose?: () => void; initialUrl?: string }) {
+  const startUrl = initialUrl && initialUrl.trim() ? initialUrl.trim() : "https://www.google.com";
+  const [urlInput, setUrlInput] = React.useState<string>(startUrl);
+  const [currentUrl, setCurrentUrl] = React.useState<string>(startUrl);
   const [loading, setLoading] = React.useState<boolean>(false);
   const webviewRef = React.useRef<HTMLElement | null>(null);
 
@@ -691,7 +711,7 @@ function BrowserPanel({ onClose }: { onClose?: () => void }) {
 
 // ===== 인앱 터미널 (xterm.js + node-pty 기반) =====
 // 사용자 시스템 셸을 그대로 띄움 — PowerShell (Windows), bash/zsh (macOS/Linux).
-function TerminalPanel({ onClose }: { onClose?: () => void }) {
+function TerminalPanel({ onClose, initialCwd }: { onClose?: () => void; initialCwd?: string }) {
   const containerRef = React.useRef<HTMLDivElement | null>(null);
   const [status, setStatus] = React.useState<string>("초기화 중...");
   const [error, setError] = React.useState<string>("");
@@ -733,7 +753,7 @@ function TerminalPanel({ onClose }: { onClose?: () => void }) {
       }
       const cols = term.cols || 100;
       const rows = term.rows || 28;
-      const result = await desktop.terminal.create({ cols, rows });
+      const result = await desktop.terminal.create({ cols, rows, cwd: initialCwd });
       if (disposed) return;
       if (!result?.ok) {
         setError(`터미널 시작 실패: ${result?.reason || "unknown"}`);
@@ -1370,11 +1390,41 @@ async function codeViewRequest(projectId: string, filePath?: string) {
   return (await response.json()) as CodeViewState;
 }
 
-function CodeReaderPanel({ projectId, projectName }: { projectId: string; projectName: string }) {
+type ArbitraryFileState = {
+  ok: boolean;
+  reason?: string;
+  path?: string;
+  name?: string;
+  ext?: string;
+  language?: string;
+  size?: number;
+  mtimeMs?: number;
+  text?: string;
+  lineCount?: number;
+  detail?: string;
+  maxSize?: number;
+};
+
+async function readArbitraryFileRequest(filePath: string): Promise<ArbitraryFileState> {
+  const response = await fetch("/api/agentapp/files/read", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ path: filePath }),
+  });
+  if (!response.ok) throw new Error(`file read API failed: ${response.status}`);
+  return (await response.json()) as ArbitraryFileState;
+}
+
+function CodeReaderPanel({ projectId, projectName, initialFilePath }: { projectId: string; projectName: string; initialFilePath?: string }) {
   const [codeView, setCodeView] = React.useState<CodeViewState | null>(null);
   const [selectedPath, setSelectedPath] = React.useState("");
   const [loading, setLoading] = React.useState(false);
   const [error, setError] = React.useState("");
+  // 임의 파일 열기 (text/json 등) — 프로젝트 git diff 와 별개 mode.
+  // arbitraryFile 이 있으면 그 파일을 codeView 대신 표시.
+  const [arbitraryInput, setArbitraryInput] = React.useState(initialFilePath || "");
+  const [arbitraryFile, setArbitraryFile] = React.useState<ArbitraryFileState | null>(null);
+  const [arbitraryLoading, setArbitraryLoading] = React.useState(false);
 
   const loadCodeView = React.useCallback(async (pathOverride?: string) => {
     setLoading(true);
@@ -1392,14 +1442,53 @@ function CodeReaderPanel({ projectId, projectName }: { projectId: string; projec
     }
   }, [projectId, selectedPath]);
 
+  const openArbitraryFile = React.useCallback(async (filePath: string) => {
+    const trimmed = filePath.trim();
+    if (!trimmed) return;
+    setArbitraryLoading(true);
+    setError("");
+    try {
+      const result = await readArbitraryFileRequest(trimmed);
+      setArbitraryFile(result);
+      if (!result.ok) {
+        const reasonMap: Record<string, string> = {
+          path_required: "경로를 입력해 주세요.",
+          not_found: "파일을 찾을 수 없습니다.",
+          not_a_file: "파일이 아닙니다 (디렉터리이거나 특수 파일).",
+          binary_file: "binary 파일이라 표시할 수 없습니다.",
+          too_large: `파일이 너무 큽니다 (최대 ${Math.round((result.maxSize || 0) / 1024 / 1024)}MB).`,
+          access_denied: "권한이 없어 읽을 수 없습니다.",
+          read_failed: result.detail || "파일 읽기 실패",
+        };
+        setError(reasonMap[result.reason || ""] || `파일 읽기 실패: ${result.reason}`);
+      }
+    } catch (caught) {
+      setError(caught instanceof Error ? caught.message : "임의 파일 읽기 실패");
+    } finally {
+      setArbitraryLoading(false);
+    }
+  }, []);
+
   React.useEffect(() => {
     setSelectedPath("");
     setCodeView(null);
   }, [projectId]);
 
   React.useEffect(() => {
-    void loadCodeView();
-  }, [loadCodeView]);
+    if (initialFilePath && initialFilePath.trim()) {
+      void openArbitraryFile(initialFilePath.trim());
+    } else {
+      void loadCodeView();
+    }
+    // 의도적으로 initialFilePath 만 의존 — projectId 변경은 loadCodeView 가 처리.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [initialFilePath]);
+
+  React.useEffect(() => {
+    if (!initialFilePath || !initialFilePath.trim()) {
+      void loadCodeView();
+    }
+  }, [loadCodeView, initialFilePath]);
 
   const changedFiles = codeView?.changedFiles || [];
   const activePath = selectedPath || codeView?.selectedPath || "";
@@ -1407,89 +1496,179 @@ function CodeReaderPanel({ projectId, projectName }: { projectId: string; projec
   const fileText = codeView?.file?.text || "";
   const fileLines = fileText ? fileText.split(/\r?\n/) : [];
 
+  // 임의 파일 (text/json 등) 표시 모드. arbitraryFile 이 있고 ok 면 그것이 우선.
+  const showingArbitrary = Boolean(arbitraryFile && arbitraryFile.ok);
+  const arbitraryLines = showingArbitrary && arbitraryFile?.text ? arbitraryFile.text.split(/\r?\n/) : [];
+  // 임의 JSON 파일은 pretty 표시 시도 — parse 실패하면 원본 그대로.
+  const arbitraryPretty = React.useMemo(() => {
+    if (!showingArbitrary || arbitraryFile?.language !== "json" || !arbitraryFile?.text) return null;
+    try {
+      return JSON.stringify(JSON.parse(arbitraryFile.text), null, 2).split(/\r?\n/);
+    } catch {
+      return null;
+    }
+  }, [showingArbitrary, arbitraryFile]);
+
   return (
     <div className="codeReaderPanel">
       <header className="toolPaneHeader">
         <div>
           <strong>코드 리더</strong>
-          <span>{projectName}</span>
+          <span>{showingArbitrary && arbitraryFile?.name ? arbitraryFile.name : projectName}</span>
         </div>
         <button
           type="button"
           className="iconOnly"
-          title="변경 파일과 선택 파일을 다시 읽습니다"
-          onClick={() => void loadCodeView(activePath)}
+          title={showingArbitrary ? "이 파일을 다시 읽습니다" : "변경 파일과 선택 파일을 다시 읽습니다"}
+          onClick={() => {
+            if (showingArbitrary && arbitraryFile?.path) {
+              void openArbitraryFile(arbitraryFile.path);
+            } else {
+              void loadCodeView(activePath);
+            }
+          }}
         >
           <RefreshCcw aria-hidden="true" size={15} />
         </button>
       </header>
 
-      <div className="codeReaderMeta">
-        <span>{codeView?.rootPath || "프로젝트 경로 확인 중"}</span>
-        {codeView?.branch ? <code>{codeView.branch}</code> : null}
-        {loading ? <em>읽는 중…</em> : null}
-      </div>
-      {error || (codeView && !codeView.ok) ? (
+      {/* 임의 파일 열기 — 절대 경로를 입력해 text/json/md 등 일반 파일을 열 수 있다. */}
+      <form
+        className="codeReaderOpenForm"
+        onSubmit={(e) => {
+          e.preventDefault();
+          if (arbitraryInput.trim()) void openArbitraryFile(arbitraryInput.trim());
+        }}
+      >
+        <input
+          type="text"
+          value={arbitraryInput}
+          onChange={(e) => setArbitraryInput(e.target.value)}
+          placeholder="절대 경로로 텍스트/JSON 파일 열기 (예: D:\\path\\to\\file.json)"
+          spellCheck={false}
+          title="파일의 절대 경로. 16MB 이하 텍스트/JSON/마크다운 등."
+        />
+        <button type="submit" className="primaryButton small" disabled={arbitraryLoading || !arbitraryInput.trim()}>
+          {arbitraryLoading ? "열기…" : "파일 열기"}
+        </button>
+        {showingArbitrary ? (
+          <button
+            type="button"
+            className="metaToggleBtn"
+            title="git 변경 모드로 돌아가기"
+            onClick={() => { setArbitraryFile(null); setArbitraryInput(""); void loadCodeView(); }}
+          >
+            git 변경 보기
+          </button>
+        ) : null}
+      </form>
+
+      {!showingArbitrary ? (
+        <div className="codeReaderMeta">
+          <span>{codeView?.rootPath || "프로젝트 경로 확인 중"}</span>
+          {codeView?.branch ? <code>{codeView.branch}</code> : null}
+          {loading ? <em>읽는 중…</em> : null}
+        </div>
+      ) : (
+        <div className="codeReaderMeta">
+          <span title={arbitraryFile?.path}>{arbitraryFile?.path}</span>
+          {arbitraryFile?.language ? <code>{arbitraryFile.language}</code> : null}
+          {typeof arbitraryFile?.size === "number" ? <small>{arbitraryFile.size.toLocaleString()} B</small> : null}
+          {typeof arbitraryFile?.lineCount === "number" ? <small>{arbitraryFile.lineCount} 줄</small> : null}
+          {arbitraryLoading ? <em>읽는 중…</em> : null}
+        </div>
+      )}
+      {error || (codeView && !codeView.ok && !showingArbitrary) ? (
         <div className="formError inline" role="alert">
           <span>{error || codeView?.reason || "코드 상태를 읽을 수 없습니다."}</span>
         </div>
       ) : null}
 
-      <div className="codeFileList" aria-label="변경 파일">
-        {changedFiles.length === 0 ? (
-          <p className="emptyState">git 변경 파일이 없습니다.</p>
-        ) : (
-          changedFiles.map((file) => (
-            <button
-              key={`${file.status}-${file.path}`}
-              type="button"
-              className={`codeFileButton ${file.path === activePath ? "selected" : ""}`}
-              title={file.path}
-              onClick={() => {
-                setSelectedPath(file.path);
-                void loadCodeView(file.path);
-              }}
-            >
-              <span>{file.path}</span>
-              <code>{file.status}</code>
-            </button>
-          ))
-        )}
-      </div>
-
-      <section className="codeViewer">
-        {activePath ? (
+      {showingArbitrary ? (
+        <section className="codeViewer arbitraryViewer">
           <header>
-            <strong>{activePath}</strong>
-            {codeView?.file?.truncated ? <span>큰 파일이라 앞부분만 표시</span> : null}
+            <strong>{arbitraryFile?.name}</strong>
+            {arbitraryPretty ? <span>JSON 정렬 표시</span> : null}
           </header>
-        ) : null}
-        {activePath && codeView?.file && !codeView.file.exists ? (
-          <p className="emptyState">삭제됐거나 읽을 수 없는 파일입니다. 아래 diff에서 삭제 내용을 확인하세요.</p>
-        ) : null}
-        {fileLines.length > 0 ? (
-          <pre className="codeBlock">
-            {fileLines.map((line, index) => {
-              const lineNumber = index + 1;
-              return (
-                <div className={`codeLine ${addedLines.has(lineNumber) ? "added" : ""}`} key={lineNumber}>
-                  <span className="codeLineNumber">{lineNumber}</span>
-                  <code>{line || " "}</code>
-                </div>
-              );
-            })}
-          </pre>
-        ) : !loading ? (
-          <p className="emptyState">파일을 선택하면 내용과 변경 마킹이 표시됩니다.</p>
-        ) : null}
-      </section>
+          {(() => {
+            const linesToRender = arbitraryPretty || arbitraryLines;
+            if (linesToRender.length === 0) {
+              return <p className="emptyState">빈 파일입니다.</p>;
+            }
+            return (
+              <pre className="codeBlock">
+                {linesToRender.map((line, index) => {
+                  const lineNumber = index + 1;
+                  return (
+                    <div className="codeLine" key={lineNumber}>
+                      <span className="codeLineNumber">{lineNumber}</span>
+                      <code>{line || " "}</code>
+                    </div>
+                  );
+                })}
+              </pre>
+            );
+          })()}
+        </section>
+      ) : (
+        <>
+          <div className="codeFileList" aria-label="변경 파일">
+            {changedFiles.length === 0 ? (
+              <p className="emptyState">git 변경 파일이 없습니다. 위 입력에 절대 경로를 넣어 임의 파일을 열 수도 있습니다.</p>
+            ) : (
+              changedFiles.map((file) => (
+                <button
+                  key={`${file.status}-${file.path}`}
+                  type="button"
+                  className={`codeFileButton ${file.path === activePath ? "selected" : ""}`}
+                  title={file.path}
+                  onClick={() => {
+                    setSelectedPath(file.path);
+                    void loadCodeView(file.path);
+                  }}
+                >
+                  <span>{file.path}</span>
+                  <code>{file.status}</code>
+                </button>
+              ))
+            )}
+          </div>
 
-      {codeView?.diff?.text ? (
-        <details className="diffDetails">
-          <summary>raw diff 보기</summary>
-          <pre>{codeView.diff.text}</pre>
-        </details>
-      ) : null}
+          <section className="codeViewer">
+            {activePath ? (
+              <header>
+                <strong>{activePath}</strong>
+                {codeView?.file?.truncated ? <span>큰 파일이라 앞부분만 표시</span> : null}
+              </header>
+            ) : null}
+            {activePath && codeView?.file && !codeView.file.exists ? (
+              <p className="emptyState">삭제됐거나 읽을 수 없는 파일입니다. 아래 diff에서 삭제 내용을 확인하세요.</p>
+            ) : null}
+            {fileLines.length > 0 ? (
+              <pre className="codeBlock">
+                {fileLines.map((line, index) => {
+                  const lineNumber = index + 1;
+                  return (
+                    <div className={`codeLine ${addedLines.has(lineNumber) ? "added" : ""}`} key={lineNumber}>
+                      <span className="codeLineNumber">{lineNumber}</span>
+                      <code>{line || " "}</code>
+                    </div>
+                  );
+                })}
+              </pre>
+            ) : !loading ? (
+              <p className="emptyState">파일을 선택하면 내용과 변경 마킹이 표시됩니다.</p>
+            ) : null}
+          </section>
+
+          {codeView?.diff?.text ? (
+            <details className="diffDetails">
+              <summary>raw diff 보기</summary>
+              <pre>{codeView.diff.text}</pre>
+            </details>
+          ) : null}
+        </>
+      )}
     </div>
   );
 }
@@ -1654,6 +1833,9 @@ function App() {
   // 우측 도구 rail — 중앙 실행 화면은 유지하고 브라우저/터미널/코드 리더만 오른쪽에 띄운다.
   const [toolRailOpen, setToolRailOpen] = React.useState(false);
   const [toolPanel, setToolPanel] = React.useState<ToolPanelId>("browser");
+  // 다중 탭 — 각 kind 마다 여러 탭 동시 존재. activeTabId 는 현재 보이는 탭 (status 는 별도).
+  const [toolTabs, setToolTabs] = React.useState<ToolTab[]>([]);
+  const [activeTabId, setActiveTabId] = React.useState<string>("");
   const [viewMode, setViewMode] = React.useState<"full" | "compact">("full");
   // electron preload 가 주입한 IPC bridge. 데스크탑이 아니면 undefined.
   type UpdateStatus = "idle" | "checking" | "current" | "available" | "downloaded" | "error";
@@ -2548,6 +2730,63 @@ function App() {
   function openTool(panel: ToolPanelId) {
     setToolPanel(panel);
     setToolRailOpen(true);
+    // status 는 단일 패널이라 탭 없이 동작. 다른 kind 는 그 kind 의 첫 탭이 없으면
+    // 자동 생성, 있으면 마지막으로 본 활성 탭 (또는 첫 탭) 으로 복귀.
+    if (panel === "status") return;
+    const kind = panel as ToolTabKind;
+    const existing = toolTabs.filter((tab) => tab.kind === kind);
+    if (existing.length === 0) {
+      addToolTab(kind);
+    } else if (!existing.some((tab) => tab.id === activeTabId)) {
+      // 현재 active 가 다른 kind 면 이 kind 의 첫 탭으로.
+      setActiveTabId(existing[0].id);
+    }
+  }
+
+  function addToolTab(kind: ToolTabKind, opts: { initialPath?: string; initialUrl?: string; initialCwd?: string; label?: string } = {}) {
+    const tab: ToolTab = {
+      id: newTabId(kind),
+      kind,
+      initialPath: opts.initialPath,
+      initialUrl: opts.initialUrl,
+      initialCwd: opts.initialCwd,
+      label: opts.label,
+    };
+    setToolTabs((prev) => [...prev, tab]);
+    setActiveTabId(tab.id);
+    setToolPanel(kind);
+    setToolRailOpen(true);
+    return tab.id;
+  }
+
+  function closeToolTab(tabId: string) {
+    setToolTabs((prev) => {
+      const idx = prev.findIndex((tab) => tab.id === tabId);
+      if (idx < 0) return prev;
+      const next = prev.filter((tab) => tab.id !== tabId);
+      // active 탭을 닫으면 같은 kind 의 인접 탭으로, 없으면 다른 kind 의 첫 탭으로.
+      if (tabId === activeTabId) {
+        const closedKind = prev[idx].kind;
+        const sameKind = next.filter((tab) => tab.kind === closedKind);
+        const fallback = sameKind[0] || next[0] || null;
+        if (fallback) {
+          setActiveTabId(fallback.id);
+          setToolPanel(fallback.kind);
+        } else {
+          setActiveTabId("");
+          // 모든 탭 닫혔으면 status 로.
+          setToolPanel("status");
+        }
+      }
+      return next;
+    });
+  }
+
+  function focusToolTab(tabId: string) {
+    const tab = toolTabs.find((t) => t.id === tabId);
+    if (!tab) return;
+    setActiveTabId(tabId);
+    setToolPanel(tab.kind);
   }
 
   if (viewMode === "compact") {
@@ -3726,27 +3965,45 @@ function App() {
           <button
             type="button"
             className={`toolRailButton ${toolPanel === "browser" ? "active" : ""}`}
-            title="웹 브라우저"
+            title="웹 브라우저 — 클릭으로 열기, 다시 클릭하면 새 탭 추가"
             aria-label="웹 브라우저 열기"
-            onClick={() => openTool("browser")}
+            onClick={() => {
+              if (toolPanel === "browser" && toolRailOpen) {
+                addToolTab("browser");
+              } else {
+                openTool("browser");
+              }
+            }}
           >
             <Globe aria-hidden="true" size={18} />
           </button>
           <button
             type="button"
             className={`toolRailButton ${toolPanel === "terminal" ? "active" : ""}`}
-            title="터미널"
+            title="터미널 — 클릭으로 열기, 다시 클릭하면 새 탭 추가"
             aria-label="터미널 열기"
-            onClick={() => openTool("terminal")}
+            onClick={() => {
+              if (toolPanel === "terminal" && toolRailOpen) {
+                addToolTab("terminal");
+              } else {
+                openTool("terminal");
+              }
+            }}
           >
             <TerminalIcon aria-hidden="true" size={18} />
           </button>
           <button
             type="button"
             className={`toolRailButton ${toolPanel === "code" ? "active" : ""}`}
-            title="코드 변경 리더"
-            aria-label="코드 변경 리더 열기"
-            onClick={() => openTool("code")}
+            title="코드 리더 — 클릭으로 열기, 다시 클릭하면 새 탭 추가"
+            aria-label="코드 리더 열기"
+            onClick={() => {
+              if (toolPanel === "code" && toolRailOpen) {
+                addToolTab("code");
+              } else {
+                openTool("code");
+              }
+            }}
           >
             <FileDiff aria-hidden="true" size={18} />
           </button>
@@ -3762,10 +4019,73 @@ function App() {
         </nav>
         {toolRailOpen ? (
           <div className="toolRailPane">
-            {toolPanel === "browser" ? <BrowserPanel /> : null}
-            {toolPanel === "terminal" ? <TerminalPanel /> : null}
-            {toolPanel === "code" ? (
-              <CodeReaderPanel projectId={selectedProjectRecord.id} projectName={selectedProjectRecord.name} />
+            {/* 탭 스트립 — 현재 활성화된 kind 의 탭 목록 + "새 탭" 버튼. status 는 단일이라 스트립 없음. */}
+            {toolPanel !== "status" ? (
+              <div className="toolTabStrip" role="tablist" aria-label={`${toolPanel} 탭`}>
+                {toolTabs.filter((tab) => tab.kind === toolPanel).map((tab) => {
+                  const isActive = tab.id === activeTabId;
+                  const tabLabel = tab.label
+                    || (tab.kind === "browser" ? (tab.initialUrl ? new URL(tab.initialUrl, "http://x").host || "브라우저" : "브라우저")
+                      : tab.kind === "terminal" ? "터미널"
+                      : tab.initialPath ? tab.initialPath.split(/[\\/]/).slice(-1)[0] || "코드"
+                      : "코드");
+                  return (
+                    <div
+                      key={tab.id}
+                      role="tab"
+                      aria-selected={isActive}
+                      className={`toolTab ${isActive ? "active" : ""}`}
+                      onClick={() => focusToolTab(tab.id)}
+                    >
+                      <span className="toolTabLabel" title={tab.label || tabLabel}>{tabLabel}</span>
+                      <button
+                        type="button"
+                        className="toolTabCloseBtn"
+                        title="이 탭 닫기"
+                        aria-label="탭 닫기"
+                        onClick={(e) => { e.stopPropagation(); closeToolTab(tab.id); }}
+                      >
+                        ×
+                      </button>
+                    </div>
+                  );
+                })}
+                <button
+                  type="button"
+                  className="toolTabAddBtn"
+                  title="새 탭"
+                  aria-label="새 탭 추가"
+                  onClick={() => addToolTab(toolPanel as ToolTabKind)}
+                >
+                  +
+                </button>
+              </div>
+            ) : null}
+            {/* 모든 탭을 mount 한 채 활성 탭만 보이게 — terminal PTY 세션, browser 페이지 상태가 탭 전환 후에도 유지. */}
+            {toolPanel !== "status" ? (
+              <div className="toolTabsContainer">
+                {toolTabs.map((tab) => {
+                  const isActive = tab.id === activeTabId && tab.kind === toolPanel;
+                  const style: React.CSSProperties = isActive
+                    ? { display: "flex", flexDirection: "column", flex: 1, minHeight: 0 }
+                    : { display: "none" };
+                  return (
+                    <div key={tab.id} className="toolTabContent" style={style} aria-hidden={!isActive}>
+                      {tab.kind === "browser" ? (
+                        <BrowserPanel initialUrl={tab.initialUrl} />
+                      ) : tab.kind === "terminal" ? (
+                        <TerminalPanel initialCwd={tab.initialCwd} />
+                      ) : tab.kind === "code" ? (
+                        <CodeReaderPanel
+                          projectId={selectedProjectRecord.id}
+                          projectName={selectedProjectRecord.name}
+                          initialFilePath={tab.initialPath}
+                        />
+                      ) : null}
+                    </div>
+                  );
+                })}
+              </div>
             ) : null}
             {toolPanel === "status" ? (
               <div className="toolStatusScroll">

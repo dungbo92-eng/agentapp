@@ -157,6 +157,14 @@ async function handleApi(req, res, url) {
     sendJson(res, 200, await readProjectCodeView(await readBody(req)));
     return true;
   }
+  if (req.method === "POST" && url === "/api/agentapp/files/read") {
+    // 임의 텍스트/JSON 파일을 코드 패널에서 열기 위한 endpoint.
+    // 보안: LAN 노출 모드에선 토큰 검증이 이미 상단에서 통과한 요청만 도달하므로
+    // 추가 path 화이트리스트는 두지 않는다 (사용자 본인 PC 안의 파일을 자유롭게
+    // 열도록 허용). 다만 size 상한 (16 MB) 과 binary 차단으로 메모리/안전 가드.
+    sendJson(res, 200, await readArbitraryFile(await readBody(req)));
+    return true;
+  }
   if (req.method === "POST" && url === "/api/agentapp/settings") {
     sendJson(res, 200, await updateRuntimeSettings(await readBody(req)));
     return true;
@@ -211,6 +219,111 @@ async function handleApi(req, res, url) {
     return true;
   }
   return false;
+}
+
+// 임의 텍스트/JSON 파일을 코드 패널이 열 수 있도록 안전하게 읽는다.
+// - 절대 경로만 허용 (상대 경로는 dashboard-server cwd 기반이라 혼란 유발).
+// - 파일 크기 16 MB 상한 — UI 가 표시 가능한 한도 + 메모리 보호.
+// - binary 감지: 첫 4 KB 에 NUL 바이트 있으면 binary 로 분류해 거부.
+const MAX_READABLE_FILE_BYTES = 16 * 1024 * 1024;
+async function readArbitraryFile(body = {}) {
+  const filePath = String(body?.path || "").trim();
+  if (!filePath) return { ok: false, reason: "path_required" };
+  // path traversal 가드 (절대 경로 정규화 후 자기 자신).
+  const resolved = path.resolve(filePath);
+  try {
+    const info = await stat(resolved);
+    if (!info.isFile()) return { ok: false, reason: "not_a_file", path: resolved };
+    if (info.size > MAX_READABLE_FILE_BYTES) {
+      return {
+        ok: false,
+        reason: "too_large",
+        path: resolved,
+        size: info.size,
+        maxSize: MAX_READABLE_FILE_BYTES,
+      };
+    }
+    const raw = await readFile(resolved);
+    // binary 감지 — 첫 4 KB 안에 NUL 이 있으면 binary.
+    const probe = raw.subarray(0, Math.min(raw.length, 4096));
+    let nulFound = false;
+    for (let i = 0; i < probe.length; i += 1) {
+      if (probe[i] === 0) { nulFound = true; break; }
+    }
+    if (nulFound) {
+      return { ok: false, reason: "binary_file", path: resolved, size: info.size };
+    }
+    const text = raw.toString("utf8");
+    const ext = path.extname(resolved).toLowerCase();
+    const language = languageFromExtension(ext);
+    return {
+      ok: true,
+      path: resolved,
+      name: path.basename(resolved),
+      ext,
+      language,
+      size: info.size,
+      mtimeMs: info.mtimeMs,
+      text,
+      lineCount: text === "" ? 0 : text.split(/\r?\n/).length,
+    };
+  } catch (error) {
+    const code = error?.code || "";
+    if (code === "ENOENT") return { ok: false, reason: "not_found", path: resolved };
+    if (code === "EACCES" || code === "EPERM") return { ok: false, reason: "access_denied", path: resolved };
+    return {
+      ok: false,
+      reason: "read_failed",
+      path: resolved,
+      detail: error instanceof Error ? error.message : String(error),
+    };
+  }
+}
+
+// 확장자 → editor 친화 language hint. UI 가 syntax highlight 같은 결정에 쓸 수 있게.
+function languageFromExtension(ext) {
+  const map = {
+    ".js": "javascript",
+    ".mjs": "javascript",
+    ".cjs": "javascript",
+    ".ts": "typescript",
+    ".tsx": "tsx",
+    ".jsx": "jsx",
+    ".json": "json",
+    ".md": "markdown",
+    ".markdown": "markdown",
+    ".html": "html",
+    ".htm": "html",
+    ".css": "css",
+    ".scss": "scss",
+    ".less": "less",
+    ".yml": "yaml",
+    ".yaml": "yaml",
+    ".toml": "toml",
+    ".xml": "xml",
+    ".svg": "xml",
+    ".py": "python",
+    ".sh": "shell",
+    ".bash": "shell",
+    ".ps1": "powershell",
+    ".rb": "ruby",
+    ".go": "go",
+    ".rs": "rust",
+    ".java": "java",
+    ".kt": "kotlin",
+    ".cs": "csharp",
+    ".cpp": "cpp",
+    ".cc": "cpp",
+    ".c": "c",
+    ".h": "c",
+    ".sql": "sql",
+    ".env": "ini",
+    ".ini": "ini",
+    ".conf": "ini",
+    ".txt": "text",
+    ".log": "text",
+  };
+  return map[ext] || "text";
 }
 
 async function browseDirectory(options = {}) {
