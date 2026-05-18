@@ -191,6 +191,15 @@ async function createMainWindow() {
   process.env.AGENTAPP_DATA_DIR = path.join(app.getPath("userData"), "data");
   process.env.AGENTAPP_HANDOFF_DIR = path.join(app.getPath("userData"), "handoff");
 
+  // Windows 토스트 알림이 동작하려면 AppUserModelID 가 등록돼 있어야 한다.
+  // NSIS installer 가 만든 Start Menu shortcut 의 AUMID 가 잡히는 케이스도
+  // 있지만, 코드에서 명시 호출하는 게 가장 안정적이다. 누락 시 new Notification
+  // 호출이 silent 로 사라지거나 Action Center 에 안 들어가 사용자가 작업 완료/
+  // 한도 도달 알림을 못 받는다. package.json 의 build.appId 와 일치시킨다.
+  if (process.platform === "win32") {
+    try { app.setAppUserModelId("com.agentapp.orchestrator"); } catch { /* best-effort */ }
+  }
+
   // 사용자가 직전 세션에서 선택한 창 모드를 복원한다. 재시작 시 항상 full 로
   // 돌아가던 회귀를 막아 트레이/버튼 동기화의 source of truth 와 영속 상태가
   // 일치하게 한다.
@@ -341,10 +350,29 @@ async function createMainWindow() {
 // 사용자가 dashboard 를 트레이로 내려도 OS 알림으로 작업 완료/대기/사용자 답변
 // 필요 같은 이벤트를 인지할 수 있다.
 const seenNotificationIds = new Set();
+let cachedNotificationIcon = null;
+async function getNotificationIcon() {
+  if (cachedNotificationIcon !== null) return cachedNotificationIcon || undefined;
+  try {
+    if (app.isPackaged) {
+      const icon = await app.getFileIcon(app.getPath("exe"), { size: "normal" });
+      if (icon && !icon.isEmpty()) {
+        cachedNotificationIcon = icon;
+        return icon;
+      }
+    }
+  } catch {
+    /* fall through */
+  }
+  cachedNotificationIcon = false;
+  return undefined;
+}
 async function bootstrapNotificationDispatcher() {
   let osSupported = Notification.isSupported();
   if (!osSupported) {
     process.stderr.write("[notify] Electron Notification not supported on this platform\n");
+  } else {
+    process.stderr.write(`[notify] dispatcher ready, AUMID=com.agentapp.orchestrator packaged=${app.isPackaged}\n`);
   }
   const tick = async () => {
     try {
@@ -357,11 +385,15 @@ async function bootstrapNotificationDispatcher() {
         if (osSupported) {
           try {
             const urgency = n.kind === "awaiting" || n.kind === "blocked" || n.kind === "error" ? "critical" : "normal";
+            const icon = await getNotificationIcon();
             const notif = new Notification({
               title: String(n.title || "AgentApp"),
               body: String(n.message || ""),
               urgency,
               silent: false,
+              // Windows 토스트에 아이콘 미지정이면 일부 환경에서 알림 자체가
+              // 무시될 수 있어 EXE 아이콘으로 보강.
+              ...(icon ? { icon } : {}),
             });
             // 사용자가 OS 알림 클릭하면 dashboard 창을 다시 띄움
             notif.on("click", () => {
@@ -370,6 +402,12 @@ async function bootstrapNotificationDispatcher() {
                 mainWindow.show();
                 mainWindow.focus();
               }
+            });
+            notif.on("show", () => {
+              process.stderr.write(`[notify] shown id=${n.id} kind=${n.kind} title=${String(n.title || "").slice(0, 60)}\n`);
+            });
+            notif.on("failed", (_event, error) => {
+              process.stderr.write(`[notify] failed id=${n.id}: ${error}\n`);
             });
             notif.show();
           } catch (error) {
