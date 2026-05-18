@@ -6,12 +6,15 @@ import {
   CheckCircle2,
   CircleStop,
   ClipboardList,
+  FileDiff,
   FolderGit2,
   Gauge,
   GitBranch,
   Globe,
   KeyRound,
   MessageSquareText,
+  PanelRightClose,
+  PanelRightOpen,
   Play,
   Plus,
   RefreshCcw,
@@ -340,6 +343,29 @@ type EnvironmentState = {
   targets: EnvironmentTarget[];
 };
 
+type ToolPanelId = "status" | "browser" | "terminal" | "code";
+
+type CodeViewState = {
+  ok: boolean;
+  reason?: string;
+  generated_at?: string;
+  rootPath?: string;
+  branch?: string;
+  changedFiles?: { status: string; path: string }[];
+  selectedPath?: string;
+  file?: {
+    path: string;
+    exists: boolean;
+    text: string;
+    truncated: boolean;
+    sizeBytes: number;
+  } | null;
+  diff?: {
+    text: string;
+    addedLines: number[];
+  };
+};
+
 const numberFormatter = new Intl.NumberFormat("ko-KR");
 const emptyRuntime: RuntimeState = { accounts: [], projects: [], activeRun: null, runHistory: [], pendingRuns: [] };
 
@@ -560,9 +586,8 @@ function ResumeWithUserInput({
 }
 
 // ===== 인앱 브라우저 (Electron <webview> 기반) =====
-// 외부 사이트를 안전한 격리 환경에서 로드. URL 입력 + 뒤로/앞으로/새로고침/홈 버튼.
-// 사용자가 사이드바에서 "브라우저" 선택 시 메인 영역에 전체 노출.
-function BrowserPanel({ onClose }: { onClose: () => void }) {
+// 외부 사이트를 안전한 격리 환경에서 로드. URL 입력 + 뒤로/앞으로/새로고침 버튼.
+function BrowserPanel({ onClose }: { onClose?: () => void }) {
   const [urlInput, setUrlInput] = React.useState<string>("https://www.google.com");
   const [currentUrl, setCurrentUrl] = React.useState<string>("https://www.google.com");
   const [loading, setLoading] = React.useState<boolean>(false);
@@ -645,9 +670,11 @@ function BrowserPanel({ onClose }: { onClose: () => void }) {
           />
           <button type="submit" className="primaryButton small">이동</button>
         </form>
-        <button type="button" className="metaToggleBtn" onClick={onClose} title="브라우저 패널 닫기">
-          <X size={14} />
-        </button>
+        {onClose ? (
+          <button type="button" className="metaToggleBtn" onClick={onClose} title="브라우저 패널 닫기">
+            <X size={14} />
+          </button>
+        ) : null}
       </header>
       <div className="browserContainer">
         {/* eslint-disable-next-line @typescript-eslint/no-explicit-any */}
@@ -664,8 +691,7 @@ function BrowserPanel({ onClose }: { onClose: () => void }) {
 
 // ===== 인앱 터미널 (xterm.js + node-pty 기반) =====
 // 사용자 시스템 셸을 그대로 띄움 — PowerShell (Windows), bash/zsh (macOS/Linux).
-// 사이드바 "터미널" 선택 시 메인 영역 전체 차지.
-function TerminalPanel({ onClose }: { onClose: () => void }) {
+function TerminalPanel({ onClose }: { onClose?: () => void }) {
   const containerRef = React.useRef<HTMLDivElement | null>(null);
   const [status, setStatus] = React.useState<string>("초기화 중...");
   const [error, setError] = React.useState<string>("");
@@ -767,9 +793,11 @@ function TerminalPanel({ onClose }: { onClose: () => void }) {
         <strong>터미널</strong>
         <span className="terminalStatus" title="현재 세션 상태">{status}</span>
         {error ? <span className="terminalError">{error}</span> : null}
-        <button type="button" className="metaToggleBtn" onClick={onClose} title="터미널 패널 닫기" style={{ marginLeft: "auto" }}>
-          <X size={14} />
-        </button>
+        {onClose ? (
+          <button type="button" className="metaToggleBtn" onClick={onClose} title="터미널 패널 닫기" style={{ marginLeft: "auto" }}>
+            <X size={14} />
+          </button>
+        ) : null}
       </header>
       <div className="terminalContainer" ref={containerRef} />
     </div>
@@ -1332,6 +1360,140 @@ async function environmentRequest() {
   return (await response.json()) as EnvironmentState;
 }
 
+async function codeViewRequest(projectId: string, filePath?: string) {
+  const response = await fetch("/api/agentapp/projects/code", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ projectId, filePath }),
+  });
+  if (!response.ok) throw new Error(`code view API failed: ${response.status}`);
+  return (await response.json()) as CodeViewState;
+}
+
+function CodeReaderPanel({ projectId, projectName }: { projectId: string; projectName: string }) {
+  const [codeView, setCodeView] = React.useState<CodeViewState | null>(null);
+  const [selectedPath, setSelectedPath] = React.useState("");
+  const [loading, setLoading] = React.useState(false);
+  const [error, setError] = React.useState("");
+
+  const loadCodeView = React.useCallback(async (pathOverride?: string) => {
+    setLoading(true);
+    setError("");
+    try {
+      const next = await codeViewRequest(projectId, pathOverride ?? selectedPath);
+      setCodeView(next);
+      if (!pathOverride && !selectedPath && next.selectedPath) {
+        setSelectedPath(next.selectedPath);
+      }
+    } catch (caught) {
+      setError(caught instanceof Error ? caught.message : "코드 리더 로딩 실패");
+    } finally {
+      setLoading(false);
+    }
+  }, [projectId, selectedPath]);
+
+  React.useEffect(() => {
+    setSelectedPath("");
+    setCodeView(null);
+  }, [projectId]);
+
+  React.useEffect(() => {
+    void loadCodeView();
+  }, [loadCodeView]);
+
+  const changedFiles = codeView?.changedFiles || [];
+  const activePath = selectedPath || codeView?.selectedPath || "";
+  const addedLines = new Set(codeView?.diff?.addedLines || []);
+  const fileText = codeView?.file?.text || "";
+  const fileLines = fileText ? fileText.split(/\r?\n/) : [];
+
+  return (
+    <div className="codeReaderPanel">
+      <header className="toolPaneHeader">
+        <div>
+          <strong>코드 리더</strong>
+          <span>{projectName}</span>
+        </div>
+        <button
+          type="button"
+          className="iconOnly"
+          title="변경 파일과 선택 파일을 다시 읽습니다"
+          onClick={() => void loadCodeView(activePath)}
+        >
+          <RefreshCcw aria-hidden="true" size={15} />
+        </button>
+      </header>
+
+      <div className="codeReaderMeta">
+        <span>{codeView?.rootPath || "프로젝트 경로 확인 중"}</span>
+        {codeView?.branch ? <code>{codeView.branch}</code> : null}
+        {loading ? <em>읽는 중…</em> : null}
+      </div>
+      {error || (codeView && !codeView.ok) ? (
+        <div className="formError inline" role="alert">
+          <span>{error || codeView?.reason || "코드 상태를 읽을 수 없습니다."}</span>
+        </div>
+      ) : null}
+
+      <div className="codeFileList" aria-label="변경 파일">
+        {changedFiles.length === 0 ? (
+          <p className="emptyState">git 변경 파일이 없습니다.</p>
+        ) : (
+          changedFiles.map((file) => (
+            <button
+              key={`${file.status}-${file.path}`}
+              type="button"
+              className={`codeFileButton ${file.path === activePath ? "selected" : ""}`}
+              title={file.path}
+              onClick={() => {
+                setSelectedPath(file.path);
+                void loadCodeView(file.path);
+              }}
+            >
+              <span>{file.path}</span>
+              <code>{file.status}</code>
+            </button>
+          ))
+        )}
+      </div>
+
+      <section className="codeViewer">
+        {activePath ? (
+          <header>
+            <strong>{activePath}</strong>
+            {codeView?.file?.truncated ? <span>큰 파일이라 앞부분만 표시</span> : null}
+          </header>
+        ) : null}
+        {activePath && codeView?.file && !codeView.file.exists ? (
+          <p className="emptyState">삭제됐거나 읽을 수 없는 파일입니다. 아래 diff에서 삭제 내용을 확인하세요.</p>
+        ) : null}
+        {fileLines.length > 0 ? (
+          <pre className="codeBlock">
+            {fileLines.map((line, index) => {
+              const lineNumber = index + 1;
+              return (
+                <div className={`codeLine ${addedLines.has(lineNumber) ? "added" : ""}`} key={lineNumber}>
+                  <span className="codeLineNumber">{lineNumber}</span>
+                  <code>{line || " "}</code>
+                </div>
+              );
+            })}
+          </pre>
+        ) : !loading ? (
+          <p className="emptyState">파일을 선택하면 내용과 변경 마킹이 표시됩니다.</p>
+        ) : null}
+      </section>
+
+      {codeView?.diff?.text ? (
+        <details className="diffDetails">
+          <summary>raw diff 보기</summary>
+          <pre>{codeView.diff.text}</pre>
+        </details>
+      ) : null}
+    </div>
+  );
+}
+
 function providerForWorker(workerId: string) {
   if (workerId.includes("claude")) return "claude";
   if (workerId.includes("codex")) return "codex";
@@ -1489,10 +1651,9 @@ function App() {
   // 수동 사용량 편집은 제거됨 — 한도는 worker stderr 패턴 + quota lockout 으로 자동 추적.
   const [now, setNow] = React.useState<number>(Date.now());
   const [activeSection, setActiveSection] = React.useState("run");
-  // 메인 패널 모드 — 대시보드(기본), 인앱 브라우저, 인앱 터미널 중 하나. 사이드바
-  // nav 의 '브라우저'/'터미널' 클릭으로 전환. 컴팩트 모드(viewMode)와 직교 — 컴팩트
-  // 모드에서는 항상 dashboard 패널을 사용.
-  const [mainPanel, setMainPanel] = React.useState<"dashboard" | "browser" | "terminal">("dashboard");
+  // 우측 도구 rail — 중앙 실행 화면은 유지하고 브라우저/터미널/코드 리더만 오른쪽에 띄운다.
+  const [toolRailOpen, setToolRailOpen] = React.useState(false);
+  const [toolPanel, setToolPanel] = React.useState<ToolPanelId>("browser");
   const [viewMode, setViewMode] = React.useState<"full" | "compact">("full");
   // electron preload 가 주입한 IPC bridge. 데스크탑이 아니면 undefined.
   type UpdateStatus = "idle" | "checking" | "current" | "available" | "downloaded" | "error";
@@ -2384,6 +2545,11 @@ function App() {
     }
   }
 
+  function openTool(panel: ToolPanelId) {
+    setToolPanel(panel);
+    setToolRailOpen(true);
+  }
+
   if (viewMode === "compact") {
     // 컴팩트 채팅 모드 — 프로젝트 목록과 현재 작업 진행만 남긴다.
     const compactProjects = projects.filter((p) => p.id !== "none");
@@ -2603,18 +2769,12 @@ function App() {
   }
 
   return (
-    <main className={`appShell${mainPanel !== "dashboard" ? " inAppPanelMode" : ""}`}>
+    <main className={`appShell ${toolRailOpen ? "toolRailOpen" : "toolRailCollapsed"}`}>
       {toast ? (
         <div className={`toast ${toast.kind}`} role="status">
           <span>{toast.message}</span>
           <button type="button" onClick={() => setToast(null)} aria-label="알림 닫기">×</button>
         </div>
-      ) : null}
-      {mainPanel === "browser" ? (
-        <BrowserPanel onClose={() => setMainPanel("dashboard")} />
-      ) : null}
-      {mainPanel === "terminal" ? (
-        <TerminalPanel onClose={() => setMainPanel("dashboard")} />
       ) : null}
       <aside className="sidebar">
         <div className="brand">
@@ -2626,37 +2786,25 @@ function App() {
         </div>
 
         <nav className="navStack" aria-label="작업 영역 섹션">
-          <a className={mainPanel === "dashboard" && activeSection === "run" ? "active" : ""} href="#run"
-            onClick={(e) => { e.preventDefault(); setMainPanel("dashboard"); setActiveSection("run"); }}>
+          <a className={activeSection === "run" ? "active" : ""} href="#run"
+            onClick={(e) => { e.preventDefault(); setActiveSection("run"); }}>
             <Zap aria-hidden="true" size={16} />
             실행
           </a>
-          <a className={mainPanel === "dashboard" && activeSection === "projects" ? "active" : ""} href="#projects"
-            onClick={(e) => { e.preventDefault(); setMainPanel("dashboard"); setActiveSection("projects"); }}>
+          <a className={activeSection === "projects" ? "active" : ""} href="#projects"
+            onClick={(e) => { e.preventDefault(); setActiveSection("projects"); }}>
             <FolderGit2 aria-hidden="true" size={16} />
             프로젝트
           </a>
-          <a className={mainPanel === "dashboard" && activeSection === "accounts" ? "active" : ""} href="#accounts"
-            onClick={(e) => { e.preventDefault(); setMainPanel("dashboard"); setActiveSection("accounts"); }}>
+          <a className={activeSection === "accounts" ? "active" : ""} href="#accounts"
+            onClick={(e) => { e.preventDefault(); setActiveSection("accounts"); }}>
             <KeyRound aria-hidden="true" size={16} />
             계정
           </a>
-          <a className={mainPanel === "dashboard" && activeSection === "handoff" ? "active" : ""} href="#handoff"
-            onClick={(e) => { e.preventDefault(); setMainPanel("dashboard"); setActiveSection("handoff"); }}>
+          <a className={activeSection === "handoff" ? "active" : ""} href="#handoff"
+            onClick={(e) => { e.preventDefault(); setActiveSection("handoff"); }}>
             <ClipboardList aria-hidden="true" size={16} />
             인수인계
-          </a>
-          <a className={mainPanel === "browser" ? "active" : ""} href="#browser"
-            onClick={(e) => { e.preventDefault(); setMainPanel("browser"); }}
-            title="인앱 웹 브라우저 — 외부 사이트를 안전한 격리 환경에서 열기">
-            <Globe aria-hidden="true" size={16} />
-            브라우저
-          </a>
-          <a className={mainPanel === "terminal" ? "active" : ""} href="#terminal"
-            onClick={(e) => { e.preventDefault(); setMainPanel("terminal"); }}
-            title="인앱 터미널 — 시스템 셸 (PowerShell/cmd/bash) 을 직접 실행">
-            <TerminalIcon aria-hidden="true" size={16} />
-            터미널
           </a>
         </nav>
 
@@ -3003,6 +3151,15 @@ function App() {
             ) : null}
           </div>
           <div className="topActions">
+            <button
+              className="toolToggleButton"
+              type="button"
+              title={toolRailOpen ? "우측 도구 사이드바 숨기기" : "우측 도구 사이드바 보이기"}
+              onClick={() => setToolRailOpen((value) => !value)}
+              aria-label={toolRailOpen ? "우측 도구 사이드바 숨기기" : "우측 도구 사이드바 보이기"}
+            >
+              {toolRailOpen ? <PanelRightClose aria-hidden="true" size={17} /> : <PanelRightOpen aria-hidden="true" size={17} />}
+            </button>
             <StatusPill status={activeRunForSelectedProject?.status || "ready"} />
             <button
               className="metaToggleBtn"
@@ -3555,7 +3712,63 @@ function App() {
         })() : null}
       </section>
 
-      <aside className="contextRail">
+      <aside className={`toolRail ${toolRailOpen ? "open" : "collapsed"}`}>
+        <nav className="toolRailDock" aria-label="우측 도구">
+          <button
+            type="button"
+            className="toolRailButton"
+            title={toolRailOpen ? "우측 도구 사이드바 숨기기" : "우측 도구 사이드바 보이기"}
+            aria-label={toolRailOpen ? "우측 도구 사이드바 숨기기" : "우측 도구 사이드바 보이기"}
+            onClick={() => setToolRailOpen((value) => !value)}
+          >
+            {toolRailOpen ? <PanelRightClose aria-hidden="true" size={18} /> : <PanelRightOpen aria-hidden="true" size={18} />}
+          </button>
+          <button
+            type="button"
+            className={`toolRailButton ${toolPanel === "browser" ? "active" : ""}`}
+            title="웹 브라우저"
+            aria-label="웹 브라우저 열기"
+            onClick={() => openTool("browser")}
+          >
+            <Globe aria-hidden="true" size={18} />
+          </button>
+          <button
+            type="button"
+            className={`toolRailButton ${toolPanel === "terminal" ? "active" : ""}`}
+            title="터미널"
+            aria-label="터미널 열기"
+            onClick={() => openTool("terminal")}
+          >
+            <TerminalIcon aria-hidden="true" size={18} />
+          </button>
+          <button
+            type="button"
+            className={`toolRailButton ${toolPanel === "code" ? "active" : ""}`}
+            title="코드 변경 리더"
+            aria-label="코드 변경 리더 열기"
+            onClick={() => openTool("code")}
+          >
+            <FileDiff aria-hidden="true" size={18} />
+          </button>
+          <button
+            type="button"
+            className={`toolRailButton ${toolPanel === "status" ? "active" : ""}`}
+            title="상태 패널"
+            aria-label="상태 패널 열기"
+            onClick={() => openTool("status")}
+          >
+            <Gauge aria-hidden="true" size={18} />
+          </button>
+        </nav>
+        {toolRailOpen ? (
+          <div className="toolRailPane">
+            {toolPanel === "browser" ? <BrowserPanel /> : null}
+            {toolPanel === "terminal" ? <TerminalPanel /> : null}
+            {toolPanel === "code" ? (
+              <CodeReaderPanel projectId={selectedProjectRecord.id} projectName={selectedProjectRecord.name} />
+            ) : null}
+            {toolPanel === "status" ? (
+              <div className="toolStatusScroll">
         <section className="railPanel">
           <div className="sectionTitle compact">
             <h2>계정 상태</h2>
@@ -3776,6 +3989,10 @@ function App() {
               <small>꺼져 있음. 켜면 같은 Wi-Fi 안의 다른 기기에서 토큰 URL 로 접속 가능 (인터넷엔 노출 안 됨).</small>
             )}
           </section>
+        ) : null}
+              </div>
+            ) : null}
+          </div>
         ) : null}
       </aside>
     </main>

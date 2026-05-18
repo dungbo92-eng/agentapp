@@ -905,3 +905,12 @@ NEXT_TASK.md 템플릿 확정: agent-next 생성물을 Required Reads, Execution
 - Git: not recorded
 - Decisions: none
 - Next: Monitor installed app update; if a project is still missing, re-add it from the dashboard
+
+## 2026-05-18T00:00:39.752Z
+
+- Status: completed
+- Summary: dashboard 중앙 실행 화면을 유지하고 우측 접이식 도구 사이드바를 추가했다. 브라우저/터미널은 우측 탭으로 이동했고 코드 리더는 git 변경 파일, 파일 내용, 추가 라인 마킹, raw diff를 표시한다.
+- Verification: pnpm --dir apps/dashboard build; pnpm validate; Browser DOM check: tool rail open, browser/status/terminal/code tabs, code changed files and added-line markers
+- Git: not recorded
+- Decisions: none
+- Next: 설치 앱에서 우측 도구 사이드바와 Electron webview/PTY 터미널 동작을 확인한 뒤 자동 릴리즈 수행

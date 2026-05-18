@@ -39,27 +39,21 @@ button:disabled {
 
 .appShell {
   display: grid;
-  grid-template-columns: 260px minmax(0, 1fr) 240px;
+  grid-template-columns: 260px minmax(0, 1fr) 44px;
   min-height: 100vh;
 }
 
-/* 패널 모드 (브라우저/터미널 활성) — 사이드바는 유지하고 가운데 영역만 패널로
-   교체. 우측 contextRail 은 숨겨서 패널이 최대 폭으로 사용. */
-.appShell.inAppPanelMode {
-  grid-template-columns: 260px minmax(0, 1fr);
+.appShell.toolRailOpen {
+  grid-template-columns: 260px minmax(0, 1fr) minmax(420px, 36vw);
 }
-.appShell.inAppPanelMode > .contextRail { display: none; }
-.appShell.inAppPanelMode > section,
-.appShell.inAppPanelMode > .topbar,
-.appShell.inAppPanelMode > header { display: none; }
 
 .inAppPanel {
   display: flex;
   flex-direction: column;
   background: #ffffff;
-  border-left: 1px solid #e2e8f0;
-  border-right: 1px solid #e2e8f0;
+  border: 0;
   min-width: 0;
+  height: 100%;
 }
 .inAppPanelHeader {
   display: flex;
@@ -132,8 +126,208 @@ button:disabled {
   width: 100%;
 }
 
+.codeReaderPanel {
+  display: grid;
+  grid-template-rows: auto auto auto minmax(0, 1fr) auto;
+  height: 100%;
+  min-width: 0;
+  background: #ffffff;
+}
+
+.toolPaneHeader {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  padding: 10px 12px;
+  border-bottom: 1px solid #e2e8f0;
+  background: #f8fafc;
+}
+
+.toolPaneHeader div {
+  min-width: 0;
+  display: grid;
+  gap: 2px;
+}
+
+.toolPaneHeader strong,
+.toolPaneHeader span {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.toolPaneHeader span {
+  color: #64748b;
+  font-size: 0.78rem;
+}
+
+.codeReaderMeta {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px;
+  padding: 8px 12px;
+  border-bottom: 1px solid #edf2f7;
+  color: #64748b;
+  font-size: 0.74rem;
+}
+
+.codeReaderMeta span {
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+
+.codeReaderMeta code {
+  padding: 1px 6px;
+  border-radius: 5px;
+  background: #e0f2fe;
+  color: #075985;
+}
+
+.codeReaderMeta em {
+  margin-left: auto;
+  color: #1d4ed8;
+  font-style: normal;
+}
+
+.codeFileList {
+  display: grid;
+  gap: 4px;
+  max-height: 180px;
+  padding: 8px;
+  border-bottom: 1px solid #edf2f7;
+  overflow: auto;
+}
+
+.codeFileButton {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 8px;
+  align-items: center;
+  min-height: 30px;
+  padding: 5px 7px;
+  border: 1px solid #e2e8f0;
+  border-radius: 6px;
+  background: #fbfdff;
+  color: #172033;
+  text-align: left;
+}
+
+.codeFileButton:hover,
+.codeFileButton.selected {
+  border-color: #93c5fd;
+  background: #eff6ff;
+}
+
+.codeFileButton span {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: 0.76rem;
+}
+
+.codeFileButton code {
+  min-width: 32px;
+  padding: 1px 5px;
+  border-radius: 5px;
+  background: #e2e8f0;
+  color: #334155;
+  text-align: center;
+  font-size: 0.68rem;
+}
+
+.codeViewer {
+  min-height: 0;
+  display: grid;
+  grid-template-rows: auto minmax(0, 1fr);
+  overflow: hidden;
+}
+
+.codeViewer header {
+  display: flex;
+  justify-content: space-between;
+  gap: 8px;
+  padding: 7px 10px;
+  border-bottom: 1px solid #edf2f7;
+  background: #f8fafc;
+}
+
+.codeViewer header strong,
+.codeViewer header span {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: 0.75rem;
+}
+
+.codeViewer header span {
+  color: #b45309;
+}
+
+.codeBlock {
+  margin: 0;
+  overflow: auto;
+  background: #0f172a;
+  color: #e2e8f0;
+  font-family: "Cascadia Mono", "SFMono-Regular", Consolas, monospace;
+  font-size: 0.74rem;
+  line-height: 1.55;
+}
+
+.codeLine {
+  display: grid;
+  grid-template-columns: 42px minmax(0, 1fr);
+  min-height: 20px;
+}
+
+.codeLine.added {
+  background: rgba(16, 185, 129, 0.24);
+}
+
+.codeLineNumber {
+  padding: 0 8px;
+  color: #94a3b8;
+  text-align: right;
+  user-select: none;
+  border-right: 1px solid rgba(148, 163, 184, 0.2);
+}
+
+.codeLine code {
+  min-width: 0;
+  padding: 0 10px;
+  white-space: pre;
+}
+
+.diffDetails {
+  border-top: 1px solid #e2e8f0;
+  background: #f8fafc;
+}
+
+.diffDetails summary {
+  padding: 8px 12px;
+  color: #334155;
+  font-size: 0.76rem;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.diffDetails pre {
+  max-height: 220px;
+  margin: 0;
+  padding: 10px 12px;
+  overflow: auto;
+  background: #111827;
+  color: #e5e7eb;
+  font-family: "Cascadia Mono", "SFMono-Regular", Consolas, monospace;
+  font-size: 0.72rem;
+  line-height: 1.5;
+  white-space: pre;
+}
+
 .sidebar,
-.contextRail {
+.toolRail {
   min-width: 0;
   border-color: #d4dce4;
   background: #f8fafc;
@@ -147,12 +341,72 @@ button:disabled {
   border-right: 1px solid #d4dce4;
 }
 
-.contextRail {
+.toolRail {
+  position: sticky;
+  top: 0;
+  display: grid;
+  grid-template-columns: 44px minmax(0, 1fr);
+  height: 100vh;
+  border-left: 1px solid #d4dce4;
+  overflow: hidden;
+}
+
+.toolRail.collapsed {
+  grid-template-columns: 44px;
+}
+
+.toolRailDock {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 6px;
+  padding: 10px 6px;
+  border-right: 1px solid #dce3ea;
+  background: #eef3f8;
+}
+
+.toolRailButton,
+.toolToggleButton {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 32px;
+  height: 32px;
+  padding: 0;
+  border: 1px solid #cbd5e1;
+  border-radius: 7px;
+  background: #ffffff;
+  color: #475569;
+}
+
+.toolRailButton:hover,
+.toolToggleButton:hover {
+  background: #eff6ff;
+  border-color: #93c5fd;
+  color: #1d4ed8;
+}
+
+.toolRailButton.active {
+  background: #2563eb;
+  border-color: #2563eb;
+  color: #ffffff;
+}
+
+.toolRailPane {
+  min-width: 0;
+  min-height: 0;
+  height: 100vh;
+  overflow: hidden;
+  background: #ffffff;
+}
+
+.toolStatusScroll {
   display: grid;
   align-content: start;
   gap: 10px;
+  height: 100%;
   padding: 12px 14px;
-  border-left: 1px solid #d4dce4;
+  overflow: auto;
 }
 
 .workspace {
@@ -2039,14 +2293,25 @@ label {
 
 @media (max-width: 1180px) {
   .appShell {
+    grid-template-columns: 280px minmax(0, 1fr) 44px;
+  }
+
+  .appShell.toolRailOpen {
     grid-template-columns: 280px minmax(0, 1fr);
   }
 
-  .contextRail {
+  .appShell.toolRailOpen .toolRail {
     grid-column: 1 / -1;
-    grid-template-columns: repeat(2, minmax(0, 1fr));
+    grid-template-columns: 44px minmax(0, 1fr);
+    height: 62vh;
+    position: relative;
     border-left: 0;
     border-top: 1px solid #d4dce4;
+  }
+
+  .appShell.toolRailOpen .toolRailPane,
+  .appShell.toolRailOpen .toolStatusScroll {
+    height: 62vh;
   }
 }
 
@@ -2063,9 +2328,23 @@ label {
   .overview,
   .contentGrid,
   .runnerGrid,
-  .handoffGrid,
-  .contextRail {
+  .handoffGrid {
     grid-template-columns: 1fr;
+  }
+
+  .toolRail {
+    grid-column: 1 / -1;
+    height: auto;
+    min-height: 44px;
+    position: relative;
+    border-left: 0;
+    border-top: 1px solid #d4dce4;
+  }
+
+  .toolRailDock {
+    flex-direction: row;
+    border-right: 0;
+    border-bottom: 1px solid #dce3ea;
   }
 
   .topbar,
@@ -2308,7 +2587,7 @@ label {
   }
 
   .sidebar,
-  .contextRail {
+  .toolStatusScroll {
     padding: 14px;
   }
 
@@ -2324,8 +2603,7 @@ label {
   .handoffGrid,
   .runnerGrid,
   .contentGrid,
-  .overview,
-  .contextRail {
+  .overview {
     grid-template-columns: 1fr !important;
   }
 
@@ -2356,6 +2634,13 @@ label {
   .button,
   button {
     width: 100%;
+  }
+
+  .toolRailButton,
+  .toolToggleButton,
+  .iconOnly,
+  .metaToggleBtn {
+    width: auto;
   }
 
   .accountItem {

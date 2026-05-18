@@ -7,6 +7,7 @@ import {
   addProject,
   applyAccountPreset,
   applyFourAccountPreset,
+  readProjectCodeView,
   readRuntime,
   saveAccountCredential,
   setAccountBudget,
@@ -107,6 +108,10 @@ export default defineConfig({
             }
             if (req.method === "POST" && url === "/api/agentapp/projects") {
               sendJson(res, 200, await addProject(await readBody(req)));
+              return;
+            }
+            if (req.method === "POST" && url === "/api/agentapp/projects/code") {
+              sendJson(res, 200, await readProjectCodeView(await readBody(req)));
               return;
             }
             if (req.method === "POST" && url === "/api/agentapp/runs/start") {

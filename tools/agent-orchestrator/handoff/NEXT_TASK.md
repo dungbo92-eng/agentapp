@@ -1,11 +1,11 @@
 # NEXT_TASK
 
-- Generated: 2026-05-16T14:35:47.681Z
+- Generated: 2026-05-18T00:00:49.000Z
 - Selected task: Claude/Gemini CLI 설치 후 실제 authenticated cycle 재검증
 - Selection source: roadmap
 - Task id: n/a
 - Task priority: n/a
-- Workspace: E:\agentApp
+- Workspace: D:\agentApp
 - Policy: tools/agent-orchestrator/approval-policy.yaml
 
 ## Required Reads

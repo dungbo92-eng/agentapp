@@ -507,8 +507,8 @@ async function captureCommand(command, args, options = {}) {
       settled = true;
       resolve({
         ...result,
-        stdout: trimCapture(stdout),
-        stderr: trimCapture(stderr),
+        stdout: trimCapture(stdout, options.limitBytes || 4096),
+        stderr: trimCapture(stderr, options.limitBytes || 4096),
       });
     };
     const timer = setTimeout(() => {
@@ -1333,6 +1333,7 @@ export async function addProject(input) {
 // ---------------------------------------------------------------------------
 
 const META_EXCERPT_LIMIT = 1600;
+const CODE_FILE_LIMIT_BYTES = 180 * 1024;
 
 async function safeReadText(filePath) {
   try {
@@ -1512,6 +1513,168 @@ export async function readProjectMeta(input) {
     handoff_documents: handoffDocs,
     workers,
     next_task: nextTaskTitle ? { title: nextTaskTitle } : null,
+  };
+}
+
+function projectRootForCodeView(runtime, input = {}) {
+  const projectId = String(input.projectId || input.id || "").trim();
+  if (!projectId || projectId === "current") return REPO_ROOT;
+  const project = (runtime.projects || []).find((item) => item.id === projectId);
+  const rootPath = String(project?.path || input.path || "").trim();
+  return rootPath ? path.resolve(rootPath) : "";
+}
+
+function resolveInsideRoot(rootPath, relativeOrAbsolutePath) {
+  const inputPath = String(relativeOrAbsolutePath || "").replaceAll("\\", "/").trim();
+  if (!inputPath) return "";
+  const candidate = path.isAbsolute(inputPath)
+    ? path.resolve(inputPath)
+    : path.resolve(rootPath, inputPath);
+  const relative = path.relative(rootPath, candidate);
+  if (relative.startsWith("..") || path.isAbsolute(relative)) return "";
+  return candidate;
+}
+
+function normalizeGitStatusPath(rawPath) {
+  const value = String(rawPath || "").trim();
+  const renamed = value.match(/^(.+?)\s+->\s+(.+)$/);
+  return (renamed ? renamed[2] : value).replaceAll("\\", "/").replace(/^"|"$/g, "");
+}
+
+function parseGitStatus(stdout) {
+  return String(stdout || "")
+    .split(/\r?\n/)
+    .map((line) => line.trimEnd())
+    .filter(Boolean)
+    .map((line) => ({
+      status: line.slice(0, 2).trim() || "M",
+      path: normalizeGitStatusPath(line.slice(3)),
+    }))
+    .filter((item) => item.path);
+}
+
+function parseAddedLinesFromDiff(diffText) {
+  const added = [];
+  let newLine = 0;
+  for (const line of String(diffText || "").split(/\r?\n/)) {
+    const hunk = line.match(/^@@\s+-\d+(?:,\d+)?\s+\+(\d+)(?:,\d+)?\s+@@/);
+    if (hunk) {
+      newLine = Number(hunk[1]);
+      continue;
+    }
+    if (line.startsWith("+++") || line.startsWith("---")) continue;
+    if (line.startsWith("+")) {
+      added.push(newLine);
+      newLine += 1;
+      continue;
+    }
+    if (line.startsWith("-")) continue;
+    if (line.startsWith(" ") || line === "") newLine += 1;
+  }
+  return added;
+}
+
+function syntheticUntrackedDiff(filePath, text) {
+  const lines = String(text || "").split(/\r?\n/);
+  return [
+    `diff --git a/${filePath} b/${filePath}`,
+    "new file mode 100644",
+    "index 0000000..0000000",
+    "--- /dev/null",
+    `+++ b/${filePath}`,
+    `@@ -0,0 +1,${lines.length} @@`,
+    ...lines.map((line) => `+${line}`),
+  ].join("\n");
+}
+
+export async function readProjectCodeView(input = {}) {
+  const runtime = await readRuntime();
+  const rootPath = projectRootForCodeView(runtime, input);
+  if (!rootPath) return { ok: false, reason: "project_not_found" };
+  try {
+    const info = await stat(rootPath);
+    if (!info.isDirectory()) return { ok: false, reason: "path_not_found", rootPath };
+  } catch {
+    return { ok: false, reason: "path_not_found", rootPath };
+  }
+
+  const [status, branch] = await Promise.all([
+    captureCommand("git", ["status", "--short", "--untracked-files=all"], { cwd: rootPath, timeoutMs: 5000, limitBytes: 64 * 1024 }),
+    captureCommand("git", ["branch", "--show-current"], { cwd: rootPath, timeoutMs: 3000 }),
+  ]);
+  if (status.code !== 0) {
+    return {
+      ok: false,
+      reason: status.stderr || status.error || "git_status_failed",
+      rootPath,
+      changedFiles: [],
+    };
+  }
+
+  const changedFiles = parseGitStatus(status.stdout);
+  const requestedPath = String(input.filePath || "").trim();
+  const selectedPath = normalizeGitStatusPath(requestedPath || changedFiles[0]?.path || "");
+  const fullPath = selectedPath ? resolveInsideRoot(rootPath, selectedPath) : "";
+  let file = null;
+  let diffText = "";
+
+  if (selectedPath && !fullPath) {
+    return { ok: false, reason: "path_outside_project", rootPath, changedFiles, selectedPath };
+  }
+
+  if (fullPath) {
+    try {
+      const info = await stat(fullPath);
+      if (!info.isFile()) {
+        file = { path: selectedPath, exists: false, text: "", truncated: false, sizeBytes: 0 };
+      } else if (info.size > CODE_FILE_LIMIT_BYTES) {
+        const raw = await readFile(fullPath, "utf8");
+        file = {
+          path: selectedPath,
+          exists: true,
+          text: raw.slice(0, CODE_FILE_LIMIT_BYTES),
+          truncated: true,
+          sizeBytes: info.size,
+        };
+      } else {
+        file = {
+          path: selectedPath,
+          exists: true,
+          text: await readFile(fullPath, "utf8"),
+          truncated: false,
+          sizeBytes: info.size,
+        };
+      }
+    } catch {
+      file = { path: selectedPath, exists: false, text: "", truncated: false, sizeBytes: 0 };
+    }
+
+    const statusEntry = changedFiles.find((item) => item.path === selectedPath);
+    if (statusEntry?.status === "??" && file?.exists) {
+      diffText = syntheticUntrackedDiff(selectedPath, file.text);
+    } else {
+      const [unstaged, staged] = await Promise.all([
+        captureCommand("git", ["diff", "--", selectedPath], { cwd: rootPath, timeoutMs: 5000, limitBytes: CODE_FILE_LIMIT_BYTES * 2 }),
+        captureCommand("git", ["diff", "--cached", "--", selectedPath], { cwd: rootPath, timeoutMs: 5000, limitBytes: CODE_FILE_LIMIT_BYTES * 2 }),
+      ]);
+      diffText = [staged.code === 0 ? staged.stdout : "", unstaged.code === 0 ? unstaged.stdout : ""]
+        .filter(Boolean)
+        .join("\n");
+    }
+  }
+
+  return {
+    ok: true,
+    generated_at: new Date().toISOString(),
+    rootPath,
+    branch: branch.code === 0 ? branch.stdout.trim() : "",
+    changedFiles,
+    selectedPath,
+    file,
+    diff: {
+      text: diffText,
+      addedLines: parseAddedLinesFromDiff(diffText),
+    },
   };
 }
 
