@@ -253,6 +253,28 @@ async function createMainWindow() {
     }
   });
 
+  // Windows Electron 의 잘 알려진 입력 캡처 손실 — BrowserWindow.focus() 는
+  // OS 창 활성화만 처리하고 webContents (renderer) 의 키보드 입력 캡처는 보장
+  // 하지 않는다. 다른 앱/오버레이/webview 로 포커스가 갔다가 돌아오면 입력창에
+  // 커서가 안 잡혀 사용자가 "최소화 후 복귀" 같은 회피 동작을 해야 한다.
+  // 창 활성화 이벤트마다 webContents.focus() 를 명시 호출해 입력 캡처를 복원.
+  const refocusWebContents = () => {
+    if (!mainWindow || mainWindow.isDestroyed()) return;
+    const wc = mainWindow.webContents;
+    if (!wc || wc.isDestroyed()) return;
+    try {
+      wc.focus();
+    } catch {
+      // best-effort — 일부 상태에서는 focus() 가 throw 할 수 있어 안전 처리.
+    }
+  };
+  mainWindow.on("focus", refocusWebContents);
+  mainWindow.on("show", refocusWebContents);
+  mainWindow.on("restore", refocusWebContents);
+  // alwaysOnTop / fullscreen / 모드 전환 직후도 키 캡처 복원이 필요.
+  mainWindow.on("always-on-top-changed", refocusWebContents);
+  mainWindow.on("ready-to-show", refocusWebContents);
+
   mainWindow.webContents.setWindowOpenHandler(({ url }) => {
     shell.openExternal(url);
     return { action: "deny" };
@@ -459,6 +481,13 @@ function showMainWindow() {
   if (mainWindow.isMinimized()) mainWindow.restore();
   mainWindow.show();
   mainWindow.focus();
+  // 트레이 클릭 / OS 알림 클릭으로 들어온 직후엔 webContents 입력 캡처가
+  // 안 살아 있는 경우가 많다. focus 이벤트 핸들러가 또 호출해주지만, 명시적
+  // 으로 한 번 더 부른다.
+  const wc = mainWindow.webContents;
+  if (wc && !wc.isDestroyed()) {
+    try { wc.focus(); } catch { /* best-effort */ }
+  }
 }
 
 function setWindowMode(nextMode) {
@@ -499,6 +528,9 @@ function setWindowMode(nextMode) {
   rebuildTrayMenu();
   if (!mainWindow.webContents.isDestroyed()) {
     mainWindow.webContents.send("agentapp:window-mode-changed", windowMode);
+    // 모드 토글 직후 (alwaysOnTop 변경 / 창 크기 재배치) webContents 입력 캡처가
+    // 끊기는 경우가 있어 명시 복원.
+    try { mainWindow.webContents.focus(); } catch { /* best-effort */ }
   }
   return windowMode;
 }
