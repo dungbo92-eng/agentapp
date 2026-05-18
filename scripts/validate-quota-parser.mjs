@@ -250,6 +250,21 @@ try {
       },
       events: [],
     },
+    activeRuns: [
+      {
+        id: "stale-run",
+        status: "running",
+        workerId: "codex",
+        projectId: "current",
+        startedAt: "2026-05-13T00:00:00.000Z",
+        adapter: {
+          status: "running",
+          pid: 999999,
+          lastMessagePath,
+        },
+        events: [],
+      },
+    ],
     runHistory: [
       {
         id: "stale-run",
@@ -271,7 +286,12 @@ try {
 
   const afterStale = await readRuntime();
   const staleRun = afterStale.runHistory.find((run) => run.id === "stale-run");
-  if (afterStale.activeRun || staleRun?.status !== "completed" || staleRun?.adapter?.lastMessageText !== "CHAIN_DONE") {
+  if (
+    afterStale.activeRun
+    || (afterStale.activeRuns || []).some((run) => run?.id === "stale-run")
+    || staleRun?.status !== "completed"
+    || staleRun?.adapter?.lastMessageText !== "CHAIN_DONE"
+  ) {
     throw new Error("stale active run was not completed from last-message");
   }
   console.log("[validate-quota-parser] ok stale active run cleanup");
@@ -299,6 +319,21 @@ try {
       },
       events: [],
     },
+    activeRuns: [
+      {
+        id: "dirty-stale-run",
+        status: "running",
+        workerId: "codex",
+        projectId: "dirty-project",
+        startedAt: "2026-05-13T00:00:00.000Z",
+        adapter: {
+          status: "running",
+          pid: 999999,
+          lastMessagePath: dirtyLastMessagePath,
+        },
+        events: [],
+      },
+    ],
     runHistory: [
       {
         id: "dirty-stale-run",
@@ -322,6 +357,7 @@ try {
   const dirtyStaleRun = afterDirtyStale.runHistory.find((run) => run.id === "dirty-stale-run");
   if (
     afterDirtyStale.activeRun
+    || (afterDirtyStale.activeRuns || []).some((run) => run?.id === "dirty-stale-run")
     || dirtyStaleRun?.status !== "needs_user"
     || dirtyStaleRun?.interruptedWorktree?.fileCount !== 1
   ) {

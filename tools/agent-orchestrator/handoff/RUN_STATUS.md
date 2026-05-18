@@ -914,3 +914,12 @@ NEXT_TASK.md 템플릿 확정: agent-next 생성물을 Required Reads, Execution
 - Git: not recorded
 - Decisions: none
 - Next: 설치 앱에서 우측 도구 사이드바와 Electron webview/PTY 터미널 동작을 확인한 뒤 자동 릴리즈 수행
+
+## 2026-05-18T00:17:34.019Z
+
+- Status: completed
+- Summary: AgentApp 버벅임 원인을 분석해 죽은 worker PID가 activeRuns에 남아 activeRun으로 계속 복구되는 런타임 루프를 수정했고, Windows EPERM/EBUSY rename 재시도를 추가했다.
+- Verification: pnpm validate; pnpm dashboard:build
+- Git: not recorded
+- Decisions: none
+- Next: 현재 실행 중인 설치 앱은 기존 코드로 로컬 API도 응답 지연되므로 앱 완전 종료 후 새 릴리즈 적용 확인

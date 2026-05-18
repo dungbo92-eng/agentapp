@@ -653,10 +653,12 @@ async function reconcileStaleActiveRun(runtime) {
     ? history.map((item) => (item.id === nextRun.id ? nextRun : item))
     : [nextRun, ...history]
   ).slice(0, 20);
+  const activeRuns = (runtime.activeRuns || []).filter((run) => run?.id !== nextRun.id);
   return {
     runtime: {
       ...runtime,
-      activeRun: null,
+      activeRuns,
+      activeRun: activeRuns[0] || null,
       runHistory,
     },
     changed: true,
@@ -855,12 +857,21 @@ function withRuntimeLock(fn) {
 async function atomicWriteJson(targetPath, content) {
   const tmpPath = `${targetPath}.tmp-${process.pid}-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
   await writeFile(tmpPath, content, "utf8");
-  try {
-    await rename(tmpPath, targetPath);
-  } catch (error) {
-    // rename 실패 시 tmp 정리 후 에러 전파.
-    try { await unlink(tmpPath); } catch { /* ignore */ }
-    throw error;
+  const transientCodes = new Set(["EBUSY", "EPERM", "EACCES"]);
+  for (let attempt = 0; attempt < 6; attempt += 1) {
+    try {
+      await rename(tmpPath, targetPath);
+      return;
+    } catch (error) {
+      const transient = transientCodes.has(error?.code);
+      if (transient && attempt < 5) {
+        await new Promise((resolve) => setTimeout(resolve, 50 * (attempt + 1)));
+        continue;
+      }
+      // rename 실패 시 tmp 정리 후 에러 전파.
+      try { await unlink(tmpPath); } catch { /* ignore */ }
+      throw error;
+    }
   }
 }
 
