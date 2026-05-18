@@ -863,8 +863,22 @@ export async function readRuntime() {
   try {
     const reconciled = await reconcileStaleActiveRun(normalized);
     normalized = reconciled.runtime;
+    // readRuntime 안에서 호출하는 reconcile / 백업 복원 persistence 는 반드시
+    // withRuntimeLock 으로 직렬화해야 한다. 그렇지 않으면 startRun 같은 정상
+    // writer 가 writeRuntime(잠금 보호)으로 새 run 을 저장하는 도중, 외부 read
+    // (예: NotificationDispatcher 2 초 polling) 가 옛 메모리 상태로 disk 를 덮어
+    // 새 run 을 사라지게 만드는 race 가 발생한다. 사라진 run 은 이후 patch 호출
+    // 에서 self-heal stub 으로 떨어져 autoChain 이 안 도는 것처럼 보였다.
     if (reconciled.changed || source.file !== RUNTIME_FILE) {
-      await writeRuntimeSnapshot(normalized, { backupSource: source.parsed });
+      try {
+        await withRuntimeLock(() =>
+          writeRuntimeSnapshot(normalized, { backupSource: source.parsed }),
+        );
+      } catch (writeError) {
+        process.stderr.write(
+          `[runtime] reconcile persist failed: ${writeError instanceof Error ? writeError.message : String(writeError)}\n`,
+        );
+      }
     }
     return await enrichRuntime(normalized);
   } catch (error) {
