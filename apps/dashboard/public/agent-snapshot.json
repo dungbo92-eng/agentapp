@@ -1,5 +1,5 @@
 {
-  "generated_at": "2026-05-18T00:13:01.069Z",
+  "generated_at": "2026-05-18T01:24:36.408Z",
   "repo_root": "D:\\agentApp",
   "progress": {
     "percent": 99,
@@ -376,7 +376,7 @@
     ]
   },
   "next_task": {
-    "generated": "2026-05-18T00:00:49.000Z",
+    "generated": "2026-05-18T00:14:20.363Z",
     "title": "Claude/Gemini CLI 설치 후 실제 authenticated cycle 재검증",
     "source": "roadmap",
     "id": "n/a",
@@ -397,11 +397,11 @@
     }
   ],
   "latest_run": {
-    "at": "2026-05-18T00:00:39.752Z",
+    "at": "2026-05-18T00:21:54.652Z",
     "status": "completed",
-    "summary": "dashboard 중앙 실행 화면을 유지하고 우측 접이식 도구 사이드바를 추가했다. 브라우저/터미널은 우측 탭으로 이동했고 코드 리더는 git 변경 파일, 파일 내용, 추가 라인 마킹, raw diff를 표시한다.",
-    "verification": "pnpm --dir apps/dashboard build; pnpm validate; Browser DOM check: tool rail open, browser/status/terminal/code tabs, code changed files and added-line markers",
-    "next": "설치 앱에서 우측 도구 사이드바와 Electron webview/PTY 터미널 동작을 확인한 뒤 자동 릴리즈 수행"
+    "summary": "stale active run 루프 수정 커밋을 main에 push했고 desktop 자동 업데이트용 v0.8.7 NSIS 릴리즈를 발행했다.",
+    "verification": "pnpm validate; pnpm dashboard:build; pnpm desktop:release -- --bump patch",
+    "next": "현재 실행 중인 AgentApp 구버전 프로세스를 완전 종료한 뒤 v0.8.7 업데이트 적용 확인"
   },
   "approval_queue": {
     "pending_decisions": [
@@ -541,10 +541,10 @@
       "heading": "NEXT_TASK",
       "status": "roadmap",
       "next": "Claude/Gemini CLI 설치 후 실제 authenticated cycle 재검증",
-      "generated": "2026-05-18T00:00:49.000Z",
+      "generated": "2026-05-18T00:14:20.363Z",
       "decision_count": 0,
       "line_count": 490,
-      "excerpt": "# NEXT_TASK\n\n- Generated: 2026-05-18T00:00:49.000Z\n- Selected task: Claude/Gemini CLI 설치 후 실제 authenticated cycle 재검증\n- Selection source: roadmap\n- Task id: n/a\n- Task priority: n/a\n- Workspace: D:\\agentApp\n- Policy: tools/agent-orchestrator/approval-policy.yaml\n\n## Required Reads\n\n1. AGENTS.md\n2. .claude-sync/memory/project_state.md\n3. .claude-sync/plans/agent-orchestrator-roadmap.md\n4. tools/agent-orchestrator/approval-policy.yaml\n5. docs/usage-budget-model-routing.md\n6. docs/handoff-completion-protocol.md\n7. tools/agent-orchestrator/task-queue.json\n8. tools/agent-orchestrator/workers.example.yaml\n\n## Agent Prompt\n\n위 Required Reads를 먼저 읽고 시작한다.\n\n다음 작업을 진행한다:\n\n> Claude/Gemini CLI 설치 후 실제 authenticated cycle 재검증\n\n## Execution Rules\n\n- `auto_allowed`에 해당하는 로컬 작업은 바로 진행한다.\n- `hold_for_user` 또는 `user_required`에 해당하는 작업은 실행하지 말고 DECISIONS_REQUIRED.md에 남긴다.\n- `deny`에 해당하는 작업은 구현하지 않는다.\n- 비밀값, 계정 정보, 토큰, 쿠키, 운영 인증 정보는 파일/로그/문서에 남기지 않는다.\n- 작업 범위가 섞여 있으면 안전한 로컬 부분만 완료하고 보류 항목을 기록한다.\n- 개발 구현, 문서화, 테스트, 로컬 검증, handoff 갱신, commit/push는 추가 확인 없이 계속 진행한다.\n\n## Completion Checklist\n\n- pnpm validate\n- pnpm agent:doctor\n- pnpm agent:progress\n- pnpm agent:next\n- pnpm agent:sync\n- git status 확인\n- 검증된 변경 commit\n- 승인된 remote가 있으면 push\n\n## Handoff Updates\n\n- tools/agent-orchestrator/handoff/RUN_STATUS.md: 수행 내용과 검증 결과 추가\n- tools/agent-orchestrator/handoff/DECISIONS_REQUIRED.md: 사용자 결정 필요 항목 추가/해결 처리\n- .claude-sync/memory/project_state.md: 의미 있는 진행 반영\n- .claude-sync/plans/agent-orchestrator-roadmap.md: 완료된 roadmap 체크박스 갱신\n\n## Context Snapshot\n\n### Project State\n\n```md\n# Project State\n\nLast updated: 2026-05-11\n\n## 프로젝트 한 줄\n\nAgentApp은 여러 AI 개발 에이전트가 같은 memory/plan/handoff를 공유하며 안전한 작업을 이어받게 하는 멀티 에이전트 개발 오케스트레이터다.\n\n## 현재 상태\n\n- `AGENTS.md`, `CLAUDE.md` 공통 규칙 초안 생성.\n- `.claude-sync` memory/plan 동기화 구조 생성.\n- `scripts/claude-sync.mjs`, `install-hooks.mjs` 생성.\n- `scripts/agent-doctor.mjs`, `agent-next.mjs`, `agent-progress.mjs`, `agent-report.mjs` 생성.\n- `tools/agent-orchestrator` 아래 승인 정책, worker 예시, handoff 초안 생성.\n- `git init`, `pnpm install`, hook 설치 완료.\n- `pnpm validate`, `pnpm agent:doctor`, `pnpm agent:progress`, `pnpm agent:next`, `pnpm agent:status` 검증 완료.\n- 새 PC/새 에이전트 세션에서 `pnpm age..."
+      "excerpt": "# NEXT_TASK\n\n- Generated: 2026-05-18T00:14:20.363Z\n- Selected task: Claude/Gemini CLI 설치 후 실제 authenticated cycle 재검증\n- Selection source: roadmap\n- Task id: n/a\n- Task priority: n/a\n- Workspace: D:\\agentApp\n- Policy: tools/agent-orchestrator/approval-policy.yaml\n\n## Required Reads\n\n1. AGENTS.md\n2. .claude-sync/memory/project_state.md\n3. .claude-sync/plans/agent-orchestrator-roadmap.md\n4. tools/agent-orchestrator/approval-policy.yaml\n5. docs/usage-budget-model-routing.md\n6. docs/handoff-completion-protocol.md\n7. tools/agent-orchestrator/task-queue.json\n8. tools/agent-orchestrator/workers.example.yaml\n\n## Agent Prompt\n\n위 Required Reads를 먼저 읽고 시작한다.\n\n다음 작업을 진행한다:\n\n> Claude/Gemini CLI 설치 후 실제 authenticated cycle 재검증\n\n## Execution Rules\n\n- `auto_allowed`에 해당하는 로컬 작업은 바로 진행한다.\n- `hold_for_user` 또는 `user_required`에 해당하는 작업은 실행하지 말고 DECISIONS_REQUIRED.md에 남긴다.\n- `deny`에 해당하는 작업은 구현하지 않는다.\n- 비밀값, 계정 정보, 토큰, 쿠키, 운영 인증 정보는 파일/로그/문서에 남기지 않는다.\n- 작업 범위가 섞여 있으면 안전한 로컬 부분만 완료하고 보류 항목을 기록한다.\n- 개발 구현, 문서화, 테스트, 로컬 검증, handoff 갱신, commit/push는 추가 확인 없이 계속 진행한다.\n\n## Completion Checklist\n\n- pnpm validate\n- pnpm agent:doctor\n- pnpm agent:progress\n- pnpm agent:next\n- pnpm agent:sync\n- git status 확인\n- 검증된 변경 commit\n- 승인된 remote가 있으면 push\n\n## Handoff Updates\n\n- tools/agent-orchestrator/handoff/RUN_STATUS.md: 수행 내용과 검증 결과 추가\n- tools/agent-orchestrator/handoff/DECISIONS_REQUIRED.md: 사용자 결정 필요 항목 추가/해결 처리\n- .claude-sync/memory/project_state.md: 의미 있는 진행 반영\n- .claude-sync/plans/agent-orchestrator-roadmap.md: 완료된 roadmap 체크박스 갱신\n\n## Context Snapshot\n\n### Project State\n\n```md\n# Project State\n\nLast updated: 2026-05-11\n\n## 프로젝트 한 줄\n\nAgentApp은 여러 AI 개발 에이전트가 같은 memory/plan/handoff를 공유하며 안전한 작업을 이어받게 하는 멀티 에이전트 개발 오케스트레이터다.\n\n## 현재 상태\n\n- `AGENTS.md`, `CLAUDE.md` 공통 규칙 초안 생성.\n- `.claude-sync` memory/plan 동기화 구조 생성.\n- `scripts/claude-sync.mjs`, `install-hooks.mjs` 생성.\n- `scripts/agent-doctor.mjs`, `agent-next.mjs`, `agent-progress.mjs`, `agent-report.mjs` 생성.\n- `tools/agent-orchestrator` 아래 승인 정책, worker 예시, handoff 초안 생성.\n- `git init`, `pnpm install`, hook 설치 완료.\n- `pnpm validate`, `pnpm agent:doctor`, `pnpm agent:progress`, `pnpm agent:next`, `pnpm agent:status` 검증 완료.\n- 새 PC/새 에이전트 세션에서 `pnpm age..."
     },
     {
       "id": "run-status",
@@ -552,11 +552,11 @@
       "path": "tools/agent-orchestrator/handoff/RUN_STATUS.md",
       "heading": "RUN_STATUS",
       "status": "completed",
-      "next": "설치 앱에서 우측 도구 사이드바와 Electron webview/PTY 터미널 동작을 확인한 뒤 자동 릴리즈 수행",
-      "generated": "2026-05-18T00:00:39.752Z",
+      "next": "현재 실행 중인 AgentApp 구버전 프로세스를 완전 종료한 뒤 v0.8.7 업데이트 적용 확인",
+      "generated": "2026-05-18T00:21:54.652Z",
       "decision_count": 0,
-      "line_count": 693,
-      "excerpt": "...-- --bump patch; gh release view v0.4.6\n- Git: not recorded\n- Decisions: none\n- Next: 사용자 환경에서 v0.4.6 자동 업데이트 적용 후 프로젝트 A Start → 프로젝트 B 전환 시 글로벌 슬롯 안내 노출 여부 확인\n\n## 2026-05-16T14:31:31.185Z\n\n- Status: completed\n- Summary: hanilnetworks.com 회사 계정으로 선택된 run 의 프롬프트 시작 구문을 [에러분석] 으로 자동 정규화하도록 dashboard runtime/launch adapter 를 보강했다. validate-quota-parser 에 prefix 추가/정규화/개인 계정 미적용 회귀 테스트를 추가하고 session profile routing 문서에 규칙을 기록했다.\n- Verification: pnpm validate; pnpm agent:doctor; pnpm agent:status; pnpm agent:progress\n- Git: not recorded\n- Decisions: none\n- Next: Claude/Gemini CLI 인증 cycle 재검증은 기존 NEXT_TASK 그대로 유지\n\n## 2026-05-16T14:35:40.881Z\n\n- Status: completed\n- Summary: hanilnetworks.com 회사 계정 프롬프트 시작 태그 패치를 main 에 push했고, 자동 패치 릴리즈 v0.4.7 을 발행했다. 릴리즈 자산은 NSIS Setup, blockmap, latest.yml 업로드 확인.\n- Verification: pnpm validate; pnpm desktop:release -- --bump patch; gh release view v0.4.7; pnpm agent:status\n- Git: not recorded\n- Decisions: none\n- Next: Claude/Gemini CLI 인증 cycle 재검증은 기존 NEXT_TASK 그대로 유지\n\n## 2026-05-17T23:22:11.487Z\n\n- Status: completed\n- Summary: runtime 0-byte corruption recovery hardening and local account/project restore\n- Verification: pnpm validate; pnpm dashboard:build\n- Git: not recorded\n- Decisions: none\n- Next: Desktop release patch after commit/push\n\n## 2026-05-17T23:25:06.701Z\n\n- Status: completed\n- Summary: runtime corruption fix pushed and desktop release v0.8.5 published; local AppData runtime restored with 5 accounts and 2 projects\n- Verification: pnpm validate; pnpm dashboard:build; pnpm desktop:release -- --bump patch; gh release view v0.8.5\n- Git: not recorded\n- Decisions: none\n- Next: Monitor installed app update; if a project is still missing, re-add it from the dashboard\n\n## 2026-05-18T00:00:39.752Z\n\n- Status: completed\n- Summary: dashboard 중앙 실행 화면을 유지하고 우측 접이식 도구 사이드바를 추가했다. 브라우저/터미널은 우측 탭으로 이동했고 코드 리더는 git 변경 파일, 파일 내용, 추가 라인 마킹, raw diff를 표시한다.\n- Verification: pnpm --dir apps/dashboard build; pnpm validate; Browser DOM check: tool rail open, browser/status/terminal/code tabs, code changed files and added-line markers\n- Git: not recorded\n- Decisions: none\n- Next: 설치 앱에서 우측 도구 사이드바와 Electron webview/PTY 터미널 동작을 확인한 뒤 자동 릴리즈 수행"
+      "line_count": 707,
+      "excerpt": "...y: hanilnetworks.com 회사 계정 프롬프트 시작 태그 패치를 main 에 push했고, 자동 패치 릴리즈 v0.4.7 을 발행했다. 릴리즈 자산은 NSIS Setup, blockmap, latest.yml 업로드 확인.\n- Verification: pnpm validate; pnpm desktop:release -- --bump patch; gh release view v0.4.7; pnpm agent:status\n- Git: not recorded\n- Decisions: none\n- Next: Claude/Gemini CLI 인증 cycle 재검증은 기존 NEXT_TASK 그대로 유지\n\n## 2026-05-17T23:22:11.487Z\n\n- Status: completed\n- Summary: runtime 0-byte corruption recovery hardening and local account/project restore\n- Verification: pnpm validate; pnpm dashboard:build\n- Git: not recorded\n- Decisions: none\n- Next: Desktop release patch after commit/push\n\n## 2026-05-17T23:25:06.701Z\n\n- Status: completed\n- Summary: runtime corruption fix pushed and desktop release v0.8.5 published; local AppData runtime restored with 5 accounts and 2 projects\n- Verification: pnpm validate; pnpm dashboard:build; pnpm desktop:release -- --bump patch; gh release view v0.8.5\n- Git: not recorded\n- Decisions: none\n- Next: Monitor installed app update; if a project is still missing, re-add it from the dashboard\n\n## 2026-05-18T00:00:39.752Z\n\n- Status: completed\n- Summary: dashboard 중앙 실행 화면을 유지하고 우측 접이식 도구 사이드바를 추가했다. 브라우저/터미널은 우측 탭으로 이동했고 코드 리더는 git 변경 파일, 파일 내용, 추가 라인 마킹, raw diff를 표시한다.\n- Verification: pnpm --dir apps/dashboard build; pnpm validate; Browser DOM check: tool rail open, browser/status/terminal/code tabs, code changed files and added-line markers\n- Git: not recorded\n- Decisions: none\n- Next: 설치 앱에서 우측 도구 사이드바와 Electron webview/PTY 터미널 동작을 확인한 뒤 자동 릴리즈 수행\n\n## 2026-05-18T00:17:34.019Z\n\n- Status: completed\n- Summary: AgentApp 버벅임 원인을 분석해 죽은 worker PID가 activeRuns에 남아 activeRun으로 계속 복구되는 런타임 루프를 수정했고, Windows EPERM/EBUSY rename 재시도를 추가했다.\n- Verification: pnpm validate; pnpm dashboard:build\n- Git: not recorded\n- Decisions: none\n- Next: 현재 실행 중인 설치 앱은 기존 코드로 로컬 API도 응답 지연되므로 앱 완전 종료 후 새 릴리즈 적용 확인\n\n## 2026-05-18T00:21:54.652Z\n\n- Status: completed\n- Summary: stale active run 루프 수정 커밋을 main에 push했고 desktop 자동 업데이트용 v0.8.7 NSIS 릴리즈를 발행했다.\n- Verification: pnpm validate; pnpm dashboard:build; pnpm desktop:release -- --bump patch\n- Git: not recorded\n- Decisions: none\n- Next: 현재 실행 중인 AgentApp 구버전 프로세스를 완전 종료한 뒤 v0.8.7 업데이트 적용 확인"
     },
     {
       "id": "dashboard-run",

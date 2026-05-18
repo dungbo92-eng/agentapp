@@ -2044,7 +2044,39 @@ async function mutateRuntimeRun(runId, mutator, options = {}) {
   }
 
   runtime.runHistory = runtime.runHistory.map((item) => (item.id === runId ? buildNext(item) : item));
-  if (!nextRun) return runtime;
+
+  // Self-heal — runId 가 activeRuns 에도 runHistory 에도 없으면 patch 호출이
+  // silent no-op 으로 사라지던 버그가 있었다 (startRun 직후 runtime overwrite
+  // 또는 reconcileStaleActiveRun 경합으로 run 이 누락되는 경우). 이 경우 worker
+  // 는 정상 실행 중인데 dashboard 는 영구히 빈 상태가 된다. 안전 복구: stub
+  // run 을 만들어 mutator 를 적용하고 activeRuns/activeRun/runHistory 에 등록.
+  if (!nextRun) {
+    const recovered = mutator({
+      id: runId,
+      status: "running",
+      startedAt: nowIso(),
+      events: [],
+      adapter: {},
+      validation: {},
+      recovered: true,
+      recoveredAt: nowIso(),
+    });
+    nextRun = recovered;
+    if (options.clearActive) {
+      // 완료/실패 패치로 들어왔는데 등록조차 안 돼있었으면 history 에만 추가.
+      runtime.runHistory = [recovered, ...runtime.runHistory.filter((item) => item?.id !== runId)].slice(0, 20);
+    } else {
+      const filteredActive = (runtime.activeRuns || []).filter((r) => r && r.id !== runId);
+      runtime.activeRuns = [recovered, ...filteredActive];
+      if (!runtime.activeRun || runtime.activeRun.id === runId) {
+        runtime.activeRun = recovered;
+      }
+      runtime.runHistory = [
+        recovered,
+        ...runtime.runHistory.filter((item) => item?.id !== runId),
+      ].slice(0, 20);
+    }
+  }
 
   if (options.handoffStatus || options.handoffReason) {
     nextRun.handoffPath = await writeDashboardRunHandoff(
