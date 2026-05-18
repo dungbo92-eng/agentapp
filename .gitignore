@@ -35,6 +35,7 @@ Thumbs.db
 coverage/
 tmp/
 .tmp/
+.tmp-*/
 
 # Per-PC agent state. The sync script tracks only memory/plans.
 .claude-sync/.local-*
