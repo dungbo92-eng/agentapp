@@ -197,6 +197,28 @@ report.liveEventRecovery = Boolean(
 );
 report.ok = report.ok && report.liveEventRecovery;
 
+// 알림 큐 + 진단 로그 영속성 — normalizeRuntime 이 notifications / notifyDebugLog
+// 키를 drop 하면 OS 알림이 영원히 안 뜨고 진단도 불가능했던 회귀 방어.
+const { pushNotification, appendNotifyDebugLog } = await import("./dashboard-runtime.mjs");
+await pushNotification({
+  kind: "info",
+  title: "regression-test",
+  message: "notifications must survive a write cycle",
+});
+await appendNotifyDebugLog({ stage: "regression_test_probe", ok: true, detail: "should persist" });
+// 한 번 더 write 사이클 강제 — pushNotification 내부 write 가 다음 normalize 에서
+// drop 되는지 확인.
+const probeRuntime = await readRuntime();
+const writeSurvivalReport = {
+  notificationsCount: Array.isArray(probeRuntime.notifications) ? probeRuntime.notifications.length : -1,
+  notifyDebugLogCount: Array.isArray(probeRuntime.notifyDebugLog) ? probeRuntime.notifyDebugLog.length : -1,
+  hasRegressionEntry: (probeRuntime.notifications || []).some((n) => n?.title === "regression-test"),
+  hasDebugProbe: (probeRuntime.notifyDebugLog || []).some((d) => d?.stage === "regression_test_probe"),
+};
+report.notificationsPersisted = writeSurvivalReport.hasRegressionEntry && writeSurvivalReport.hasDebugProbe;
+report.notificationsSurvival = writeSurvivalReport;
+report.ok = report.ok && report.notificationsPersisted;
+
 await cleanup();
 if (report.ok) {
   console.log(`[validate-runtime-race] ok ${report.preservedRunsInRuntime}/${report.ranWrites} runs preserved under concurrent read load`);

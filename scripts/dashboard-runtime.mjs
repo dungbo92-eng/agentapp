@@ -437,6 +437,15 @@ function normalizeRuntime(input) {
     activeRun: activeRuns[0] || null,
     runHistory: Array.isArray(runtime.runHistory) ? runtime.runHistory.slice(0, 20) : [],
     pendingRuns: Array.isArray(runtime.pendingRuns) ? runtime.pendingRuns.slice(0, 20) : [],
+    // 알림 큐 — pushNotification 이 적재하면 main.mjs dispatcher 가 OS Notification
+    // 으로 fire. normalizeRuntime 이 이 키를 빠뜨리면 writeRuntime 마다 drop 돼
+    // OS 알림이 영원히 안 뜨는 원인이 되므로 명시적으로 보존한다.
+    notifications: Array.isArray(runtime.notifications) ? runtime.notifications.slice(0, 40) : [],
+    // 알림 진단 ring buffer — main.mjs dispatcher 가 try/show/failed 단계를 push.
+    notifyDebugLog: Array.isArray(runtime.notifyDebugLog) ? runtime.notifyDebugLog.slice(0, 30) : [],
+    // cancelChainAt (stopRun 이 설정해 60 초 안의 retry/autoChain 을 cascade 차단)
+    // 도 보존해야 stopRun 직후 autoChain spawn 폭주 가드가 동작.
+    ...(typeof runtime.cancelChainAt === "number" ? { cancelChainAt: runtime.cancelChainAt } : {}),
     settings: normalizeSettings(runtime.settings),
   };
 }
