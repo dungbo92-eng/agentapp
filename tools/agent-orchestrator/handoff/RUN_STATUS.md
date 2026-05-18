@@ -923,3 +923,12 @@ NEXT_TASK.md 템플릿 확정: agent-next 생성물을 Required Reads, Execution
 - Git: not recorded
 - Decisions: none
 - Next: 현재 실행 중인 설치 앱은 기존 코드로 로컬 API도 응답 지연되므로 앱 완전 종료 후 새 릴리즈 적용 확인
+
+## 2026-05-18T00:21:54.652Z
+
+- Status: completed
+- Summary: stale active run 루프 수정 커밋을 main에 push했고 desktop 자동 업데이트용 v0.8.7 NSIS 릴리즈를 발행했다.
+- Verification: pnpm validate; pnpm dashboard:build; pnpm desktop:release -- --bump patch
+- Git: not recorded
+- Decisions: none
+- Next: 현재 실행 중인 AgentApp 구버전 프로세스를 완전 종료한 뒤 v0.8.7 업데이트 적용 확인
