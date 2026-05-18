@@ -592,8 +592,49 @@ export async function buildInterruptedWorktreePatch(run, reason = "worker_failed
 
 async function reconcileStaleActiveRun(runtime) {
   const active = runtime.activeRun;
-  if (!active || active.status !== "running" || !active.adapter?.pid) {
+  if (!active || active.status !== "running") {
     return { runtime, changed: false };
+  }
+  // adapter.pid 가 비어 있는 stuck running — self-heal stub 이 trace 도구로
+  // 등록됐지만 worker spawn 이 결국 실패한 경우. 30 초 grace 이후엔 interrupted
+  // 로 정리해 슬롯을 풀어준다.
+  if (!active.adapter?.pid) {
+    const startedMs = Number.isFinite(Date.parse(active.startedAt))
+      ? Date.parse(active.startedAt)
+      : Date.now();
+    const ageMs = Date.now() - startedMs;
+    const STUCK_NO_PID_GRACE_MS = 30 * 1000;
+    if (ageMs < STUCK_NO_PID_GRACE_MS) {
+      return { runtime, changed: false };
+    }
+    const finishedAt = nowIso();
+    const stuck = {
+      ...active,
+      status: "interrupted",
+      stoppedAt: active.stoppedAt || finishedAt,
+      adapter: { ...(active.adapter || {}), status: "no_pid_stuck" },
+      events: cappedEvents(active.events, {
+        at: finishedAt,
+        level: "warn",
+        message: "stuck activeRun 정리: worker PID 가 등록되지 않은 상태로 30초 이상 유지돼 활성 슬롯을 해제했습니다.",
+      }),
+    };
+    const history = Array.isArray(runtime.runHistory) ? runtime.runHistory : [];
+    const found = history.some((item) => item.id === stuck.id);
+    const runHistory = (found
+      ? history.map((item) => (item.id === stuck.id ? stuck : item))
+      : [stuck, ...history]
+    ).slice(0, 20);
+    const activeRuns = (runtime.activeRuns || []).filter((run) => run?.id !== stuck.id);
+    return {
+      runtime: {
+        ...runtime,
+        activeRuns,
+        activeRun: activeRuns[0] || null,
+        runHistory,
+      },
+      changed: true,
+    };
   }
   if (processIsAlive(active.adapter.pid)) {
     return { runtime, changed: false };
@@ -2047,25 +2088,38 @@ async function mutateRuntimeRun(runId, mutator, options = {}) {
 
   // Self-heal — runId 가 activeRuns 에도 runHistory 에도 없으면 patch 호출이
   // silent no-op 으로 사라지던 버그가 있었다 (startRun 직후 runtime overwrite
-  // 또는 reconcileStaleActiveRun 경합으로 run 이 누락되는 경우). 이 경우 worker
-  // 는 정상 실행 중인데 dashboard 는 영구히 빈 상태가 된다. 안전 복구: stub
-  // run 을 만들어 mutator 를 적용하고 activeRuns/activeRun/runHistory 에 등록.
+  // 또는 reconcileStaleActiveRun 경합으로 run 이 누락되는 경우). 안전 복구:
+  // stub 을 만들어 history 에만 prepend 한다. UI 상 발견은 되지만 active 슬롯은
+  // 점유하지 않는다 — patch 에 adapter.pid 가 명확히 살아있을 때만 active 로
+  // 승격시켜 worker 가 실제 동작 중인 진짜 race 케이스에만 진행 상태로 노출한다.
+  // (이전 버전은 stub 을 무조건 status:running + activeRuns 으로 등록해 실제
+  // worker 가 없는 경우에도 슬롯이 영구히 잠겼다.)
   if (!nextRun) {
-    const recovered = mutator({
+    const recoveredBase = {
       id: runId,
-      status: "running",
+      status: "recovered",
       startedAt: nowIso(),
       events: [],
       adapter: {},
       validation: {},
       recovered: true,
       recoveredAt: nowIso(),
-    });
+    };
+    const recovered = mutator(recoveredBase);
     nextRun = recovered;
-    if (options.clearActive) {
-      // 완료/실패 패치로 들어왔는데 등록조차 안 돼있었으면 history 에만 추가.
+    // patch 에 살아있는 adapter.pid 가 들어와야만 active 로 잡는다.
+    const recoveredPid = Number(recovered?.adapter?.pid || 0);
+    const adapterRunning =
+      recoveredPid > 0
+      && processIsAlive(recoveredPid)
+      && recovered?.adapter?.status !== "stopped"
+      && recovered?.adapter?.status !== "completed"
+      && recovered?.adapter?.status !== "failed";
+    if (options.clearActive || !adapterRunning) {
+      // 완료/실패/정지 패치 또는 worker 가 살아있지 않은 stub 은 history 로만 보존.
       runtime.runHistory = [recovered, ...runtime.runHistory.filter((item) => item?.id !== runId)].slice(0, 20);
     } else {
+      // worker pid 가 살아있는 진짜 race 케이스 — active 로 승격.
       const filteredActive = (runtime.activeRuns || []).filter((r) => r && r.id !== runId);
       runtime.activeRuns = [recovered, ...filteredActive];
       if (!runtime.activeRun || runtime.activeRun.id === runId) {
