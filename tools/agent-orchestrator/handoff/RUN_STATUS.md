@@ -932,3 +932,12 @@ NEXT_TASK.md 템플릿 확정: agent-next 생성물을 Required Reads, Execution
 - Git: not recorded
 - Decisions: none
 - Next: 현재 실행 중인 AgentApp 구버전 프로세스를 완전 종료한 뒤 v0.8.7 업데이트 적용 확인
+
+## 2026-05-18T05:57:15.205Z
+
+- Status: completed
+- Summary: worker-launches run 디렉터리와 런타임 불일치 원인을 이어 분석했다. 실행 프로세스/launch 디렉터리는 생성됐지만 runtime active/runHistory 레코드가 concurrent read/write race로 유실되어 앱에 표시되지 않았다. readRuntime maintenance 저장을 최신 디스크 재읽기 기반으로 바꾸고, missing run 이벤트를 metadata 기반 active 복구로 보강했다.
+- Verification: pnpm validate; pnpm dashboard:build; pnpm agent:doctor; pnpm agent:progress
+- Git: not recorded
+- Decisions: none
+- Next: 현재 떠 있는 설치 앱은 구버전 writer가 AppData runtime을 계속 덮어쓸 수 있으므로 새 릴리즈 적용 후 재시작 확인

@@ -28,7 +28,7 @@ await mkdir(DATA_DIR, { recursive: true });
 await mkdir(HANDOFF_DIR, { recursive: true });
 
 // 동적 import 로 환경 변수 적용 후 모듈 로드.
-const { readRuntime, writeRuntime } = await import("./dashboard-runtime.mjs");
+const { appendRunEvent, readRuntime, writeRuntime } = await import("./dashboard-runtime.mjs");
 
 // 초기 빈 runtime persist.
 await writeRuntime({
@@ -136,6 +136,66 @@ const report = {
   errorCount: errors.length,
   errors: errors.slice(0, 5),
 };
+
+const staleRun = {
+  id: `stale-cleanup-${Date.now()}`,
+  status: "running",
+  workerId: "test",
+  projectId: "proj-test",
+  startedAt: new Date(Date.now() - 60_000).toISOString(),
+  adapter: { status: "running", pid: 999999 },
+  events: [],
+};
+await writeFile(path.join(DATA_DIR, "dashboard-runtime.json"), JSON.stringify({
+  version: 1,
+  accounts: [],
+  projects: [{ id: "proj-test", path: TMP_DIR, lastModel: "", lastWorker: "" }],
+  activeRun: staleRun,
+  activeRuns: [staleRun],
+  runHistory: [],
+  pendingRuns: [],
+  settings: {},
+  notifications: [],
+}, null, 2), "utf8");
+await readRuntime();
+const cleanupRuntime = JSON.parse(await readFile(path.join(DATA_DIR, "dashboard-runtime.json"), "utf8"));
+const staleStillActive = Boolean(cleanupRuntime.activeRun?.id === staleRun.id)
+  || (cleanupRuntime.activeRuns || []).some((run) => run?.id === staleRun.id);
+const staleInHistory = (cleanupRuntime.runHistory || []).some((run) => run?.id === staleRun.id && run.status !== "running");
+report.staleCleanupPersisted = !staleStillActive && staleInHistory;
+report.ok = report.ok && report.staleCleanupPersisted;
+
+const recoveredRunId = `lost-active-${Date.now()}`;
+const recoveredDir = path.join(DATA_DIR, "worker-launches", recoveredRunId);
+await mkdir(recoveredDir, { recursive: true });
+await writeFile(path.join(recoveredDir, "metadata.json"), JSON.stringify({
+  generatedAt: new Date().toISOString(),
+  runId: recoveredRunId,
+  workerId: "codex",
+  projectId: "proj-test",
+  projectPath: TMP_DIR,
+  accountId: "test-account",
+  provider: "codex",
+  model: "gpt-test",
+  reasoningEffort: "medium",
+  sessionProfile: "codex/test",
+  mode: "command",
+  promptPath: "worker-launches/lost-active/launch-prompt.md",
+  launchLogPath: "worker-launches/lost-active/worker.log",
+  validationLogPath: "worker-launches/lost-active/validate.log",
+  lastMessagePath: "worker-launches/lost-active/last-message.txt",
+  sessionDir: "session-profiles/codex/test",
+}, null, 2), "utf8");
+await appendRunEvent(recoveredRunId, { level: "info", message: "live event after record loss" });
+const recoveredRuntime = await readRuntime();
+const recoveredActive = (recoveredRuntime.activeRuns || []).find((run) => run?.id === recoveredRunId);
+report.liveEventRecovery = Boolean(
+  recoveredActive
+  && recoveredActive.status === "running"
+  && recoveredActive.workerId === "codex"
+  && recoveredActive.projectId === "proj-test",
+);
+report.ok = report.ok && report.liveEventRecovery;
 
 await cleanup();
 if (report.ok) {

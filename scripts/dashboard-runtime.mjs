@@ -807,6 +807,25 @@ async function writeRuntimeSnapshot(normalized, { backupSource } = {}) {
   await atomicWriteJson(RUNTIME_LAST_GOOD_FILE, content);
 }
 
+async function persistRuntimeMaintenance(source, normalized, { reconcileChanged } = {}) {
+  await withRuntimeLock(async () => {
+    const latestSource = await readFirstValidRuntimeSource();
+
+    if (source?.file !== RUNTIME_FILE) {
+      const primary = await readRuntimeJsonCandidate({ file: RUNTIME_FILE, label: "primary" }, { quiet: true });
+      if (primary && hasRuntimeCollections(primary.parsed)) return;
+      await writeRuntimeSnapshot(normalized, { backupSource: source?.parsed });
+      return;
+    }
+
+    if (!reconcileChanged || !latestSource) return;
+    const latestNormalized = normalizeRuntime(latestSource.parsed);
+    const latestReconciled = await reconcileStaleActiveRun(latestNormalized);
+    if (!latestReconciled.changed) return;
+    await writeRuntimeSnapshot(latestReconciled.runtime, { backupSource: latestSource.parsed });
+  });
+}
+
 export async function readRuntime() {
   let source = await readFirstValidRuntimeSource();
   if (source && isTriviallyEmptyRuntime(source.parsed)) {
@@ -863,20 +882,15 @@ export async function readRuntime() {
   try {
     const reconciled = await reconcileStaleActiveRun(normalized);
     normalized = reconciled.runtime;
-    // readRuntime 안에서 호출하는 reconcile / 백업 복원 persistence 는 반드시
-    // withRuntimeLock 으로 직렬화해야 한다. 그렇지 않으면 startRun 같은 정상
-    // writer 가 writeRuntime(잠금 보호)으로 새 run 을 저장하는 도중, 외부 read
-    // (예: NotificationDispatcher 2 초 polling) 가 옛 메모리 상태로 disk 를 덮어
-    // 새 run 을 사라지게 만드는 race 가 발생한다. 사라진 run 은 이후 patch 호출
-    // 에서 self-heal stub 으로 떨어져 autoChain 이 안 도는 것처럼 보였다.
-    if (reconciled.changed || source.file !== RUNTIME_FILE) {
+    // Never persist this stale in-memory snapshot directly. If maintenance is
+    // needed, take the write lock, re-read the newest disk state, and apply
+    // cleanup to that newest state only.
+    if ((reconciled.changed || source.file !== RUNTIME_FILE) && !runtimeLockHeld()) {
       try {
-        await withRuntimeLock(() =>
-          writeRuntimeSnapshot(normalized, { backupSource: source.parsed }),
-        );
+        await persistRuntimeMaintenance(source, normalized, { reconcileChanged: reconciled.changed });
       } catch (writeError) {
         process.stderr.write(
-          `[runtime] reconcile persist failed: ${writeError instanceof Error ? writeError.message : String(writeError)}\n`,
+          `[runtime] maintenance persist failed: ${writeError instanceof Error ? writeError.message : String(writeError)}\n`,
         );
       }
     }
@@ -898,8 +912,20 @@ async function readDiskRuntimeRaw() {
 // 긴 쓰기의 꼬리가 남아 .bak 가 손상되고 → 다음 사이클의 safety net 우회 →
 // 빈 accounts/projects 가 그대로 live 로 persist 되는 데이터 소실 회귀. 직렬화로 차단.
 let runtimeWriteLock = Promise.resolve();
+let runtimeWriteDepth = 0;
+function runtimeLockHeld() {
+  return runtimeWriteDepth > 0;
+}
 function withRuntimeLock(fn) {
-  const next = runtimeWriteLock.then(() => fn(), () => fn());
+  const runLocked = async () => {
+    runtimeWriteDepth += 1;
+    try {
+      return await fn();
+    } finally {
+      runtimeWriteDepth -= 1;
+    }
+  };
+  const next = runtimeWriteLock.then(runLocked, runLocked);
   // chain 으로 직렬화하되 실패도 다음 호출을 막지 않도록 .then 의 두 번째 인자 사용.
   runtimeWriteLock = next.catch(() => undefined);
   return next;
@@ -913,14 +939,16 @@ async function atomicWriteJson(targetPath, content) {
   const tmpPath = `${targetPath}.tmp-${process.pid}-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
   await writeFile(tmpPath, content, "utf8");
   const transientCodes = new Set(["EBUSY", "EPERM", "EACCES"]);
-  for (let attempt = 0; attempt < 6; attempt += 1) {
+  const maxAttempts = 20;
+  for (let attempt = 0; attempt < maxAttempts; attempt += 1) {
     try {
       await rename(tmpPath, targetPath);
       return;
     } catch (error) {
       const transient = transientCodes.has(error?.code);
-      if (transient && attempt < 5) {
-        await new Promise((resolve) => setTimeout(resolve, 50 * (attempt + 1)));
+      if (transient && attempt < maxAttempts - 1) {
+        const delayMs = Math.min(750, 40 * (attempt + 1)) + Math.floor(Math.random() * 25);
+        await new Promise((resolve) => setTimeout(resolve, delayMs));
         continue;
       }
       // rename 실패 시 tmp 정리 후 에러 전파.
@@ -928,6 +956,69 @@ async function atomicWriteJson(targetPath, content) {
       throw error;
     }
   }
+}
+
+// 잠금-내부 writeRuntime body — read-modify-write 를 한 잠금 안에서 처리하는
+// mutateRuntime 이 이 함수를 직접 호출한다. 외부 callers 는 writeRuntime() 을 쓴다.
+async function writeRuntimeNoLock(runtime) {
+  const normalized = normalizeRuntime(runtime);
+
+  // Safety net: 디스크에 데이터가 있는데 호출자가 빈 배열로 덮어쓰려는 시도는 차단.
+  // accounts 뿐 아니라 projects 도 같이 보호 (이전엔 accounts 만 보호해 projects 가
+  // 회귀로 날아가는 케이스가 있었음).
+  const onDisk = await readDiskRuntimeRaw();
+  if (
+    onDisk
+    && Array.isArray(onDisk.accounts)
+    && onDisk.accounts.length > 0
+    && normalized.accounts.length === 0
+  ) {
+    process.stderr.write(
+      `[runtime] writeRuntime would have wiped ${onDisk.accounts.length} accounts; restoring from disk.\n`,
+    );
+    normalized.accounts = onDisk.accounts.map(normalizeAccount);
+  }
+  if (
+    onDisk
+    && Array.isArray(onDisk.projects)
+    && onDisk.projects.length > 0
+    && normalized.projects.length === 0
+  ) {
+    process.stderr.write(
+      `[runtime] writeRuntime would have wiped ${onDisk.projects.length} projects; restoring from disk.\n`,
+    );
+    normalized.projects = onDisk.projects.map(normalizeProject);
+  }
+
+  await mkdir(DATA_DIR, { recursive: true });
+
+  // Store a backup only from a valid persisted runtime. A zero-byte or
+  // unparsable primary must never replace the last usable backup.
+  try {
+    if (onDisk && hasRuntimeCollections(onDisk)) {
+      const backup = normalizeRuntime(onDisk);
+      await atomicWriteJson(RUNTIME_BACKUP_FILE, `${JSON.stringify(backup, null, 2)}\n`);
+    }
+  } catch {
+    // 첫 쓰기라 live 파일이 아직 없을 수 있음 — 그 경우 backup 불필요.
+  }
+
+  await atomicWriteJson(RUNTIME_FILE, `${JSON.stringify(normalized, null, 2)}\n`);
+  await atomicWriteJson(RUNTIME_LAST_GOOD_FILE, `${JSON.stringify(normalized, null, 2)}\n`);
+  return normalized;
+}
+
+// Atomic read-modify-write. mutator 는 (runtime) => modifiedRuntime 형태.
+// 잠금 안에서 read → modify → write 가 한 critical section 안에 끝나므로
+// pushNotification/dismissNotification/setting 변경 등이 startRun 결과를
+// stale state 로 overwrite 하는 race 를 막는다.
+export async function mutateRuntime(mutator) {
+  return withRuntimeLock(async () => {
+    const runtime = await readRuntime();
+    const next = await mutator(runtime);
+    if (next === undefined || next === null) return runtime;
+    return writeRuntimeNoLock(next);
+  });
 }
 
 export async function writeRuntime(runtime) {
@@ -2069,7 +2160,55 @@ function cappedEvents(events, nextEvent) {
   return [...(events || []), nextEvent].slice(-120);
 }
 
+function launchDirForRun(runId) {
+  const safe = String(runId || "unknown")
+    .trim()
+    .replace(/[^a-z0-9._-]+/gi, "-")
+    .replace(/^-+|-+$/g, "") || "unknown";
+  return path.join(DATA_DIR, "worker-launches", safe);
+}
+
+async function readRunLaunchRecovery(runtime, runId) {
+  try {
+    const runDir = launchDirForRun(runId);
+    const raw = await readFile(path.join(runDir, "metadata.json"), "utf8");
+    const metadata = JSON.parse(raw);
+    const workspace = String(metadata.workspace || metadata.projectPath || "").trim();
+    const projectId = String(metadata.projectId || "").trim()
+      || (runtime.projects || []).find((project) =>
+        workspace && path.resolve(project.path || "") === path.resolve(workspace)
+      )?.id
+      || "";
+    return {
+      workerId: String(metadata.workerId || ""),
+      projectId,
+      routing: {
+        accountId: String(metadata.accountId || ""),
+        sessionProfile: String(metadata.sessionProfile || ""),
+        provider: String(metadata.provider || ""),
+        model: String(metadata.model || ""),
+        reasoningEffort: String(metadata.reasoningEffort || ""),
+      },
+      adapter: {
+        mode: String(metadata.mode || ""),
+        promptPath: String(metadata.promptPath || ""),
+        logPath: String(metadata.launchLogPath || ""),
+        validationLogPath: String(metadata.validationLogPath || ""),
+        lastMessagePath: String(metadata.lastMessagePath || ""),
+        sessionDir: String(metadata.sessionDir || ""),
+      },
+    };
+  } catch {
+    return {};
+  }
+}
+
 async function mutateRuntimeRun(runId, mutator, options = {}) {
+  // read-modify-write 를 한 잠금 안에서 처리. 그렇지 않으면 read 와 write 사이
+  // 에 다른 writer (pushNotification, startRun 등) 가 disk 를 갱신했을 때 우리
+  // 의 stale 상태로 newer state 를 덮어쓰는 race 가 발생한다 (autoChain 새 run 이
+  // self-heal stub 으로 떨어지던 v0.8.13 회귀의 진짜 원인).
+  return withRuntimeLock(async () => {
   const runtime = await readRuntime();
   let nextRun = null;
   const buildNext = (current) => {
@@ -2109,17 +2248,31 @@ async function mutateRuntimeRun(runId, mutator, options = {}) {
   // (이전 버전은 stub 을 무조건 status:running + activeRuns 으로 등록해 실제
   // worker 가 없는 경우에도 슬롯이 영구히 잠겼다.)
   if (!nextRun) {
+    const recoveredMeta = await readRunLaunchRecovery(runtime, runId);
     const recoveredBase = {
       id: runId,
       status: "recovered",
+      workerId: recoveredMeta.workerId || "",
+      projectId: recoveredMeta.projectId || "",
       startedAt: nowIso(),
       events: [],
-      adapter: {},
+      routing: recoveredMeta.routing || {},
+      adapter: recoveredMeta.adapter || {},
       validation: {},
       recovered: true,
       recoveredAt: nowIso(),
     };
-    const recovered = mutator(recoveredBase);
+    let recovered = mutator(recoveredBase);
+    if (options.recoverActive && !options.clearActive && recovered?.status === "recovered") {
+      recovered = {
+        ...recovered,
+        status: "running",
+        adapter: {
+          ...(recovered.adapter || {}),
+          status: recovered.adapter?.status || "running",
+        },
+      };
+    }
     nextRun = recovered;
     // patch 에 살아있는 adapter.pid 가 들어와야만 active 로 잡는다.
     const recoveredPid = Number(recovered?.adapter?.pid || 0);
@@ -2129,7 +2282,8 @@ async function mutateRuntimeRun(runId, mutator, options = {}) {
       && recovered?.adapter?.status !== "stopped"
       && recovered?.adapter?.status !== "completed"
       && recovered?.adapter?.status !== "failed";
-    if (options.clearActive || !adapterRunning) {
+    const recoverActiveFromEvent = Boolean(options.recoverActive && !options.clearActive);
+    if (options.clearActive || (!adapterRunning && !recoverActiveFromEvent)) {
       // 완료/실패/정지 패치 또는 worker 가 살아있지 않은 stub 은 history 로만 보존.
       runtime.runHistory = [recovered, ...runtime.runHistory.filter((item) => item?.id !== runId)].slice(0, 20);
     } else {
@@ -2157,7 +2311,8 @@ async function mutateRuntimeRun(runId, mutator, options = {}) {
     runtime.runHistory = runtime.runHistory.map((item) => (item.id === runId ? nextRun : item));
   }
 
-  return writeRuntime(runtime);
+  return writeRuntimeNoLock(runtime);
+  });
 }
 
 // ---------------------------------------------------------------------------
@@ -2751,7 +2906,7 @@ export async function appendRunEvent(runId, event, handoff = null) {
   return mutateRuntimeRun(
     runId,
     (run) => ({ ...run, events: cappedEvents(run.events, nextEvent) }),
-    handoff || {},
+    { recoverActive: true, ...(handoff || {}) },
   );
 }
 
@@ -2868,38 +3023,42 @@ export async function pushNotification({
   projectId = "",
 } = {}) {
   if (!title && !message) return;
-  const runtime = await readRuntime();
-  const settings = normalizeSettings(runtime.settings);
-  if (!settings.notifyEnabled) return;
-  const entry = {
-    id: `notif-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
-    kind: String(kind || "info"),
-    title: String(title || "").slice(0, 200),
-    message: String(message || "").slice(0, 800),
-    runId: String(runId || ""),
-    projectId: String(projectId || ""),
-    at: Date.now(),
-    delivered: false,
-  };
-  const prev = Array.isArray(runtime.notifications) ? runtime.notifications : [];
-  runtime.notifications = [entry, ...prev].slice(0, 40);
-  await writeRuntime(runtime);
+  // 별도 webhook payload 를 잠금 밖에서 만들 수 있도록 entry 만 atomic 으로 추가.
+  let webhookEntry = null;
+  let webhookUrl = "";
+  await mutateRuntime((runtime) => {
+    const settings = normalizeSettings(runtime.settings);
+    if (!settings.notifyEnabled) return null;
+    webhookUrl = settings.notifyWebhookUrl || "";
+    const entry = {
+      id: `notif-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
+      kind: String(kind || "info"),
+      title: String(title || "").slice(0, 200),
+      message: String(message || "").slice(0, 800),
+      runId: String(runId || ""),
+      projectId: String(projectId || ""),
+      at: Date.now(),
+      delivered: false,
+    };
+    const prev = Array.isArray(runtime.notifications) ? runtime.notifications : [];
+    runtime.notifications = [entry, ...prev].slice(0, 40);
+    webhookEntry = entry;
+    return runtime;
+  });
 
-  // 외부 webhook — 본인이 등록한 ntfy/Discord/Slack 같은 푸시 채널.
-  // ntfy.sh: plain text body + Title 헤더로 충분 (priority=high 면 잠금화면 푸시).
-  // Discord webhook: { content } JSON, Slack incoming webhook: { text } JSON.
-  // URL 호스트로 자동 분기.
-  if (settings.notifyWebhookUrl) {
+  // 외부 webhook — atomic mutation 잠금 밖에서 처리. fetch 가 느려도 다른 writer 를
+  // 막지 않는다. ntfy.sh: plain text body + Title 헤더로 충분. Discord webhook:
+  // { content } JSON, Slack: { text } JSON. URL 호스트로 자동 분기.
+  if (webhookEntry && webhookUrl) {
     try {
-      const url = settings.notifyWebhookUrl;
-      const isNtfy = /ntfy\.(sh|io)/i.test(url);
-      const isDiscord = /discord\.com\/api\/webhooks/i.test(url);
+      const isNtfy = /ntfy\.(sh|io)/i.test(webhookUrl);
+      const isDiscord = /discord\.com\/api\/webhooks/i.test(webhookUrl);
       const headers = { "Content-Type": "application/json" };
       let body;
       if (isNtfy) {
-        body = `${entry.title}\n\n${entry.message}`;
+        body = `${webhookEntry.title}\n\n${webhookEntry.message}`;
         headers["Content-Type"] = "text/plain; charset=utf-8";
-        headers["Title"] = encodeNtfyHeader(entry.title);
+        headers["Title"] = encodeNtfyHeader(webhookEntry.title);
         headers["Priority"] = kind === "awaiting" || kind === "blocked" || kind === "error" ? "high" : "default";
         headers["Tags"] = kind === "completed" ? "white_check_mark"
           : kind === "awaiting" ? "question"
@@ -2907,14 +3066,14 @@ export async function pushNotification({
           : kind === "error" ? "warning"
           : "bell";
       } else if (isDiscord) {
-        body = JSON.stringify({ content: `**[${kind}] ${entry.title}**\n${entry.message}` });
+        body = JSON.stringify({ content: `**[${kind}] ${webhookEntry.title}**\n${webhookEntry.message}` });
       } else {
         // Slack incoming webhook 또는 일반 JSON 호환
-        body = JSON.stringify({ text: `*[${kind}] ${entry.title}*\n${entry.message}` });
+        body = JSON.stringify({ text: `*[${kind}] ${webhookEntry.title}*\n${webhookEntry.message}` });
       }
       const controller = new AbortController();
       const timeout = setTimeout(() => controller.abort(), 5000);
-      await fetch(url, { method: "POST", body, headers, signal: controller.signal })
+      await fetch(webhookUrl, { method: "POST", body, headers, signal: controller.signal })
         .catch(() => { /* webhook 실패는 silent */ })
         .finally(() => clearTimeout(timeout));
     } catch {

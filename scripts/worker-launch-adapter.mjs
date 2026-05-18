@@ -1957,12 +1957,18 @@ async function writeMetadata(run, files, adapter) {
     generatedAt: nowIso(),
     runId: run.id,
     workerId: run.workerId,
+    projectId: run.projectId || "",
+    projectPath: adapter.workspace || "",
     accountId: run.routing?.accountId || "",
+    provider: run.routing?.provider || "",
+    model: run.routing?.model || "",
+    reasoningEffort: run.routing?.reasoningEffort || "",
     sessionProfile: run.routing?.sessionProfile || "",
     mode: adapter.mode,
     promptPath: relativePath(files.promptPath),
     launchLogPath: relativePath(files.launchLogPath),
     validationLogPath: relativePath(files.validationLogPath),
+    lastMessagePath: relativePath(files.lastMessagePath),
     sessionDir: adapter.sessionDir ? relativePath(adapter.sessionDir) : "",
   };
   await writeFile(files.metadataPath, `${JSON.stringify(payload, null, 2)}\n`, "utf8");
