@@ -108,6 +108,14 @@ function normalizeSettings(raw) {
   const notifyEnabled = source.notifyEnabled === undefined
     ? true
     : Boolean(source.notifyEnabled);
+  // in-app toast — 카톡식 우측 하단 짧은 팝업. 기본 ON. 사용자가 끄면 OS
+  // Notification (osNotificationsEnabled) 만 받거나, 둘 다 끌 수도 있다.
+  const inAppToastEnabled = source.inAppToastEnabled === undefined
+    ? true
+    : Boolean(source.inAppToastEnabled);
+  // OS Notification — Windows Action Center 에 쌓이는 무거운 토스트. 기본 OFF.
+  // 사용자가 명시적으로 켰을 때만 발사. in-app toast 와 동시 사용 가능.
+  const osNotificationsEnabled = Boolean(source.osNotificationsEnabled);
   const lanAccessEnabled = source.lanAccessEnabled === undefined
     ? false
     : Boolean(source.lanAccessEnabled);
@@ -132,6 +140,8 @@ function normalizeSettings(raw) {
     strictUserWait,
     notifyWebhookUrl,
     notifyEnabled,
+    inAppToastEnabled,
+    osNotificationsEnabled,
     lanAccessEnabled,
     lanAccessToken,
   };

@@ -351,6 +351,169 @@ async function createMainWindow() {
 // 필요 같은 이벤트를 인지할 수 있다.
 const seenNotificationIds = new Set();
 let cachedNotificationIcon = null;
+// 카톡식 in-app toast — 별도 frameless BrowserWindow 를 우측 하단에 띄워 짧은
+// 시간만 보이고 사라진다. OS Notification 토스트가 Action Center 에 쌓이고
+// 클릭 외엔 안 사라지는 무게감을 피하기 위함. 여러 개 동시에 뜨면 위로 stack.
+const TOAST_W = 360;
+const TOAST_H = 90;
+const TOAST_MARGIN = 16;
+const TOAST_GAP = 8;
+const TOAST_DEFAULT_DURATION_MS = 3000;
+const toastWindows = []; // { win, expiresAt }
+
+function escapeToastHtml(text) {
+  return String(text || "").replace(/[<>&"']/g, (c) => ({
+    "<": "&lt;", ">": "&gt;", "&": "&amp;", "\"": "&quot;", "'": "&#39;",
+  }[c]));
+}
+
+function findToastSlot() {
+  // 0..N 중 비어 있는 가장 낮은 슬롯. 사라진 토스트가 남긴 빈 자리를 재활용.
+  const used = new Set(toastWindows.map((entry) => entry.slot));
+  for (let i = 0; i < 8; i += 1) if (!used.has(i)) return i;
+  return toastWindows.length;
+}
+
+async function showInAppToast({ title = "", message = "", kind = "info", durationMs = TOAST_DEFAULT_DURATION_MS } = {}) {
+  if (!app.isReady() || !title && !message) return null;
+  try {
+    const display = screen.getPrimaryDisplay();
+    const wa = display.workArea;
+    const slot = findToastSlot();
+    const x = wa.x + wa.width - TOAST_W - TOAST_MARGIN;
+    const y = wa.y + wa.height - TOAST_H - TOAST_MARGIN - slot * (TOAST_H + TOAST_GAP);
+
+    const win = new BrowserWindow({
+      width: TOAST_W,
+      height: TOAST_H,
+      x, y,
+      frame: false,
+      transparent: true,
+      resizable: false,
+      movable: false,
+      minimizable: false,
+      maximizable: false,
+      skipTaskbar: true,
+      alwaysOnTop: true,
+      focusable: false,
+      // 사용자가 카드 클릭 시 메인 창 띄우기 위해 mouse events 받아야 함.
+      // hasShadow 끄고 transparent + frame 없이 깔끔한 그림자는 CSS 로.
+      hasShadow: false,
+      show: false,
+      title: "AgentApp toast",
+      webPreferences: {
+        contextIsolation: true,
+        nodeIntegration: false,
+        sandbox: true,
+        // 사용자 입력 캡처 안 함 — 단순 표시용.
+        spellcheck: false,
+      },
+    });
+    win.setAlwaysOnTop(true, "screen-saver");
+    win.setVisibleOnAllWorkspaces(true, { visibleOnFullScreen: true });
+
+    const entry = { win, slot, createdAt: Date.now() };
+    toastWindows.push(entry);
+
+    const kindClass = ["info", "completed", "blocked", "awaiting", "error", "warn", "pending"].includes(String(kind))
+      ? String(kind)
+      : "info";
+    const html = `<!doctype html><html><head><meta charset="utf-8"><style>
+* { box-sizing: border-box; }
+html, body { margin: 0; padding: 0; background: transparent; overflow: hidden; user-select: none; -webkit-user-select: none; cursor: pointer; }
+body { font-family: 'Segoe UI', -apple-system, BlinkMacSystemFont, sans-serif; color: #1f2937; }
+.card {
+  margin: 6px 8px;
+  padding: 11px 13px 12px;
+  border-radius: 11px;
+  background: linear-gradient(180deg, #ffffff 0%, #fafbfc 100%);
+  box-shadow: 0 10px 26px rgba(15, 23, 42, 0.18), 0 2px 8px rgba(15, 23, 42, 0.08);
+  border: 1px solid #e2e8f0;
+  display: flex; gap: 10px;
+  align-items: flex-start;
+  animation: slideIn 0.22s ease-out;
+}
+.card.closing { animation: slideOut 0.22s ease-in forwards; }
+.iconBox {
+  flex: 0 0 auto;
+  width: 24px; height: 24px;
+  border-radius: 6px;
+  display: flex; align-items: center; justify-content: center;
+  font-weight: 700; font-size: 14px;
+  margin-top: 1px;
+}
+.kind-completed .iconBox { background: #d1fae5; color: #047857; }
+.kind-blocked .iconBox   { background: #fef3c7; color: #b45309; }
+.kind-error .iconBox     { background: #fee2e2; color: #b91c1c; }
+.kind-warn .iconBox      { background: #fef3c7; color: #b45309; }
+.kind-awaiting .iconBox  { background: #e0e7ff; color: #4338ca; }
+.kind-pending .iconBox   { background: #e2e8f0; color: #475569; }
+.kind-info .iconBox      { background: #dbeafe; color: #1d4ed8; }
+.body { flex: 1; min-width: 0; }
+.title {
+  font-weight: 600; font-size: 12.5px; color: #0f172a;
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+}
+.message {
+  margin-top: 2px;
+  font-size: 11.5px; color: #475569;
+  line-height: 1.35;
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+@keyframes slideIn  { from { transform: translateX(110%); opacity: 0; } to { transform: translateX(0); opacity: 1; } }
+@keyframes slideOut { from { transform: translateX(0); opacity: 1; } to { transform: translateX(110%); opacity: 0; } }
+</style></head><body>
+<div class="card kind-${kindClass}" id="card">
+  <div class="iconBox">${kindClass === "completed" ? "✓" : kindClass === "blocked" || kindClass === "warn" ? "⏸" : kindClass === "error" ? "✗" : kindClass === "awaiting" ? "❓" : kindClass === "pending" ? "⋯" : "•"}</div>
+  <div class="body">
+    <div class="title">${escapeToastHtml(title)}</div>
+    ${message ? `<div class="message">${escapeToastHtml(message)}</div>` : ""}
+  </div>
+</div>
+<script>
+// 카드 클릭 → 메인 창 열기 요청 (frameless + focusable:false 라 IPC 대신 단순 비콘 file URL 변경으로 호스트에 신호)
+document.body.addEventListener('click', () => {
+  // 이 창은 focusable:false 라 location 변경이 가장 단순한 신호.
+  window.location.hash = '#open-main';
+});
+</script>
+</body></html>`;
+
+    await win.loadURL(`data:text/html;charset=utf-8,${encodeURIComponent(html)}`).catch(() => {});
+    // hash 변경을 메인 프로세스가 감지해서 mainWindow 열기.
+    win.webContents.on("did-navigate-in-page", (_event, url) => {
+      try {
+        if (url && url.includes("#open-main")) {
+          if (mainWindow && !mainWindow.isDestroyed()) {
+            if (mainWindow.isMinimized()) mainWindow.restore();
+            mainWindow.show();
+            mainWindow.focus();
+          }
+        }
+      } catch { /* best-effort */ }
+    });
+    win.showInactive(); // 포커스 안 뺏기
+
+    const closeAndRemove = () => {
+      if (win.isDestroyed()) return;
+      win.webContents.executeJavaScript("(()=>{const c=document.getElementById('card');if(c)c.classList.add('closing');})()").catch(() => {});
+      setTimeout(() => {
+        try { if (!win.isDestroyed()) win.close(); } catch { /* ignore */ }
+        const idx = toastWindows.indexOf(entry);
+        if (idx >= 0) toastWindows.splice(idx, 1);
+      }, 240);
+    };
+    setTimeout(closeAndRemove, Math.max(800, Number(durationMs) || TOAST_DEFAULT_DURATION_MS));
+    return entry;
+  } catch (error) {
+    process.stderr.write(`[in-app-toast] show failed: ${error?.message || error}\n`);
+    return null;
+  }
+}
+
 async function getNotificationIcon() {
   if (cachedNotificationIcon !== null) return cachedNotificationIcon || undefined;
   try {
@@ -400,10 +563,33 @@ async function bootstrapNotificationDispatcher() {
       const mod = await import("../../scripts/dashboard-runtime.mjs");
       const runtime = await mod.readRuntime();
       const notifs = Array.isArray(runtime.notifications) ? runtime.notifications : [];
+      // 사용자 설정: 기본은 in-app toast(카톡식 우측하단 짧은 팝업)만 ON, OS
+      // Notification 은 OFF. 둘 다 켜고 싶으면 설정에서 osNotificationsEnabled.
+      const settings = runtime.settings || {};
+      const inAppToastEnabled = settings.inAppToastEnabled !== false; // default true
+      const osNotificationsEnabled = Boolean(settings.osNotificationsEnabled); // default false
       for (const n of notifs) {
         if (!n?.id || seenNotificationIds.has(n.id)) continue;
         seenNotificationIds.add(n.id);
-        if (osSupported) {
+        if (inAppToastEnabled) {
+          // 카톡식 in-app toast — 우측 하단에 3 초간 떴다 사라짐. critical 은 더 길게.
+          const urgent = n.kind === "awaiting" || n.kind === "blocked" || n.kind === "error";
+          void showInAppToast({
+            title: String(n.title || "AgentApp"),
+            message: String(n.message || ""),
+            kind: String(n.kind || "info"),
+            durationMs: urgent ? 5000 : 3000,
+          });
+          void appendNotifyDebug({
+            at: Date.now(),
+            stage: "in_app_toast",
+            ok: true,
+            notifId: n.id,
+            kind: n.kind,
+            title: String(n.title || "").slice(0, 80),
+          });
+        }
+        if (osSupported && osNotificationsEnabled) {
           try {
             const urgency = n.kind === "awaiting" || n.kind === "blocked" || n.kind === "error" ? "critical" : "normal";
             const icon = await getNotificationIcon();
