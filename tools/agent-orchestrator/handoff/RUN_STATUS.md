@@ -977,3 +977,12 @@ NEXT_TASK.md 템플릿 확정: agent-next 생성물을 Required Reads, Execution
 - Git: not recorded
 - Decisions: none
 - Next: 자동 업데이트 릴리즈 적용 후 설치 앱에서 Codex 계정이 Plus · 사용 가능으로 보이는지 확인
+
+## 2026-05-19T03:13:34.669Z
+
+- Status: completed
+- Summary: Codex quota 표시/로컬 reset 시간 수정 커밋을 main에 push했고, 자동 업데이트용 v0.10.3 NSIS 릴리즈를 발행했다. GitHub Release에는 NSIS setup, blockmap, latest.yml이 업로드됐다.
+- Verification: pnpm validate; pnpm dashboard:build; Browser quota UI check; gh release view v0.10.3
+- Git: not recorded
+- Decisions: none
+- Next: 설치 앱 업데이트 적용 후 계정 화면에서 Codex는 Plus · 사용 가능, Claude만 reset 시각 포함 잠금으로 보이는지 확인
