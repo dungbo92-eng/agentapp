@@ -968,3 +968,12 @@ NEXT_TASK.md 템플릿 확정: agent-next 생성물을 Required Reads, Execution
 - Git: not recorded
 - Decisions: none
 - Next: See tools/agent-orchestrator/handoff/NEXT_TASK.md
+
+## 2026-05-19T03:10:01.363Z
+
+- Status: completed
+- Summary: Codex 계정이 실제로는 사용 가능한데 소진처럼 보이던 quota 표시를 정리했다. 잠긴 계정만 사용 가능 수에서 제외하고, Codex의 timezone 없는 try again at 시간은 로컬 시간으로 해석하도록 수정했다.
+- Verification: pnpm validate; pnpm dashboard:build; Browser quota UI check
+- Git: not recorded
+- Decisions: none
+- Next: 자동 업데이트 릴리즈 적용 후 설치 앱에서 Codex 계정이 Plus · 사용 가능으로 보이는지 확인

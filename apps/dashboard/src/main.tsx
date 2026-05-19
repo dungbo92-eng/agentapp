@@ -1734,6 +1734,25 @@ function profileFor(account: ManagedAccount, complexity: string) {
   return account.modelProfiles?.[key];
 }
 
+function isAccountQuotaLocked(account: ManagedAccount) {
+  if (!account.quotaResetAt) return false;
+  const resetMs = Date.parse(account.quotaResetAt);
+  return Number.isFinite(resetMs) && resetMs > Date.now();
+}
+
+function hasAccountIdentityMismatch(account: ManagedAccount) {
+  const expected = String(account.email || "").trim().toLowerCase();
+  const actual = String(account.actualAuthEmail || "").trim().toLowerCase();
+  return Boolean(expected && actual && expected !== actual);
+}
+
+function isAccountUsable(account: ManagedAccount) {
+  return account.enabled !== false
+    && account.sessionStatus === "ready"
+    && !hasAccountIdentityMismatch(account)
+    && !isAccountQuotaLocked(account);
+}
+
 function recommendLocalRoute(
   accounts: ManagedAccount[],
   complexity: string,
@@ -1748,15 +1767,8 @@ function recommendLocalRoute(
     .filter((account) => account.enabled !== false)
     .filter((account) => account.sessionStatus === "ready")
     .filter((account) => {
-      // OAuth 신원 mismatch 계정 제외
-      const expected = String(account.email || "").trim().toLowerCase();
-      const actual = String(account.actualAuthEmail || "").trim().toLowerCase();
-      if (expected && actual && expected !== actual) return false;
-      // quotaResetAt 미래 계정 제외
-      if (account.quotaResetAt) {
-        const resetMs = Date.parse(account.quotaResetAt);
-        if (Number.isFinite(resetMs) && resetMs > Date.now()) return false;
-      }
+      if (hasAccountIdentityMismatch(account)) return false;
+      if (isAccountQuotaLocked(account)) return false;
       return true;
     })
     .filter((account) => !explicitProvider || account.provider === explicitProvider)
@@ -1799,13 +1811,7 @@ function routeBlockMessage(accounts: ManagedAccount[], workerId: string) {
   const matching = accounts.filter((account) => (!provider || account.provider === provider) && account.modelProfiles);
   const enabled = matching.filter((account) => account.enabled !== false);
   const ready = enabled.filter((account) => account.sessionStatus === "ready");
-  const usable = ready.filter((account) => {
-    const expected = String(account.email || "").trim().toLowerCase();
-    const actual = String(account.actualAuthEmail || "").trim().toLowerCase();
-    if (expected && actual && expected !== actual) return false;
-    if (account.quotaResetAt && new Date(account.quotaResetAt).getTime() > Date.now()) return false;
-    return true;
-  });
+  const usable = ready.filter(isAccountUsable);
 
   if (matching.length === 0) return "이 작업 도구에 연결된 계정이 없습니다.";
   if (enabled.length === 0) return "사용 가능한 계정이 없습니다. 토글을 켜 주세요.";
@@ -2362,7 +2368,7 @@ function App() {
   }));
   const accounts = uniqById([...configuredAccounts, ...runtime.accounts]);
   const localAccounts = runtime.accounts;
-  const readyLocalAccounts = localAccounts.filter((account) => account.enabled !== false && account.sessionStatus === "ready");
+  const usableLocalAccounts = localAccounts.filter(isAccountUsable);
   // 프로젝트 최근 사용 이력 (lastWorker / lastModel) 을 라우팅 힌트로 전달
   // 해서 UI 미리보기와 백엔드 startRun 의 실제 라우팅이 같은 후보를 고르도록.
   const selectedProjectRow = runtime.projects.find((project) => project.id === selectedProject);
@@ -3189,18 +3195,16 @@ function App() {
           <div className="runtimeStatus">{runtimeStatus}</div>
           <div className="setupStrip">
             <strong>
-              {readyLocalAccounts.length}/{localAccounts.length}
+              {usableLocalAccounts.length}/{localAccounts.length}
             </strong>
-            <span>준비된 세션 프로필 수</span>
+            <span>사용 가능한 계정 수</span>
           </div>
           <div className="accountList">
             {localAccounts.length === 0 ? (
               <p className="emptyState">로컬 계정이 없습니다. 계정 추가 후 공식 도구에서 인증을 완료하면 실행 후보에 들어갑니다.</p>
             ) : null}
             {accounts.map((account) => {
-              const isQuotaLocked = Boolean(
-                account.quotaResetAt && new Date(account.quotaResetAt).getTime() > Date.now(),
-              );
+              const isQuotaLocked = isAccountQuotaLocked(account);
               return (
                 <article
                   className={`accountItem ${isQuotaLocked ? "usage-critical" : "usage-ok"} ${account.enabled === false ? "disabled" : ""}`}
@@ -3283,9 +3287,9 @@ function App() {
                   ) : account.actualAuthEmail ? (
                     <small className="identityOk">✓ 인증: {account.actualAuthEmail}</small>
                   ) : null}
-                  {account.quotaResetAt && new Date(account.quotaResetAt).getTime() > Date.now() ? (
+                  {isQuotaLocked ? (
                     <small className="quotaLockout" role="alert">
-                      <span>⏳ 사용량 한도 — <strong>{new Date(account.quotaResetAt).toLocaleString("ko-KR")}</strong> 까지 자동 잠금</span>
+                      <span>⏳ 사용량 한도 — <strong>{new Date(account.quotaResetAt!).toLocaleString("ko-KR")}</strong> 까지 자동 잠금</span>
                       <button
                         type="button"
                         className="probeBtn"
@@ -3315,8 +3319,11 @@ function App() {
                   {account.sessionDetectionReason ? (
                     <small className="detectionReason">{account.sessionDetectionReason}</small>
                   ) : null}
-                  <small className="planRow">
-                    {planLabel(account.plan)} · 한도 도달 시 자동 잠금
+                  <small
+                    className="planRow"
+                    title="provider 가 실제 한도 메시지를 보낸 경우에만 reset 시각까지 자동 잠금됩니다."
+                  >
+                    {planLabel(account.plan)} · {isQuotaLocked ? "현재 잠금" : "사용 가능"}
                   </small>
                 </article>
               );
@@ -3724,7 +3731,7 @@ function App() {
                 run={activeRunForSelectedProject}
                 now={now}
                 onQuickSwitch={(targetId) => void quickSwitchAccount(targetId)}
-                readyAccounts={readyLocalAccounts}
+                readyAccounts={usableLocalAccounts}
               />
             ) : activeRun ? (
               <p className="empty">
@@ -4143,24 +4150,25 @@ function App() {
             </button>
           </div>
           {(() => {
-            const ready = accounts.filter((a) => a.sessionStatus === "ready" && a.enabled !== false);
-            const locked = accounts.filter(
-              (a) => a.quotaResetAt && new Date(a.quotaResetAt).getTime() > Date.now(),
-            );
+            const usable = accounts.filter(isAccountUsable);
+            const locked = accounts.filter(isAccountQuotaLocked);
+            const lockedSummary = locked
+              .map((account) => `${providerLabel(account.provider)} ${new Date(account.quotaResetAt!).toLocaleTimeString("ko-KR", { hour: "2-digit", minute: "2-digit" })}`)
+              .join(", ");
             return (
               <>
                 <strong className="bigNumber" data-flash="changed">
-                  <AnimatedNumber value={ready.length} />
+                  <AnimatedNumber value={usable.length} />
                   <span className="bigNumberDivider">/</span>
                   <AnimatedNumber value={accounts.length} />
                 </strong>
                 <span>사용 가능한 계정</span>
                 {locked.length > 0 ? (
                   <small style={{ color: "#b45309" }}>
-                    ⏳ 한도 잠금 {locked.length}개 (자동 reset 대기)
+                    ⏳ 한도 잠금 {locked.length}개: {lockedSummary}
                   </small>
                 ) : (
-                  <small>실제 한도 도달 시 자동 잠금 → reset 시각 지나면 자동 복귀</small>
+                  <small>provider 한도 메시지가 오면 reset 시각까지만 잠금</small>
                 )}
                 <small>동기화 {lastRuntimeSyncAt || "대기"}</small>
               </>

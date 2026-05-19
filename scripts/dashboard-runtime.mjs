@@ -2474,6 +2474,15 @@ function offsetMinutesFromString(offset) {
   return (om[1] === "-" ? -1 : 1) * (Number(om[2]) * 60 + Number(om[3]));
 }
 
+function localTimezoneOffsetString(referenceMs = Date.now()) {
+  const minutes = -new Date(referenceMs).getTimezoneOffset();
+  const sign = minutes < 0 ? "-" : "+";
+  const abs = Math.abs(minutes);
+  const hh = String(Math.floor(abs / 60)).padStart(2, "0");
+  const mm = String(abs % 60).padStart(2, "0");
+  return `${sign}${hh}:${mm}`;
+}
+
 // Detect a timezone hint anywhere on the line ("Asia/Seoul", "KST", ...) and
 // return the corresponding offset string ("+09:00") or "" if none recognized.
 // IMPORTANT: substring 매칭은 "request" 안의 "est" 같은 false positive 를 만든다.
@@ -2639,7 +2648,7 @@ function resolveCandidate(candidate, tzOffset) {
 export function parseQuotaReset(rawLine, providerHint = "") {
   if (!rawLine || typeof rawLine !== "string") return null;
   const cleaned = rawLine.replace(/[()]/g, " ");
-  const tzOffset = detectTzOffset(cleaned);
+  const tzOffset = detectTzOffset(cleaned) || localTimezoneOffsetString();
 
   // Provider-specific 우선 매칭
   const provider = String(providerHint || "").trim().toLowerCase();

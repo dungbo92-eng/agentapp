@@ -28,6 +28,19 @@ const { detectInterruption, interpretClaudeStreamLine } = await import("./worker
 
 Date.now = () => fixedNow;
 
+function localClockIso(hour, minute, dayOffset = 0) {
+  const base = new Date(fixedNow);
+  return new Date(
+    base.getFullYear(),
+    base.getMonth(),
+    base.getDate() + dayOffset,
+    hour,
+    minute,
+    0,
+    0,
+  ).toISOString();
+}
+
 const cases = [
   {
     name: "claude month-date reset",
@@ -52,6 +65,12 @@ const cases = [
     line: "ERROR: rate_limit_exceeded",
     provider: "codex",
     expected: "2026-05-13T01:00:00.000Z",
+  },
+  {
+    name: "codex local wall-clock reset",
+    line: "ERROR: You've hit your usage limit. Upgrade to Pro, visit settings/usage or try again at 7:09 PM.",
+    provider: "codex",
+    expected: localClockIso(19, 9),
   },
   {
     name: "codex doc rate-limit phrase ignored",
