@@ -66,5 +66,9 @@ contextBridge.exposeInMainWorld("agentapp", {
     // HTML/text 를 markdown 으로 변환해 반환. 엑셀/구글 시트의 셀 영역을 복사한
     // 경우 HTML <table> 이 들어 있어 markdown table 로 변환된다.
     asMarkdown: () => ipcRenderer.invoke("agentapp:clipboard-as-markdown"),
+    // 임의 파일 (PDF/엑셀/docx/이미지 등) 첨부 — drag-drop / Explorer 에서
+    // Ctrl+C 후 prompt 에 Ctrl+V 한 파일 모두 이 IPC 로 저장된다. base64
+    // 인코딩 payload 로 받는다.
+    saveAttachment: (payload) => ipcRenderer.invoke("agentapp:save-attachment", payload || {}),
   },
 });

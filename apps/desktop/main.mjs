@@ -1050,6 +1050,47 @@ function htmlTableToMarkdown(html) {
   return lines.join("\n");
 }
 
+// 임의 파일 첨부 — renderer 가 drag-drop 또는 paste 로 받은 File 객체의
+// arrayBuffer 를 보내면 userData/clipboard-attachments/ 에 저장하고 absolute
+// path 반환. PDF/엑셀/docx/이미지 등 종류 무관. worker (claude/codex) 가 그
+// 경로를 Read tool / Bash 로 처리.
+//
+// payload: { bufferBase64: string, filename: string, mimeType?: string }
+//   - 큰 binary 를 IPC 로 안전하게 보내려면 base64 가 가장 안정적. ArrayBuffer 자체도
+//     Electron 이 serialize 하지만 ChannelHost 의 일부 환경에서 잘림 사례 있어 base64 로.
+ipcMain.handle("agentapp:save-attachment", async (_event, payload = {}) => {
+  try {
+    const bufferBase64 = String(payload?.bufferBase64 || "");
+    if (!bufferBase64) return { ok: false, reason: "no_buffer" };
+    const rawName = String(payload?.filename || "attachment").trim();
+    // 보안: filename 에서 경로 분리자/제어문자 제거. 알려진 확장자만 허용 X — 모든 확장자 OK.
+    const safeName = rawName.replace(/[\\/:*?"<>|\x00-\x1f]/g, "_").slice(0, 120) || "attachment";
+    const buffer = Buffer.from(bufferBase64, "base64");
+    if (buffer.length === 0) return { ok: false, reason: "empty_buffer" };
+    // 크기 상한 — 100 MB. 그보다 크면 사용자가 별도 경로로 worker 에 알리는 게 낫다.
+    const MAX_ATTACHMENT_BYTES = 100 * 1024 * 1024;
+    if (buffer.length > MAX_ATTACHMENT_BYTES) {
+      return { ok: false, reason: "too_large", size: buffer.length, maxSize: MAX_ATTACHMENT_BYTES };
+    }
+    const dir = path.join(app.getPath("userData"), "clipboard-attachments");
+    await mkdir(dir, { recursive: true });
+    const stamp = new Date().toISOString().replace(/[:.]/g, "-");
+    // 충돌 방지: timestamp prefix.
+    const filename = `${stamp}_${safeName}`;
+    const fullPath = path.join(dir, filename);
+    await writeFile(fullPath, buffer);
+    return {
+      ok: true,
+      path: fullPath,
+      filename,
+      size: buffer.length,
+      mimeType: String(payload?.mimeType || ""),
+    };
+  } catch (error) {
+    return { ok: false, reason: error?.message || String(error) };
+  }
+});
+
 ipcMain.handle("agentapp:clipboard-as-markdown", () => {
   try {
     const html = clipboard.readHTML() || "";

@@ -1890,6 +1890,14 @@ label {
   font-size: 0.9rem;
 }
 
+/* 드래그 드롭 시 textarea 외곽 강조 — 사용자가 파일을 끌어 왔을 때 시각 피드백. */
+textarea.dropActive {
+  outline: 2px dashed #2563eb;
+  outline-offset: -2px;
+  background: rgba(37, 99, 235, 0.05);
+  transition: background 0.12s ease, outline-color 0.12s ease;
+}
+
 .routeStrip {
   display: flex;
   align-items: center;

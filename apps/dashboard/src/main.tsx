@@ -1848,53 +1848,106 @@ function App() {
   const [lastRuntimeSyncAt, setLastRuntimeSyncAt] = React.useState("");
   const [prompt, setPrompt] = React.useState("");
 
-  // 클립보드 paste — 이미지/엑셀 테이블이 들어오면 main 으로 IPC 보내서 처리.
-  // 이미지: PNG 로 userData/clipboard-attachments/ 저장 → prompt 본문에 절대 경로
-  // placeholder 삽입 → worker (claude/codex) 가 Read tool 로 읽어 분석.
-  // 엑셀/구글 시트 셀 영역: HTML <table> → main 에서 markdown table 변환 → 삽입.
-  const handlePromptPaste = React.useCallback(async (event: React.ClipboardEvent<HTMLTextAreaElement>) => {
-    if (!desktopApi?.clipboard) return; // 데스크탑 아니면 native paste.
-    const cd = event.clipboardData;
-    if (!cd) return;
-    const types = Array.from(cd.types || []);
-    const hasFile = Array.from(cd.items || []).some((it) => it.kind === "file" && it.type.startsWith("image/"));
-    const hasHtmlTable = types.includes("text/html") && /<table[\s>]/i.test(cd.getData("text/html") || "");
-    if (!hasFile && !hasHtmlTable) return; // 일반 텍스트 — native paste 에 위임.
+  // textarea 드래그 오버 시각 상태.
+  const [promptDropActive, setPromptDropActive] = React.useState(false);
 
-    event.preventDefault();
-    const target = event.currentTarget;
-    const start = target.selectionStart ?? prompt.length;
-    const end = target.selectionEnd ?? prompt.length;
-    const insertAt = (insertion: string) => {
-      const next = prompt.slice(0, start) + insertion + prompt.slice(end);
-      setPrompt(next);
-      // 커서를 삽입한 끝으로.
-      requestAnimationFrame(() => {
-        try {
-          const pos = start + insertion.length;
-          target.setSelectionRange(pos, pos);
-          target.focus();
-        } catch { /* best-effort */ }
-      });
-    };
-
-    try {
-      if (hasFile) {
-        const result = await desktopApi.clipboard.saveImage({ label: "prompt" });
+  // 공통 — 임의 file을 base64 로 변환해 main 에 저장하고 prompt 에 placeholder 삽입.
+  // PDF/엑셀/docx/png/jpg 등 종류 무관. 이미지면 차원 정보도 placeholder 에 포함.
+  const saveFilesToPrompt = React.useCallback(async (files: File[], targetEl: HTMLTextAreaElement | null) => {
+    if (!desktopApi?.clipboard?.saveAttachment) {
+      setToast({ kind: "warn", message: "데스크탑 환경에서만 첨부 가능합니다." });
+      return;
+    }
+    if (!files.length) return;
+    const insertions: string[] = [];
+    for (const file of files) {
+      try {
+        // 파일 크기 가드 — IPC 로 보내기 전.
+        if (file.size > 100 * 1024 * 1024) {
+          setToast({ kind: "warn", message: `파일이 너무 큼: ${file.name} (${Math.round(file.size / 1024 / 1024)}MB > 100MB)` });
+          continue;
+        }
+        const buffer = await file.arrayBuffer();
+        // ArrayBuffer → base64 (IPC 안전 전송).
+        const bytes = new Uint8Array(buffer);
+        let binary = "";
+        const chunk = 0x8000;
+        for (let i = 0; i < bytes.length; i += chunk) {
+          binary += String.fromCharCode.apply(null, Array.from(bytes.subarray(i, Math.min(i + chunk, bytes.length))));
+        }
+        const bufferBase64 = btoa(binary);
+        const result = await desktopApi.clipboard.saveAttachment({
+          bufferBase64,
+          filename: file.name || "attachment",
+          mimeType: file.type || "",
+        });
         if (result?.ok && result.path) {
           const sizeKb = Math.round((result.size || 0) / 1024);
-          const dims = result.width && result.height ? ` ${result.width}x${result.height}` : "";
-          insertAt(`\n[클립보드 이미지${dims} ${sizeKb}KB: ${result.path}]\n`);
-          setToast({ kind: "info", message: `이미지 첨부됨: ${result.filename}` });
+          const kindLabel = file.type
+            ? file.type.startsWith("image/") ? "이미지" : file.type.startsWith("application/pdf") ? "PDF" : file.type.includes("spreadsheet") || file.type.includes("excel") ? "엑셀" : "파일"
+            : "파일";
+          insertions.push(`[첨부 ${kindLabel} ${result.filename} ${sizeKb}KB: ${result.path}]`);
         } else {
-          setToast({ kind: "warn", message: `이미지 첨부 실패: ${result?.reason || "unknown"}` });
+          setToast({ kind: "warn", message: `첨부 실패: ${file.name} — ${result?.reason || "unknown"}` });
         }
+      } catch (caught) {
+        setToast({ kind: "warn", message: `${file.name} 처리 실패: ${caught instanceof Error ? caught.message : caught}` });
+      }
+    }
+    if (insertions.length > 0 && targetEl) {
+      const start = targetEl.selectionStart ?? prompt.length;
+      const end = targetEl.selectionEnd ?? prompt.length;
+      const block = `\n${insertions.join("\n")}\n`;
+      const next = prompt.slice(0, start) + block + prompt.slice(end);
+      setPrompt(next);
+      requestAnimationFrame(() => {
+        try {
+          const pos = start + block.length;
+          targetEl.setSelectionRange(pos, pos);
+          targetEl.focus();
+        } catch { /* best-effort */ }
+      });
+      setToast({ kind: "info", message: `${insertions.length}개 첨부됨` });
+    }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [prompt]);
+
+  // 클립보드 paste — 이미지/엑셀 테이블/임의 파일 모두 처리.
+  // - DataTransferItem kind="file" 은 종류 무관 첨부 (Explorer Ctrl+C 후 paste 포함).
+  // - HTML <table> 은 markdown 변환.
+  // - 그 외 텍스트는 native paste.
+  const handlePromptPaste = React.useCallback(async (event: React.ClipboardEvent<HTMLTextAreaElement>) => {
+    if (!desktopApi?.clipboard) return;
+    const cd = event.clipboardData;
+    if (!cd) return;
+    const target = event.currentTarget;
+    const fileItems = Array.from(cd.items || []).filter((it) => it.kind === "file");
+    const files = fileItems.map((it) => it.getAsFile()).filter((f): f is File => Boolean(f));
+    const hasHtmlTable = (cd.types || []).includes("text/html") && /<table[\s>]/i.test(cd.getData("text/html") || "");
+
+    if (files.length === 0 && !hasHtmlTable) return; // 일반 텍스트 — native paste.
+    event.preventDefault();
+
+    try {
+      if (files.length > 0) {
+        await saveFilesToPrompt(files, target);
         return;
       }
       if (hasHtmlTable) {
         const result = await desktopApi.clipboard.asMarkdown();
         if (result?.ok && result.markdown) {
-          insertAt(`\n${result.markdown}\n`);
+          const start = target.selectionStart ?? prompt.length;
+          const end = target.selectionEnd ?? prompt.length;
+          const block = `\n${result.markdown}\n`;
+          const next = prompt.slice(0, start) + block + prompt.slice(end);
+          setPrompt(next);
+          requestAnimationFrame(() => {
+            try {
+              const pos = start + block.length;
+              target.setSelectionRange(pos, pos);
+              target.focus();
+            } catch { /* best-effort */ }
+          });
           setToast({ kind: "info", message: result.kind === "table" ? "테이블 markdown 변환 삽입됨" : "텍스트 삽입됨" });
         } else {
           setToast({ kind: "warn", message: `테이블 변환 실패: ${result?.reason || "unknown"}` });
@@ -1903,9 +1956,43 @@ function App() {
     } catch (caught) {
       setToast({ kind: "warn", message: caught instanceof Error ? caught.message : "클립보드 처리 실패" });
     }
-  // setToast / desktopApi 는 컴포넌트 mount 이후 안정. prompt 만 의존.
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [prompt]);
+  }, [prompt, saveFilesToPrompt]);
+
+  // 드래그 드롭 — 탐색기/바탕화면에서 파일을 prompt textarea 로 드래그하면 첨부.
+  // dragOver 를 preventDefault 해야 onDrop 이 호출된다.
+  const handlePromptDragOver = React.useCallback((event: React.DragEvent<HTMLTextAreaElement>) => {
+    if (!event.dataTransfer) return;
+    const hasFiles = Array.from(event.dataTransfer.types || []).includes("Files");
+    if (!hasFiles) return;
+    event.preventDefault();
+    event.dataTransfer.dropEffect = "copy";
+    setPromptDropActive(true);
+  }, []);
+
+  const handlePromptDragLeave = React.useCallback(() => {
+    setPromptDropActive(false);
+  }, []);
+
+  const handlePromptDrop = React.useCallback(async (event: React.DragEvent<HTMLTextAreaElement>) => {
+    setPromptDropActive(false);
+    if (!event.dataTransfer) return;
+    const files = Array.from(event.dataTransfer.files || []);
+    if (files.length === 0) return;
+    event.preventDefault();
+    await saveFilesToPrompt(files, event.currentTarget);
+  }, [saveFilesToPrompt]);
+
+  // 창 전체로 드롭하면 Electron 이 그 파일을 navigate 하지 않게 가드.
+  React.useEffect(() => {
+    const preventDefault = (e: Event) => { e.preventDefault(); };
+    window.addEventListener("dragover", preventDefault);
+    window.addEventListener("drop", preventDefault);
+    return () => {
+      window.removeEventListener("dragover", preventDefault);
+      window.removeEventListener("drop", preventDefault);
+    };
+  }, []);
   const [complexity, setComplexity] = React.useState("auto");
   const [modelOverride, setModelOverride] = React.useState("auto");
   const [showAdvancedModel, setShowAdvancedModel] = React.useState(false);
@@ -1994,6 +2081,16 @@ function App() {
         reason?: string;
       }>;
       asMarkdown: () => Promise<{ ok: boolean; kind?: "table" | "text"; markdown?: string; reason?: string }>;
+      // 임의 파일 첨부 (drag-drop / 탐색기 Ctrl+C 후 paste / 이미지 외 파일)
+      saveAttachment: (payload: { bufferBase64: string; filename: string; mimeType?: string }) => Promise<{
+        ok: boolean;
+        path?: string;
+        filename?: string;
+        size?: number;
+        mimeType?: string;
+        reason?: string;
+        maxSize?: number;
+      }>;
     };
   } }).agentapp : undefined);
   const [appVersion, setAppVersion] = React.useState<string>("");
@@ -3070,9 +3167,13 @@ function App() {
               >
                 <textarea
                   value={prompt}
-                  placeholder={isRunning ? "실행 중" : "작업 지시 입력 — 이미지/엑셀 셀 paste 가능"}
+                  placeholder={isRunning ? "실행 중" : "작업 지시 — 파일 드래그 또는 Ctrl+V"}
                   onChange={(e) => setPrompt(e.target.value)}
                   onPaste={handlePromptPaste}
+                  onDragOver={handlePromptDragOver}
+                  onDragLeave={handlePromptDragLeave}
+                  onDrop={handlePromptDrop}
+                  className={promptDropActive ? "dropActive" : undefined}
                   disabled={isRunning}
                   aria-label="컴팩트 모드 프롬프트 입력"
                 />
@@ -3782,13 +3883,17 @@ function App() {
             <textarea
               placeholder={
                 nextTaskTitle && nextTaskTitle !== "다음 계획 작성"
-                  ? `예: ${nextTaskTitle}  (위 칩을 누르면 자동으로 채워집니다 · 이미지/엑셀 셀 paste 가능)`
-                  : "작업 지시사항을 입력하세요 — 이미지/엑셀 셀을 Ctrl+V 로 붙여 넣어도 됩니다"
+                  ? `예: ${nextTaskTitle}  (위 칩 클릭 자동 채움 · 파일 드래그/Ctrl+V 첨부 가능)`
+                  : "작업 지시사항을 입력하세요 — 이미지/PDF/엑셀 파일을 드래그하거나 Ctrl+V 로 붙여 넣어도 됩니다"
               }
-              title="에이전트가 바로 수행할 작업 지시를 입력합니다. 이미지/엑셀 셀 영역을 paste 하면 자동으로 첨부됩니다."
+              title="에이전트가 바로 수행할 작업 지시. 파일은 드래그 또는 Ctrl+V 로 첨부 가능 (이미지/PDF/엑셀/docx 등)."
               value={prompt}
               onChange={(event) => setPrompt(event.target.value)}
               onPaste={handlePromptPaste}
+              onDragOver={handlePromptDragOver}
+              onDragLeave={handlePromptDragLeave}
+              onDrop={handlePromptDrop}
+              className={promptDropActive ? "dropActive" : undefined}
             />
           </label>
 
