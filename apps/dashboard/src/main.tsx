@@ -931,6 +931,48 @@ function compactEventTime(value: string): string {
   });
 }
 
+const TERMINAL_RUN_EVENT_LABELS: Record<string, string> = {
+  completed: "작업 완료",
+  stopped: "작업 중지",
+  failed: "작업 실패",
+  interrupted: "작업 중단",
+  needs_user: "사용자 확인 필요",
+  "needs-user": "사용자 확인 필요",
+  policy_blocked: "정책 차단",
+  "policy-blocked": "정책 차단",
+  quota_limited: "한도 도달",
+  "quota-limited": "한도 도달",
+  blocked: "차단됨",
+};
+
+function terminalRunEvent(run?: RunRecord | null): NonNullable<RunRecord["events"]>[number] | null {
+  if (!run) return null;
+  const status = String(run.status || "");
+  if (!status || status === "running" || status === "queued") return null;
+  const label = TERMINAL_RUN_EVENT_LABELS[status];
+  if (!label) return null;
+  const level = status === "completed" || status === "stopped"
+    ? "info"
+    : status === "failed"
+      ? "error"
+      : "warn";
+  return {
+    at: run.completedAt || run.stoppedAt || run.events?.at(-1)?.at || run.startedAt,
+    level,
+    message: label,
+  };
+}
+
+function appendTerminalRunEvent(
+  run: RunRecord | null | undefined,
+  events: NonNullable<RunRecord["events"]>,
+): NonNullable<RunRecord["events"]> {
+  const terminal = terminalRunEvent(run);
+  if (!terminal) return events;
+  if (events.some((event) => event.message === terminal.message && event.at === terminal.at)) return events;
+  return [...events, terminal];
+}
+
 // Lightweight inline markdown renderer for the chat assistant bubble.
 // Handles: paragraph breaks, dash/asterisk bullet lists, fenced ``` blocks,
 // inline `code`, **bold**, *italic*, and [text](url) links. No external dep.
@@ -2808,10 +2850,12 @@ function App() {
       : null;
     const focusRun = activeForProject || historyForProject;
     const events = focusRun?.events || [];
-    const visibleEvents = events
-      .filter((event) => !NOISY_EVENT_RE.test(event.message))
-      .slice(-80);
+    const visibleEvents = appendTerminalRunEvent(
+      focusRun,
+      events.filter((event) => !NOISY_EVENT_RE.test(event.message)).slice(-80),
+    ).slice(-80);
     const isRunning = Boolean(activeForProject);
+    const showCurrentStatus = isRunning && Boolean(focusRun?.currentStatus);
     const projectProgress = compactSelected?.id !== "current" && projectMeta?.progress
       ? projectMeta.progress.percent
       : compactSelected?.progress ?? snapshot.progress.percent;
@@ -2922,10 +2966,10 @@ function App() {
                   </span>
                 ) : null}
               </div>
-              {focusRun?.currentStatus ? (
+              {showCurrentStatus ? (
                 <div className="compactNowDoing" title="worker 가 [STATUS] 마커로 보고한 현재 작업">
                   <span className="compactNowDoingDot" aria-hidden="true" />
-                  <span className="compactNowDoingText">{focusRun.currentStatus}</span>
+                  <span className="compactNowDoingText">{focusRun?.currentStatus}</span>
                 </div>
               ) : null}
               <form

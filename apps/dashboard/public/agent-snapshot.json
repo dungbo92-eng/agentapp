@@ -1,5 +1,5 @@
 {
-  "generated_at": "2026-05-19T01:15:52.733Z",
+  "generated_at": "2026-05-19T02:23:37.008Z",
   "repo_root": "D:\\agentApp",
   "progress": {
     "percent": 99,
@@ -563,12 +563,12 @@
       "title": "DASHBOARD_RUN.md",
       "path": "tools/agent-orchestrator/handoff/DASHBOARD_RUN.md",
       "heading": "DASHBOARD_RUN",
-      "status": "not_started",
-      "next": "",
-      "generated": "",
+      "status": "completed",
+      "next": "Open the dashboard and start a new run when needed. Compact mode should now follow runtime history instead of showing this stale handoff as in progress.",
+      "generated": "2026-05-19T02:20:17.797Z",
       "decision_count": 0,
       "line_count": 14,
-      "excerpt": "# DASHBOARD_RUN\n\n- 생성 시각: 2026-05-16T01:46:10.052Z\n- 실행 상태 파일: tools/agent-orchestrator/handoff/run-states/dashboard-current.json\n- 작업 도구: claude-code\n- 상태: running\n- 사유: in_progress\n- 계정: local-account\n- 모델: sonnet\n- 프롬프트 본문: data/dashboard-runtime.json 에만 저장\n- 비밀 포함 여부: false\n\n## 요약\n\n대시보드가 claude-code 작업을 local-account / sonnet 조합으로 시작했습니다. 어댑터 pending 상태는 queued 입니다. 프롬프트 본문은 data/dashboard-runtime.json 에만 저장됩니다.\n\n## 다음 단계\n\n대시보드에서 실행 상태, 검증 결과, 어댑터 로그를 확인하세요. 인수인계가 필요하면 여기서 중지하면 됩니다."
+      "excerpt": "# DASHBOARD_RUN\n\n- Generated: 2026-05-19T02:20:17.797Z\n- Run state file: tools/agent-orchestrator/handoff/run-states/dashboard-current.json\n- Worker: claude-code\n- Status: completed\n- Reason: completed\n- Account: local-account\n- Model: sonnet\n- Prompt body: stored only in data/dashboard-runtime.json\n- Contains secrets: false\n\n## Summary\n\nThe dashboard runtime has no active run, so the stale run-state that remained marked as running was normalized to completed.\n\n## Next Step\n\nOpen the dashboard and start a new run when needed. Compact mode should now follow runtime history instead of showing this stale handoff as in progress."
     },
     {
       "id": "decisions",
@@ -647,11 +647,11 @@
       "kind": "claude-code",
       "display_name": "Claude Code",
       "status": "available",
-      "latest_status": "running",
-      "latest_reason": "in_progress",
+      "latest_status": "completed",
+      "latest_reason": "completed",
       "latest_task": "대시보드 시작 요청",
-      "latest_updated_at": "2026-05-16T01:46:10.052Z",
-      "handoff_summary": "대시보드가 claude-code 작업을 local-account / sonnet 조합으로 시작했습니다. 어댑터 pending 상태는 queued 입니다. 프롬프트 본문은 data/dashboard-runtime.json 에만 저장됩니다."
+      "latest_updated_at": "2026-05-19T02:20:17.797Z",
+      "handoff_summary": "The dashboard runtime has no active run, so this stale run-state was normalized from running to completed."
     },
     {
       "id": "cursor",

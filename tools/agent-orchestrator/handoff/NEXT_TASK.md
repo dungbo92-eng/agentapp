@@ -1,6 +1,6 @@
 # NEXT_TASK
 
-- Generated: 2026-05-18T05:57:24.406Z
+- Generated: 2026-05-19T02:25:51.068Z
 - Selected task: Claude/Gemini CLI 설치 후 실제 authenticated cycle 재검증
 - Selection source: roadmap
 - Task id: n/a

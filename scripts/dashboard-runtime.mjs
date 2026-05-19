@@ -442,10 +442,21 @@ function uniqueById(items) {
 
 function normalizeRuntime(input) {
   const runtime = { ...clone(DEFAULT_RUNTIME), ...(input || {}) };
+  const runHistory = Array.isArray(runtime.runHistory) ? runtime.runHistory.filter(Boolean).slice(0, 20) : [];
+  const finishedHistoryIds = new Set(
+    runHistory
+      .filter((run) => run?.id && run.status && run.status !== "running")
+      .map((run) => run.id),
+  );
   // activeRuns 가 비었는데 activeRun (구버전) 만 있으면 거기에 묶어 마이그레이션.
   // 반대로 activeRuns 가 있고 activeRun 이 비었으면 가장 최근 것을 alias.
-  const activeRunsRaw = Array.isArray(runtime.activeRuns) ? runtime.activeRuns.filter(Boolean) : [];
-  const legacyActiveRun = runtime.activeRun && !activeRunsRaw.some((r) => r?.id === runtime.activeRun.id)
+  const activeRunsRaw = Array.isArray(runtime.activeRuns)
+    ? runtime.activeRuns.filter((run) => run && run.status === "running" && !finishedHistoryIds.has(run.id))
+    : [];
+  const legacyActiveRun = runtime.activeRun
+    && runtime.activeRun.status === "running"
+    && !finishedHistoryIds.has(runtime.activeRun.id)
+    && !activeRunsRaw.some((r) => r?.id === runtime.activeRun.id)
     ? runtime.activeRun
     : null;
   const activeRuns = legacyActiveRun ? [legacyActiveRun, ...activeRunsRaw] : activeRunsRaw;
@@ -456,7 +467,7 @@ function normalizeRuntime(input) {
     activeRuns,
     // 가장 최근 (배열 첫 번째) = legacy alias. UI 가 단일 카드만 보던 부분 호환.
     activeRun: activeRuns[0] || null,
-    runHistory: Array.isArray(runtime.runHistory) ? runtime.runHistory.slice(0, 20) : [],
+    runHistory,
     pendingRuns: Array.isArray(runtime.pendingRuns) ? runtime.pendingRuns.slice(0, 20) : [],
     // 알림 큐 — pushNotification 이 적재하면 main.mjs dispatcher 가 OS Notification
     // 으로 fire. normalizeRuntime 이 이 키를 빠뜨리면 writeRuntime 마다 drop 돼

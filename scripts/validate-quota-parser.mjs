@@ -296,6 +296,55 @@ try {
   }
   console.log("[validate-quota-parser] ok stale active run cleanup");
 
+  await writeFile(runtimeFile, JSON.stringify({
+    version: 1,
+    accounts: [],
+    projects: [],
+    activeRun: {
+      id: "conflicting-run",
+      status: "running",
+      workerId: "codex",
+      projectId: "current",
+      startedAt: "2026-05-13T00:00:00.000Z",
+      adapter: { status: "running", pid: process.pid },
+      events: [],
+    },
+    activeRuns: [
+      {
+        id: "conflicting-run",
+        status: "running",
+        workerId: "codex",
+        projectId: "current",
+        startedAt: "2026-05-13T00:00:00.000Z",
+        adapter: { status: "running", pid: process.pid },
+        events: [],
+      },
+    ],
+    runHistory: [
+      {
+        id: "conflicting-run",
+        status: "completed",
+        workerId: "codex",
+        projectId: "current",
+        startedAt: "2026-05-13T00:00:00.000Z",
+        completedAt: "2026-05-13T00:01:00.000Z",
+        adapter: { status: "completed" },
+        events: [],
+      },
+    ],
+    pendingRuns: [],
+    settings: {},
+  }, null, 2), "utf8");
+
+  const afterConflict = await readRuntime();
+  const conflictStillActive = Boolean(afterConflict.activeRun?.id === "conflicting-run")
+    || (afterConflict.activeRuns || []).some((run) => run?.id === "conflicting-run");
+  const conflictHistory = afterConflict.runHistory.find((run) => run.id === "conflicting-run");
+  if (conflictStillActive || conflictHistory?.status !== "completed") {
+    throw new Error("completed history did not clear stale active run copy");
+  }
+  console.log("[validate-quota-parser] ok completed history wins over stale active run");
+
   const dirtyRepo = path.join(tempDir, "dirty-repo");
   await mkdir(dirtyRepo, { recursive: true });
   spawnSync("git", ["init"], { cwd: dirtyRepo, stdio: "ignore" });

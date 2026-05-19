@@ -950,3 +950,12 @@ NEXT_TASK.md 템플릿 확정: agent-next 생성물을 Required Reads, Execution
 - Git: not recorded
 - Decisions: none
 - Next: AgentApp v0.9.1 적용 후 새 worker run이 activeRuns에 유지되고 완료 시 runHistory에 정상 표시되는지 확인
+
+## 2026-05-19T02:25:46.405Z
+
+- Status: completed
+- Summary: 원격 main 최신 상태를 확인했고, compact 화면이 완료된 run의 stale activeRuns/currentStatus 때문에 계속 진행 중처럼 보이는 표시 문제를 수정했다. stale DASHBOARD_RUN handoff도 completed로 정리했다.
+- Verification: git fetch --all --prune; pnpm validate; pnpm dashboard:build; Browser compact smoke test
+- Git: not recorded
+- Decisions: none
+- Next: See tools/agent-orchestrator/handoff/NEXT_TASK.md
