@@ -1,5 +1,5 @@
 {
-  "generated_at": "2026-05-19T03:10:15.755Z",
+  "generated_at": "2026-05-19T06:48:21.347Z",
   "repo_root": "D:\\agentApp",
   "progress": {
     "percent": 99,
@@ -397,11 +397,11 @@
     }
   ],
   "latest_run": {
-    "at": "2026-05-19T03:10:01.363Z",
+    "at": "2026-05-19T03:13:34.669Z",
     "status": "completed",
-    "summary": "Codex 계정이 실제로는 사용 가능한데 소진처럼 보이던 quota 표시를 정리했다. 잠긴 계정만 사용 가능 수에서 제외하고, Codex의 timezone 없는 try again at 시간은 로컬 시간으로 해석하도록 수정했다.",
-    "verification": "pnpm validate; pnpm dashboard:build; Browser quota UI check",
-    "next": "자동 업데이트 릴리즈 적용 후 설치 앱에서 Codex 계정이 Plus · 사용 가능으로 보이는지 확인"
+    "summary": "Codex quota 표시/로컬 reset 시간 수정 커밋을 main에 push했고, 자동 업데이트용 v0.10.3 NSIS 릴리즈를 발행했다. GitHub Release에는 NSIS setup, blockmap, latest.yml이 업로드됐다.",
+    "verification": "pnpm validate; pnpm dashboard:build; Browser quota UI check; gh release view v0.10.3",
+    "next": "설치 앱 업데이트 적용 후 계정 화면에서 Codex는 Plus · 사용 가능, Claude만 reset 시각 포함 잠금으로 보이는지 확인"
   },
   "approval_queue": {
     "pending_decisions": [
@@ -552,11 +552,11 @@
       "path": "tools/agent-orchestrator/handoff/RUN_STATUS.md",
       "heading": "RUN_STATUS",
       "status": "completed",
-      "next": "자동 업데이트 릴리즈 적용 후 설치 앱에서 Codex 계정이 Plus · 사용 가능으로 보이는지 확인",
-      "generated": "2026-05-19T03:10:01.363Z",
+      "next": "설치 앱 업데이트 적용 후 계정 화면에서 Codex는 Plus · 사용 가능, Claude만 reset 시각 포함 잠금으로 보이는지 확인",
+      "generated": "2026-05-19T03:13:34.669Z",
       "decision_count": 0,
-      "line_count": 742,
-      "excerpt": "...worker-launches run 디렉터리와 런타임 불일치 원인을 이어 분석했다. 실행 프로세스/launch 디렉터리는 생성됐지만 runtime active/runHistory 레코드가 concurrent read/write race로 유실되어 앱에 표시되지 않았다. readRuntime maintenance 저장을 최신 디스크 재읽기 기반으로 바꾸고, missing run 이벤트를 metadata 기반 active 복구로 보강했다.\n- Verification: pnpm validate; pnpm dashboard:build; pnpm agent:doctor; pnpm agent:progress\n- Git: not recorded\n- Decisions: none\n- Next: 현재 떠 있는 설치 앱은 구버전 writer가 AppData runtime을 계속 덮어쓸 수 있으므로 새 릴리즈 적용 후 재시작 확인\n\n## 2026-05-18T06:00:57.268Z\n\n- Status: completed\n- Summary: runtime active run 보존 패치를 main에 push했고 desktop 자동 업데이트용 v0.9.1 NSIS 릴리즈를 발행했다. run-1779082262470은 실제 작업이 완료되어 last-message와 sytleOsjang commit 58f070b가 확인됐지만, 현재 실행 중인 구버전 앱이 AppData runtime을 다시 recovered stub으로 덮어쓰므로 앱 재시작/업데이트가 필요하다.\n- Verification: pnpm validate; pnpm dashboard:build; pnpm desktop:release -- --bump patch; gh release view v0.9.1\n- Git: not recorded\n- Decisions: none\n- Next: AgentApp v0.9.1 적용 후 새 worker run이 activeRuns에 유지되고 완료 시 runHistory에 정상 표시되는지 확인\n\n## 2026-05-19T02:25:46.405Z\n\n- Status: completed\n- Summary: 원격 main 최신 상태를 확인했고, compact 화면이 완료된 run의 stale activeRuns/currentStatus 때문에 계속 진행 중처럼 보이는 표시 문제를 수정했다. stale DASHBOARD_RUN handoff도 completed로 정리했다.\n- Verification: git fetch --all --prune; pnpm validate; pnpm dashboard:build; Browser compact smoke test\n- Git: not recorded\n- Decisions: none\n- Next: See tools/agent-orchestrator/handoff/NEXT_TASK.md\n\n## 2026-05-19T02:29:39.551Z\n\n- Status: completed\n- Summary: compact 실행 상태 불일치 수정 커밋을 main에 push했고, 자동 업데이트용 v0.10.2 NSIS 릴리즈를 발행했다. GitHub Release에는 NSIS setup, blockmap, latest.yml이 업로드됐다.\n- Verification: pnpm validate; pnpm dashboard:build; pnpm --dir apps/dashboard build; Browser compact smoke test; gh release view v0.10.2\n- Git: not recorded\n- Decisions: none\n- Next: See tools/agent-orchestrator/handoff/NEXT_TASK.md\n\n## 2026-05-19T03:10:01.363Z\n\n- Status: completed\n- Summary: Codex 계정이 실제로는 사용 가능한데 소진처럼 보이던 quota 표시를 정리했다. 잠긴 계정만 사용 가능 수에서 제외하고, Codex의 timezone 없는 try again at 시간은 로컬 시간으로 해석하도록 수정했다.\n- Verification: pnpm validate; pnpm dashboard:build; Browser quota UI check\n- Git: not recorded\n- Decisions: none\n- Next: 자동 업데이트 릴리즈 적용 후 설치 앱에서 Codex 계정이 Plus · 사용 가능으로 보이는지 확인"
+      "line_count": 749,
+      "excerpt": "...e을 계속 덮어쓸 수 있으므로 새 릴리즈 적용 후 재시작 확인\n\n## 2026-05-18T06:00:57.268Z\n\n- Status: completed\n- Summary: runtime active run 보존 패치를 main에 push했고 desktop 자동 업데이트용 v0.9.1 NSIS 릴리즈를 발행했다. run-1779082262470은 실제 작업이 완료되어 last-message와 sytleOsjang commit 58f070b가 확인됐지만, 현재 실행 중인 구버전 앱이 AppData runtime을 다시 recovered stub으로 덮어쓰므로 앱 재시작/업데이트가 필요하다.\n- Verification: pnpm validate; pnpm dashboard:build; pnpm desktop:release -- --bump patch; gh release view v0.9.1\n- Git: not recorded\n- Decisions: none\n- Next: AgentApp v0.9.1 적용 후 새 worker run이 activeRuns에 유지되고 완료 시 runHistory에 정상 표시되는지 확인\n\n## 2026-05-19T02:25:46.405Z\n\n- Status: completed\n- Summary: 원격 main 최신 상태를 확인했고, compact 화면이 완료된 run의 stale activeRuns/currentStatus 때문에 계속 진행 중처럼 보이는 표시 문제를 수정했다. stale DASHBOARD_RUN handoff도 completed로 정리했다.\n- Verification: git fetch --all --prune; pnpm validate; pnpm dashboard:build; Browser compact smoke test\n- Git: not recorded\n- Decisions: none\n- Next: See tools/agent-orchestrator/handoff/NEXT_TASK.md\n\n## 2026-05-19T02:29:39.551Z\n\n- Status: completed\n- Summary: compact 실행 상태 불일치 수정 커밋을 main에 push했고, 자동 업데이트용 v0.10.2 NSIS 릴리즈를 발행했다. GitHub Release에는 NSIS setup, blockmap, latest.yml이 업로드됐다.\n- Verification: pnpm validate; pnpm dashboard:build; pnpm --dir apps/dashboard build; Browser compact smoke test; gh release view v0.10.2\n- Git: not recorded\n- Decisions: none\n- Next: See tools/agent-orchestrator/handoff/NEXT_TASK.md\n\n## 2026-05-19T03:10:01.363Z\n\n- Status: completed\n- Summary: Codex 계정이 실제로는 사용 가능한데 소진처럼 보이던 quota 표시를 정리했다. 잠긴 계정만 사용 가능 수에서 제외하고, Codex의 timezone 없는 try again at 시간은 로컬 시간으로 해석하도록 수정했다.\n- Verification: pnpm validate; pnpm dashboard:build; Browser quota UI check\n- Git: not recorded\n- Decisions: none\n- Next: 자동 업데이트 릴리즈 적용 후 설치 앱에서 Codex 계정이 Plus · 사용 가능으로 보이는지 확인\n\n## 2026-05-19T03:13:34.669Z\n\n- Status: completed\n- Summary: Codex quota 표시/로컬 reset 시간 수정 커밋을 main에 push했고, 자동 업데이트용 v0.10.3 NSIS 릴리즈를 발행했다. GitHub Release에는 NSIS setup, blockmap, latest.yml이 업로드됐다.\n- Verification: pnpm validate; pnpm dashboard:build; Browser quota UI check; gh release view v0.10.3\n- Git: not recorded\n- Decisions: none\n- Next: 설치 앱 업데이트 적용 후 계정 화면에서 Codex는 Plus · 사용 가능, Claude만 reset 시각 포함 잠금으로 보이는지 확인"
     },
     {
       "id": "dashboard-run",

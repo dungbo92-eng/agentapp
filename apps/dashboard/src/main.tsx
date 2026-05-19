@@ -1847,6 +1847,65 @@ function App() {
   const [runtimeStatus, setRuntimeStatus] = React.useState("로컬 설정 불러오는 중");
   const [lastRuntimeSyncAt, setLastRuntimeSyncAt] = React.useState("");
   const [prompt, setPrompt] = React.useState("");
+
+  // 클립보드 paste — 이미지/엑셀 테이블이 들어오면 main 으로 IPC 보내서 처리.
+  // 이미지: PNG 로 userData/clipboard-attachments/ 저장 → prompt 본문에 절대 경로
+  // placeholder 삽입 → worker (claude/codex) 가 Read tool 로 읽어 분석.
+  // 엑셀/구글 시트 셀 영역: HTML <table> → main 에서 markdown table 변환 → 삽입.
+  const handlePromptPaste = React.useCallback(async (event: React.ClipboardEvent<HTMLTextAreaElement>) => {
+    if (!desktopApi?.clipboard) return; // 데스크탑 아니면 native paste.
+    const cd = event.clipboardData;
+    if (!cd) return;
+    const types = Array.from(cd.types || []);
+    const hasFile = Array.from(cd.items || []).some((it) => it.kind === "file" && it.type.startsWith("image/"));
+    const hasHtmlTable = types.includes("text/html") && /<table[\s>]/i.test(cd.getData("text/html") || "");
+    if (!hasFile && !hasHtmlTable) return; // 일반 텍스트 — native paste 에 위임.
+
+    event.preventDefault();
+    const target = event.currentTarget;
+    const start = target.selectionStart ?? prompt.length;
+    const end = target.selectionEnd ?? prompt.length;
+    const insertAt = (insertion: string) => {
+      const next = prompt.slice(0, start) + insertion + prompt.slice(end);
+      setPrompt(next);
+      // 커서를 삽입한 끝으로.
+      requestAnimationFrame(() => {
+        try {
+          const pos = start + insertion.length;
+          target.setSelectionRange(pos, pos);
+          target.focus();
+        } catch { /* best-effort */ }
+      });
+    };
+
+    try {
+      if (hasFile) {
+        const result = await desktopApi.clipboard.saveImage({ label: "prompt" });
+        if (result?.ok && result.path) {
+          const sizeKb = Math.round((result.size || 0) / 1024);
+          const dims = result.width && result.height ? ` ${result.width}x${result.height}` : "";
+          insertAt(`\n[클립보드 이미지${dims} ${sizeKb}KB: ${result.path}]\n`);
+          setToast({ kind: "info", message: `이미지 첨부됨: ${result.filename}` });
+        } else {
+          setToast({ kind: "warn", message: `이미지 첨부 실패: ${result?.reason || "unknown"}` });
+        }
+        return;
+      }
+      if (hasHtmlTable) {
+        const result = await desktopApi.clipboard.asMarkdown();
+        if (result?.ok && result.markdown) {
+          insertAt(`\n${result.markdown}\n`);
+          setToast({ kind: "info", message: result.kind === "table" ? "테이블 markdown 변환 삽입됨" : "텍스트 삽입됨" });
+        } else {
+          setToast({ kind: "warn", message: `테이블 변환 실패: ${result?.reason || "unknown"}` });
+        }
+      }
+    } catch (caught) {
+      setToast({ kind: "warn", message: caught instanceof Error ? caught.message : "클립보드 처리 실패" });
+    }
+  // setToast / desktopApi 는 컴포넌트 mount 이후 안정. prompt 만 의존.
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [prompt]);
   const [complexity, setComplexity] = React.useState("auto");
   const [modelOverride, setModelOverride] = React.useState("auto");
   const [showAdvancedModel, setShowAdvancedModel] = React.useState(false);
@@ -1913,6 +1972,29 @@ function App() {
       ips: string[];
       hasTailscale?: boolean;
     }>;
+    // 클립보드 paste — 이미지/엑셀 테이블을 prompt 에 첨부. main 에서 처리.
+    clipboard?: {
+      inspect: () => Promise<{
+        ok: boolean;
+        hasImage?: boolean;
+        hasHtml?: boolean;
+        hasTable?: boolean;
+        hasText?: boolean;
+        textPreview?: string;
+        formats?: string[];
+        reason?: string;
+      }>;
+      saveImage: (options?: { label?: string }) => Promise<{
+        ok: boolean;
+        path?: string;
+        filename?: string;
+        size?: number;
+        width?: number;
+        height?: number;
+        reason?: string;
+      }>;
+      asMarkdown: () => Promise<{ ok: boolean; kind?: "table" | "text"; markdown?: string; reason?: string }>;
+    };
   } }).agentapp : undefined);
   const [appVersion, setAppVersion] = React.useState<string>("");
   const [updateInfo, setUpdateInfo] = React.useState<UpdateState>({ status: "idle", version: "" });
@@ -2988,8 +3070,9 @@ function App() {
               >
                 <textarea
                   value={prompt}
-                  placeholder={isRunning ? "실행 중" : "작업 지시 입력"}
+                  placeholder={isRunning ? "실행 중" : "작업 지시 입력 — 이미지/엑셀 셀 paste 가능"}
                   onChange={(e) => setPrompt(e.target.value)}
+                  onPaste={handlePromptPaste}
                   disabled={isRunning}
                   aria-label="컴팩트 모드 프롬프트 입력"
                 />
@@ -3699,12 +3782,13 @@ function App() {
             <textarea
               placeholder={
                 nextTaskTitle && nextTaskTitle !== "다음 계획 작성"
-                  ? `예: ${nextTaskTitle}  (위 칩을 누르면 자동으로 채워집니다)`
-                  : "작업 지시사항을 입력하세요"
+                  ? `예: ${nextTaskTitle}  (위 칩을 누르면 자동으로 채워집니다 · 이미지/엑셀 셀 paste 가능)`
+                  : "작업 지시사항을 입력하세요 — 이미지/엑셀 셀을 Ctrl+V 로 붙여 넣어도 됩니다"
               }
-              title="에이전트가 바로 수행할 작업 지시를 입력합니다"
+              title="에이전트가 바로 수행할 작업 지시를 입력합니다. 이미지/엑셀 셀 영역을 paste 하면 자동으로 첨부됩니다."
               value={prompt}
               onChange={(event) => setPrompt(event.target.value)}
+              onPaste={handlePromptPaste}
             />
           </label>
 

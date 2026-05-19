@@ -52,4 +52,19 @@ contextBridge.exposeInMainWorld("agentapp", {
     onData: (handler) => onChannel("agentapp:terminal-data", handler),
     onExit: (handler) => onChannel("agentapp:terminal-exit", handler),
   },
+  // 클립보드 paste — prompt textarea 에서 이미지/엑셀 테이블을 paste 했을 때
+  // renderer 가 호출. 이미지는 PNG 로 userData/clipboard-attachments/ 에 저장하고
+  // 그 절대 경로를 반환 → renderer 가 prompt 본문에 "[clipboard image: <path>]"
+  // 형태로 삽입 → worker (claude/codex) 가 그 경로를 Read tool 로 읽어 분석.
+  // 엑셀 테이블은 HTML/CSV 를 받아 main 에서 markdown table 로 변환 후 반환.
+  clipboard: {
+    // 현재 클립보드 내용 종류 + preview 를 반환. UI 가 paste 직전 어떤 종류로
+    // 처리할지 결정할 때 사용.
+    inspect: () => ipcRenderer.invoke("agentapp:clipboard-inspect"),
+    // 이미지가 있으면 임시 파일로 저장하고 경로 반환. 없으면 null.
+    saveImage: (options) => ipcRenderer.invoke("agentapp:clipboard-save-image", options || {}),
+    // HTML/text 를 markdown 으로 변환해 반환. 엑셀/구글 시트의 셀 영역을 복사한
+    // 경우 HTML <table> 이 들어 있어 markdown table 로 변환된다.
+    asMarkdown: () => ipcRenderer.invoke("agentapp:clipboard-as-markdown"),
+  },
 });

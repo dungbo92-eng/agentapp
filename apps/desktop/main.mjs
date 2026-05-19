@@ -1,5 +1,6 @@
-import { app, BrowserWindow, shell, globalShortcut, Tray, Menu, ipcMain, screen, nativeImage, Notification } from "electron";
+import { app, BrowserWindow, clipboard, shell, globalShortcut, Tray, Menu, ipcMain, screen, nativeImage, Notification } from "electron";
 import { readFileSync, writeFileSync } from "node:fs";
+import { mkdir, writeFile } from "node:fs/promises";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { networkInterfaces } from "node:os";
@@ -946,6 +947,125 @@ app.on("before-quit", () => {
     try { proc.kill(); } catch { /* ignore */ }
   }
   ptySessions.clear();
+});
+
+// ===== 클립보드 paste =====
+// prompt textarea 에서 이미지/엑셀 테이블을 Ctrl+V 로 붙여 넣었을 때 renderer
+// 가 호출. 이미지는 PNG 로 userData/clipboard-attachments/<runId-or-timestamp>.png
+// 에 저장하고 absolute path 반환 → renderer 가 prompt 본문에 placeholder 삽입.
+// 엑셀 셀 영역은 HTML <table> 로 클립보드에 들어가므로 그걸 markdown table 로
+// 변환해 반환. 일반 텍스트는 renderer 의 native paste 동작에 위임.
+
+// 클립보드 종류 inspect — UI 가 어떤 paste 처리 분기로 갈지 결정용.
+ipcMain.handle("agentapp:clipboard-inspect", () => {
+  try {
+    const formats = clipboard.availableFormats() || [];
+    const img = clipboard.readImage();
+    const hasImage = img && !img.isEmpty();
+    const html = clipboard.readHTML() || "";
+    const text = clipboard.readText() || "";
+    return {
+      ok: true,
+      hasImage,
+      hasHtml: Boolean(html),
+      hasTable: /<table[\s>]/i.test(html),
+      hasText: Boolean(text),
+      formats,
+      // text 는 너무 길면 preview 만.
+      textPreview: text.slice(0, 200),
+    };
+  } catch (error) {
+    return { ok: false, reason: error?.message || String(error) };
+  }
+});
+
+ipcMain.handle("agentapp:clipboard-save-image", async (_event, options = {}) => {
+  try {
+    const img = clipboard.readImage();
+    if (!img || img.isEmpty()) return { ok: false, reason: "no_image_in_clipboard" };
+    const dir = path.join(app.getPath("userData"), "clipboard-attachments");
+    await mkdir(dir, { recursive: true });
+    const stamp = new Date().toISOString().replace(/[:.]/g, "-");
+    const namePart = String(options?.label || "clipboard").replace(/[^A-Za-z0-9_-]/g, "").slice(0, 40) || "clipboard";
+    const filename = `${namePart}-${stamp}.png`;
+    const fullPath = path.join(dir, filename);
+    const buffer = img.toPNG();
+    await writeFile(fullPath, buffer);
+    const size = buffer.length;
+    return {
+      ok: true,
+      path: fullPath,
+      filename,
+      size,
+      width: img.getSize().width,
+      height: img.getSize().height,
+    };
+  } catch (error) {
+    return { ok: false, reason: error?.message || String(error) };
+  }
+});
+
+// HTML <table> → markdown table 변환. 엑셀/구글 시트가 그대로 붙여진다.
+// 의존성 없이 단순 정규식 + DOM-less 파싱. 복잡한 셀 (rowspan/colspan/중첩 table)
+// 은 단순 텍스트만 추출 — agent 가 받아 처리하면 충분.
+function htmlTableToMarkdown(html) {
+  if (!html || !/<table[\s>]/i.test(html)) return null;
+  // Office 가 붙이는 <!--StartFragment-->/<!--EndFragment--> 사이만 처리.
+  const fragmentMatch = html.match(/<!--StartFragment-->([\s\S]*?)<!--EndFragment-->/i);
+  const body = fragmentMatch ? fragmentMatch[1] : html;
+  const tableMatch = body.match(/<table[\s\S]*?<\/table>/i);
+  if (!tableMatch) return null;
+  const tableHtml = tableMatch[0];
+  // 행 추출.
+  const rowMatches = [...tableHtml.matchAll(/<tr[\s\S]*?<\/tr>/gi)].map((m) => m[0]);
+  if (rowMatches.length === 0) return null;
+  const rows = rowMatches.map((rowHtml) => {
+    const cells = [...rowHtml.matchAll(/<t[hd][\s\S]*?<\/t[hd]>/gi)].map((m) => m[0]);
+    return cells.map((cellHtml) => {
+      // 셀 내용에서 태그/엔티티 정리.
+      let inner = cellHtml.replace(/^<t[hd][^>]*>|<\/t[hd]>$/gi, "");
+      inner = inner.replace(/<br\s*\/?>/gi, " ");
+      inner = inner.replace(/<[^>]+>/g, "");
+      inner = inner.replace(/&nbsp;/g, " ").replace(/&amp;/g, "&").replace(/&lt;/g, "<").replace(/&gt;/g, ">").replace(/&quot;/g, "\"").replace(/&#39;/g, "'");
+      inner = inner.replace(/\s+/g, " ").trim();
+      // markdown table 안전 — pipe / 줄바꿈 이스케이프.
+      return inner.replace(/\|/g, "\\|");
+    });
+  });
+  if (rows.length === 0) return null;
+  const colCount = Math.max(...rows.map((r) => r.length));
+  // 한 행 padding.
+  const padded = rows.map((r) => {
+    const next = r.slice();
+    while (next.length < colCount) next.push("");
+    return next;
+  });
+  const header = padded[0];
+  const separator = header.map(() => "---");
+  const body2 = padded.slice(1);
+  const lines = [];
+  lines.push(`| ${header.join(" | ")} |`);
+  lines.push(`| ${separator.join(" | ")} |`);
+  for (const r of body2) lines.push(`| ${r.join(" | ")} |`);
+  return lines.join("\n");
+}
+
+ipcMain.handle("agentapp:clipboard-as-markdown", () => {
+  try {
+    const html = clipboard.readHTML() || "";
+    const text = clipboard.readText() || "";
+    if (html && /<table[\s>]/i.test(html)) {
+      const md = htmlTableToMarkdown(html);
+      if (md) return { ok: true, kind: "table", markdown: md };
+    }
+    // HTML 인데 table 아니면 — 그냥 text 로 폴백.
+    if (text) {
+      return { ok: true, kind: "text", markdown: text };
+    }
+    return { ok: false, reason: "empty_clipboard" };
+  } catch (error) {
+    return { ok: false, reason: error?.message || String(error) };
+  }
 });
 
 // 같은 Wi-Fi 의 폰/태블릿에서 대시보드 접속할 때 사용. main 이 알고 있는 정보는
