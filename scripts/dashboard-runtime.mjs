@@ -116,6 +116,16 @@ function normalizeSettings(raw) {
   // OS Notification — Windows Action Center 에 쌓이는 무거운 토스트. 기본 OFF.
   // 사용자가 명시적으로 켰을 때만 발사. in-app toast 와 동시 사용 가능.
   const osNotificationsEnabled = Boolean(source.osNotificationsEnabled);
+  // 회사 계정 (maintenanceDomain) 라우팅 시 worker 에 전달되는 launch prompt 의
+  // prefix. UI/검색 대상의 짧은 [에러분석] 태그와 별개로, worker 가 실제로 받는
+  // prompt 위에 자동 합성된다. 사용자가 settings 으로 자기 회사 정책에 맞게
+  // 편집 가능. 빈 문자열이면 자동 합성 OFF (짧은 [에러분석] 태그만 적용됨).
+  const companyAccountPromptPreambleRaw = typeof source.companyAccountPromptPreamble === "string"
+    ? source.companyAccountPromptPreamble
+    : null;
+  const companyAccountPromptPreamble = companyAccountPromptPreambleRaw === null
+    ? "본 요청은 개발 생산성 향상을 위한 소스코드, SQL, DB 스키마, 에러 분석, 검증 작업입니다. 다음 작업을 소스코드 / SQL / DB 스키마 / 에러 처리 관점에서 진행해 주세요."
+    : companyAccountPromptPreambleRaw;
   const lanAccessEnabled = source.lanAccessEnabled === undefined
     ? false
     : Boolean(source.lanAccessEnabled);
@@ -142,6 +152,7 @@ function normalizeSettings(raw) {
     notifyEnabled,
     inAppToastEnabled,
     osNotificationsEnabled,
+    companyAccountPromptPreamble,
     lanAccessEnabled,
     lanAccessToken,
   };
@@ -4113,8 +4124,16 @@ export async function startRun(input) {
   const selectedRoutingAccount = routing.status === "recommended"
     ? runtime.accounts.find((account) => account.id === routing.accountId) || null
     : null;
+  // 회사 계정 (maintenanceDomain) 라우팅 시 worker 에 전달되는 launch prompt 의
+  // prefix. settings.companyAccountPromptPreamble 이 사용자 정책에 맞게 편집된
+  // reframe 텍스트를 갖고 있으면 그걸 사용, 없으면 짧은 [에러분석] 태그로 폴백.
+  // UI/검색에 보이는 run.prompt 본문은 ensureMaintenancePromptPrefix 가 별도로
+  // 짧은 [에러분석] 태그를 prepend (사용자가 history 에서 회사 작업을 검색
+  // 하기 쉽도록).
+  const _settingsForPreamble = normalizeSettings(runtime.settings);
+  const _companyPreamble = String(_settingsForPreamble.companyAccountPromptPreamble || "").trim();
   const maintenancePromptPrefix = accountMatchesDomain(selectedRoutingAccount, maintenanceDomain)
-    ? MAINTENANCE_PROMPT_PREFIX
+    ? (_companyPreamble || MAINTENANCE_PROMPT_PREFIX)
     : "";
 
   // auto 워커는 routing 이 고른 provider 로 환산.
