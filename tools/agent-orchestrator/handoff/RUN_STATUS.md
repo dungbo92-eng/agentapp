@@ -959,3 +959,12 @@ NEXT_TASK.md 템플릿 확정: agent-next 생성물을 Required Reads, Execution
 - Git: not recorded
 - Decisions: none
 - Next: See tools/agent-orchestrator/handoff/NEXT_TASK.md
+
+## 2026-05-19T02:29:39.551Z
+
+- Status: completed
+- Summary: compact 실행 상태 불일치 수정 커밋을 main에 push했고, 자동 업데이트용 v0.10.2 NSIS 릴리즈를 발행했다. GitHub Release에는 NSIS setup, blockmap, latest.yml이 업로드됐다.
+- Verification: pnpm validate; pnpm dashboard:build; pnpm --dir apps/dashboard build; Browser compact smoke test; gh release view v0.10.2
+- Git: not recorded
+- Decisions: none
+- Next: See tools/agent-orchestrator/handoff/NEXT_TASK.md
