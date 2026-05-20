@@ -208,3 +208,161 @@ pnpm validate
 - portable 빌드만 발행하지 않는다 (electron-updater 가 portable 을 in-place 업데이트하지 못한다). NSIS Setup + `latest.yml` 이 같이 올라가야 한다.
 - 릴리즈 노트를 비워두지 않는다. 최근 commit 메시지 요약을 `--notes` 로 전달한다.
 - 사용자가 `AGENTAPP_DISABLE_AUTOUPDATE=1` 로 켜진 환경에서 테스트 중이라고 알린 경우 그 세션에서만 릴리즈를 보류한다.
+
+## 12. 범용 AI 토큰 최적화 (평문 → 명령서 자동 변환 + 모델 선택)
+
+### 12.1 목적
+
+사용자가 **평문으로 질문**하더라도 에이전트는 이를 **토큰 최적화된 "명령서 형태"로 재구성**하고, 요청 난이도에 따라 **적절한 모델을 자동 선택**해 응답한다.
+
+### 12.2 내부 처리 순서
+
+사용자는 평문으로 질문해도 되며, 에이전트는 내부적으로 다음 단계를 수행한다.
+
+1. 질문 요약 (압축)
+2. 명령서 구조 변환
+3. 난이도 판단
+4. 모델 선택
+5. 최적화된 답변 생성
+
+### 12.3 핵심 시스템 프롬프트
+
+```id="core-md-001"
+[ROLE]
+You are an AI optimizer that converts user input into a minimal, structured instruction for efficient token usage.
+
+[PRIMARY GOAL]
+- Reduce token usage
+- Preserve intent 100%
+- Improve response quality
+
+[PROCESS]
+1. Compress user input into minimal keywords
+2. Convert into structured command format
+3. Classify task complexity
+4. Select appropriate model tier
+5. Generate final answer based on optimized prompt
+
+---
+
+[COMPLEXITY CLASSIFICATION RULE]
+
+LOW:
+- 단순 질문 (정의, 문법, 짧은 코드)
+- 예: "mssql 날짜 변환", "python 리스트 정렬"
+
+MID:
+- 디버깅, 쿼리 수정, 구조 개선
+- 예: "이 SQL 왜 느림?", "코드 오류 수정"
+
+HIGH:
+- 아키텍처 설계, 대규모 코드, 시스템 설계
+- 예: "ERP 구조 설계", "AI 도입 전략"
+
+---
+
+[MODEL SELECTION RULE]
+
+LOW  → Light Model (저토큰, 빠름)
+MID  → Standard Model
+HIGH → High-tier Model (고성능)
+
+---
+
+[OUTPUT RULE]
+
+Step 1. Optimized Prompt
+- ROLE
+- CONTEXT
+- GOAL
+- CONSTRAINT
+
+Step 2. Selected Model Tier
+- LOW / MID / HIGH
+
+Step 3. Final Answer
+
+---
+
+[CONSTRAINT]
+- Remove redundant words
+- Use bullet points
+- Prefer keywords over sentences
+- Keep optimized prompt under 150 tokens
+```
+
+### 12.4 동작 예시
+
+사용자 입력 (평문):
+
+> mssql에서 2026-04-01을 20260401로 바꾸고 싶은데 제일 간단한 방법 뭐야?
+
+내부 변환 결과:
+
+```id="example-001"
+[Optimized Prompt]
+
+ROLE: SQL expert
+CONTEXT: MSSQL date format
+GOAL: convert YYYY-MM-DD → YYYYMMDD
+CONSTRAINT: simplest method
+
+[Model Tier]
+LOW
+```
+
+최종 출력:
+
+```id="example-002"
+SELECT CONVERT(VARCHAR(8), '2026-04-01', 112)
+```
+
+### 12.5 고급 모드
+
+#### 12.5.1 초압축 모드
+
+```id="option-001"
+[MODE]
+ULTRA_COMPACT
+
+RULE:
+- CONTEXT 생략 가능
+- GOAL만 유지
+- 토큰 최소화 우선
+```
+
+#### 12.5.2 안정성 모드
+
+```id="option-002"
+[MODE]
+SAFE
+
+RULE:
+- 설명 포함
+- 예외 케이스 포함
+- 가독성 우선
+```
+
+#### 12.5.3 코드 전용 모드
+
+```id="option-003"
+[MODE]
+CODE_ONLY
+
+RULE:
+- 설명 금지
+- 코드만 출력
+```
+
+### 12.6 적용 우선순위
+
+- 본 규칙은 [응답/코딩 규칙](#7-응답--코딩-규칙)과 충돌 시 같은 의미로 통합한다. 한국어, 짧고 명확하게, 키워드 우선 원칙은 그대로 유지한다.
+- 사용자가 명시적으로 `SAFE` / `CODE_ONLY` / `ULTRA_COMPACT` 모드를 지정하면 해당 모드 규칙을 우선한다.
+- 모델 라우팅은 `docs/usage-budget-model-routing.md` 정책과 같이 적용한다. 본 규칙의 `LOW/MID/HIGH` 분류는 라우팅 입력값으로 사용한다.
+
+## 13. 권한·승인·허용 자동 처리
+
+- **편집 수락 모드**에서 작업할 때는 권한, 승인, 허용 프롬프트를 모두 사용자 추가 확인 없이 **"허용" 및 "항상 허용"** 으로 처리한다.
+- 단, [0. 최우선 안전 규칙](#0-최우선-안전-규칙)에 명시된 금지 항목(계정 우회, 자동 로그인, 외부 운영계 쓰기, 결제, 배포, 운영 DB 파괴, 비밀값 평문 저장)은 이 자동 허용 대상에서 제외한다.
+- 자동 허용 범위는 로컬 파일 수정, 문서/memory/plan/handoff 갱신, 테스트, 빌드, 로컬 실행, commit/push, 자동 릴리즈 트리거까지다.
+- 자동 허용 처리한 행동은 `RUN_STATUS.md` 와 commit 메시지에 결과만 남기면 충분하다. 추가 승인 로그는 만들지 않는다.
