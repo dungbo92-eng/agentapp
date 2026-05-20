@@ -165,6 +165,32 @@ const staleInHistory = (cleanupRuntime.runHistory || []).some((run) => run?.id =
 report.staleCleanupPersisted = !staleStillActive && staleInHistory;
 report.ok = report.ok && report.staleCleanupPersisted;
 
+const inlineRunnerRun = {
+  id: `inline-runner-grace-${Date.now()}`,
+  status: "running",
+  workerId: "test",
+  projectId: "proj-test",
+  startedAt: new Date(Date.now() - 60_000).toISOString(),
+  adapter: { status: "launching", runnerPid: process.pid, inlineRunner: true },
+  events: [],
+};
+await writeFile(path.join(DATA_DIR, "dashboard-runtime.json"), JSON.stringify({
+  version: 1,
+  accounts: [],
+  projects: [{ id: "proj-test", path: TMP_DIR, lastModel: "", lastWorker: "" }],
+  activeRun: inlineRunnerRun,
+  activeRuns: [inlineRunnerRun],
+  runHistory: [],
+  pendingRuns: [],
+  settings: {},
+  notifications: [],
+}, null, 2), "utf8");
+const inlineRunnerRuntime = await readRuntime();
+const inlineRunnerStillActive = Boolean(inlineRunnerRuntime.activeRun?.id === inlineRunnerRun.id)
+  || (inlineRunnerRuntime.activeRuns || []).some((run) => run?.id === inlineRunnerRun.id);
+report.inlineRunnerNoPidPreserved = inlineRunnerStillActive;
+report.ok = report.ok && report.inlineRunnerNoPidPreserved;
+
 const recoveredRunId = `lost-active-${Date.now()}`;
 const recoveredDir = path.join(DATA_DIR, "worker-launches", recoveredRunId);
 await mkdir(recoveredDir, { recursive: true });

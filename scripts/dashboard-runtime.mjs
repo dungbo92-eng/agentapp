@@ -645,6 +645,13 @@ async function reconcileStaleActiveRun(runtime) {
       : Date.now();
     const ageMs = Date.now() - startedMs;
     const STUCK_NO_PID_GRACE_MS = 30 * 1000;
+    const RUNNER_NO_PID_GRACE_MS = 5 * 60 * 1000;
+    const runnerPid = Number(active.adapter?.runnerPid || 0);
+    // Packaged Electron runs execute inline in the main process before the
+    // actual worker child PID is known. Keep that launch window active.
+    if (runnerPid > 0 && processIsAlive(runnerPid) && ageMs < RUNNER_NO_PID_GRACE_MS) {
+      return { runtime, changed: false };
+    }
     if (ageMs < STUCK_NO_PID_GRACE_MS) {
       return { runtime, changed: false };
     }
