@@ -275,6 +275,8 @@ type RunRecord = {
 type RuntimeSettings = {
   idleWarnMs: number;
   idleKillMs: number;
+  maxSessionMs?: number;
+  accountSelectStrategy?: "highest_score" | "random_ready";
   autoChainEnabled?: boolean;
   autoChainMaxDepth?: number;
   autoChainOverrideOnChainDone?: boolean;
@@ -1214,8 +1216,15 @@ function RuntimeSettingsPanel({
 }) {
   const warnMin = settings ? Math.round(settings.idleWarnMs / 60000) : 1.5;
   const killMin = settings ? Math.round(settings.idleKillMs / 60000) : 30;
+  const initialSessionHours = settings && settings.maxSessionMs && settings.maxSessionMs > 0
+    ? String(Math.round(settings.maxSessionMs / 3600000 * 10) / 10)
+    : "0";
   const [warnInput, setWarnInput] = React.useState<string>(String(warnMin));
   const [killInput, setKillInput] = React.useState<string>(String(killMin));
+  const [maxSessionInput, setMaxSessionInput] = React.useState<string>(initialSessionHours);
+  const [selectStrategy, setSelectStrategy] = React.useState<"highest_score" | "random_ready">(
+    settings?.accountSelectStrategy === "random_ready" ? "random_ready" : "highest_score",
+  );
   const [autoChain, setAutoChain] = React.useState<boolean>(settings?.autoChainEnabled !== false);
   const [chainDepthInput, setChainDepthInput] = React.useState<string>(String(settings?.autoChainMaxDepth ?? 8));
   const [overrideChainDone, setOverrideChainDone] = React.useState<boolean>(Boolean(settings?.autoChainOverrideOnChainDone));
@@ -1228,6 +1237,12 @@ function RuntimeSettingsPanel({
     if (settings) {
       setWarnInput(String(Math.round(settings.idleWarnMs / 60000)));
       setKillInput(String(Math.round(settings.idleKillMs / 60000)));
+      setMaxSessionInput(
+        settings.maxSessionMs && settings.maxSessionMs > 0
+          ? String(Math.round(settings.maxSessionMs / 3600000 * 10) / 10)
+          : "0",
+      );
+      setSelectStrategy(settings.accountSelectStrategy === "random_ready" ? "random_ready" : "highest_score");
       setAutoChain(settings.autoChainEnabled !== false);
       setChainDepthInput(String(settings.autoChainMaxDepth ?? 8));
       setOverrideChainDone(Boolean(settings.autoChainOverrideOnChainDone));
@@ -1235,7 +1250,45 @@ function RuntimeSettingsPanel({
       setNotifyEnabled(settings.notifyEnabled !== false);
       setNotifyWebhookUrl(settings.notifyWebhookUrl ?? "");
     }
-  }, [settings?.idleWarnMs, settings?.idleKillMs, settings?.autoChainEnabled, settings?.autoChainMaxDepth, settings?.autoChainOverrideOnChainDone, settings?.quotaRetryEnabled, settings?.notifyEnabled, settings?.notifyWebhookUrl]);
+  }, [settings?.idleWarnMs, settings?.idleKillMs, settings?.maxSessionMs, settings?.accountSelectStrategy, settings?.autoChainEnabled, settings?.autoChainMaxDepth, settings?.autoChainOverrideOnChainDone, settings?.quotaRetryEnabled, settings?.notifyEnabled, settings?.notifyWebhookUrl]);
+
+  // 추천 프리셋 — 사용자가 한 번에 자주 쓰는 조합으로 모든 값을 갈아끼운다.
+  // 저장 버튼을 누르면 실제로 반영됨 (프리셋 클릭 = 미리보기 값 채우기).
+  const applyPreset = (preset: "fast8h" | "stable" | "frugal") => {
+    if (preset === "fast8h") {
+      // 8시간 cap + 랜덤 라우팅. 한 계정에 작업이 몰리지 않게 분산해서 모든
+      // 보유 계정에서 결과가 골고루 나오게 한다 ("최대수익률 = 보유 계정 총
+      // 처리량 최대화"). 무응답 30분 = idle kill, 사이클 8 = autoChain depth.
+      setWarnInput("2");
+      setKillInput("30");
+      setMaxSessionInput("8");
+      setSelectStrategy("random_ready");
+      setAutoChain(true);
+      setChainDepthInput("8");
+      setOverrideChainDone(false);
+      setQuotaRetry(true);
+    } else if (preset === "stable") {
+      // 기존 default. wall-time cap 없음, 점수 1위 계정 고정.
+      setWarnInput("1.5");
+      setKillInput("30");
+      setMaxSessionInput("0");
+      setSelectStrategy("highest_score");
+      setAutoChain(true);
+      setChainDepthInput("8");
+      setOverrideChainDone(true);
+      setQuotaRetry(true);
+    } else if (preset === "frugal") {
+      // 토큰 절약. autoChain off, retry off, 1 시간 cap. 일회성 작업에 적합.
+      setWarnInput("1");
+      setKillInput("15");
+      setMaxSessionInput("1");
+      setSelectStrategy("highest_score");
+      setAutoChain(false);
+      setChainDepthInput("1");
+      setOverrideChainDone(false);
+      setQuotaRetry(false);
+    }
+  };
 
   return (
     <section className="sidebarBlock">
@@ -1247,6 +1300,33 @@ function RuntimeSettingsPanel({
         worker 가 출력 없이 멈춰 보일 때 자동으로 끊는 시간입니다. 자율 진행은 길게, 빠른 실패는 짧게.
         kill 시간을 <strong>0</strong> 으로 두면 자동 종료를 끕니다.
       </p>
+      <div className="settingsPresetRow" style={{ display: "flex", gap: 6, flexWrap: "wrap", marginBottom: 6 }}>
+        <span className="settingsHintInline" style={{ alignSelf: "center" }}>추천 프리셋:</span>
+        <button
+          type="button"
+          className="button ghost"
+          onClick={() => applyPreset("fast8h")}
+          title="계정당 8시간 안에 결과가 나오는 빠른 진행. 보유 ready 계정 중 랜덤 추첨으로 분산해서 한 계정에 일이 몰리지 않게 합니다. → 보유 계정 총 처리량(최대수익률) 우선."
+        >
+          ⚡ 8h cap · 랜덤 분산 (수익률 우선)
+        </button>
+        <button
+          type="button"
+          className="button ghost"
+          onClick={() => applyPreset("stable")}
+          title="기본값. wall-time 한도 없음, 점수 1위 계정 고정 라우팅. 자율 진행을 끝까지 밀어붙입니다."
+        >
+          🐢 자율 진행 (현 default)
+        </button>
+        <button
+          type="button"
+          className="button ghost"
+          onClick={() => applyPreset("frugal")}
+          title="토큰 절약. autoChain off, retry off, 1 시간 wall-time cap. 일회성 짧은 작업에 적합."
+        >
+          💰 토큰 절약 (단발)
+        </button>
+      </div>
       <div className="settingsRow">
         <label>
           <span>경고 (분)</span>
@@ -1267,8 +1347,32 @@ function RuntimeSettingsPanel({
             step={1}
             value={killInput}
             onChange={(event) => setKillInput(event.target.value)}
-            title="이 시간을 넘기면 worker 를 강제 종료합니다. 0 으로 두면 끄지 않습니다"
+            title="이 시간만큼 worker 출력이 없으면 강제 종료합니다 (=무응답 cap). 0 으로 두면 끄지 않습니다."
           />
+        </label>
+        <label>
+          <span>세션 wall-time cap (시간)</span>
+          <input
+            type="number"
+            min={0}
+            step={0.5}
+            value={maxSessionInput}
+            onChange={(event) => setMaxSessionInput(event.target.value)}
+            title="run 시작 후 이 시간이 지나면 출력이 계속 나오더라도 무조건 종료합니다. 142시간 stuck 같은 폭주 방지용. 0 = 끔. 8h cap 프리셋은 8 로 채웁니다."
+          />
+        </label>
+      </div>
+      <div className="settingsToggles" style={{ marginTop: 6 }}>
+        <label className="toggleRow" title="ready 상태의 모든 계정 중 어느 계정으로 라우팅할지 결정. 점수 1위는 idle 시간 + 모델 등급으로 항상 1등을 고릅니다 (기존 동작). 랜덤 분산은 ready 후보 중 균등 추첨으로 한 계정에 일이 몰리는 현상을 줄입니다 → 같은 주에 모든 보유 계정에서 일이 골고루 나오게 됩니다.">
+          <span style={{ minWidth: "8em" }}>📡 계정 라우팅</span>
+          <select
+            value={selectStrategy}
+            onChange={(event) => setSelectStrategy(event.target.value === "random_ready" ? "random_ready" : "highest_score")}
+            style={{ flex: 1 }}
+          >
+            <option value="highest_score">점수 1위 (idle 우선 · 기존)</option>
+            <option value="random_ready">랜덤 분산 (ready 균등 추첨)</option>
+          </select>
         </label>
       </div>
       <div className="settingsToggles">
@@ -1343,12 +1447,16 @@ function RuntimeSettingsPanel({
         onClick={async () => {
           const warnMs = Math.max(0, Number(warnInput) * 60000) || 0;
           const killMs = Math.max(0, Number(killInput) * 60000) || 0;
+          const maxSessionHours = Math.max(0, Number(maxSessionInput) || 0);
+          const maxSessionMs = Math.round(maxSessionHours * 3600000);
           setSaving(true);
           try {
             const depth = Math.max(1, Math.min(500, Number(chainDepthInput) || 8));
             await onSave({
               idleWarnMs: warnMs,
               idleKillMs: killMs,
+              maxSessionMs,
+              accountSelectStrategy: selectStrategy,
               autoChainEnabled: autoChain,
               autoChainMaxDepth: depth,
               autoChainOverrideOnChainDone: overrideChainDone,
@@ -3534,14 +3642,14 @@ function App() {
               />
               <select
                 aria-label="AI 도구"
-                title="이 계정이 연결된 AI 도구를 선택합니다"
+                title="이 계정이 연결된 AI 도구를 선택합니다 (Anthropic Claude / OpenAI Codex / Cursor / Google Gemini)"
                 value={accountForm.provider}
                 onChange={(event) => setAccountForm({ ...accountForm, provider: event.target.value })}
               >
-                <option value="claude">Claude</option>
-                <option value="codex">Codex</option>
-                <option value="cursor">Cursor</option>
-                <option value="gemini">Gemini</option>
+                <option value="claude" title="Anthropic Claude (claude.ai / Claude Code CLI)">Claude — Anthropic</option>
+                <option value="codex" title="OpenAI Codex (codex CLI, ChatGPT Plus/Pro 계정)">Codex — OpenAI</option>
+                <option value="cursor" title="Cursor 에디터 (cursor.sh 계정)">Cursor — 에디터</option>
+                <option value="gemini" title="Google Gemini CLI (gemini.google.com 계정)">Gemini — Google</option>
               </select>
               <select
                 aria-label="로그인 방식"
@@ -3549,22 +3657,22 @@ function App() {
                 value={accountForm.authMethod}
                 onChange={(event) => setAccountForm({ ...accountForm, authMethod: event.target.value })}
               >
-                <option value="google">Google</option>
+                <option value="google" title="Google 계정으로 로그인 (OAuth)">Google 계정 로그인</option>
                 <option value="email_password">이메일 + 비밀번호</option>
                 <option value="api_key">API 키</option>
-                <option value="cli_session">로컬 CLI 세션</option>
-                <option value="browser_profile">브라우저 프로필</option>
+                <option value="cli_session" title="이미 PC 에 로그인된 CLI 의 로컬 세션을 그대로 사용">로컬 CLI 세션</option>
+                <option value="browser_profile" title="브라우저에 저장된 로그인 프로필 재사용">브라우저 프로필</option>
               </select>
               <select
                 aria-label="요금제"
-                title="요금제 유형. 라우팅엔 영향 없고 표시용입니다."
+                title="요금제 유형. 라우팅엔 영향 없고 표시용입니다. (Pro=개인 유료 / Plus=하위 유료 / Team=팀/회사 / Local=로컬 무료)"
                 value={accountForm.plan}
                 onChange={(event) => setAccountForm({ ...accountForm, plan: event.target.value })}
               >
-                <option value="pro">Pro</option>
-                <option value="plus">Plus</option>
-                <option value="team">Team</option>
-                <option value="local">Local</option>
+                <option value="pro" title="Pro 플랜 — 개인 유료 (Claude Pro / ChatGPT Pro 등)">Pro — 개인 유료</option>
+                <option value="plus" title="Plus 플랜 — 하위 유료 등급 (ChatGPT Plus 등)">Plus — 보급형 유료</option>
+                <option value="team" title="Team / Enterprise — 팀 또는 회사 계정">Team — 팀/회사</option>
+                <option value="local" title="Local — 로컬 무료 / 자체 호스팅 (라우팅 표시용)">Local — 로컬/무료</option>
               </select>
               <input
                 aria-label="이메일 또는 계정 ID"

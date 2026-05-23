@@ -1049,17 +1049,21 @@ async function streamProcess(command, args, options = {}) {
     let stderrBuffer = "";
     let combined = "";
     let stdoutOnly = "";
+    const startedAt = Date.now();
     let lastActivityAt = Date.now();
     let warned = false;
     let idleKilled = false;
+    let sessionCapKilled = false;
     let permissionPromptKilled = false;
     let stdinClosed = false;
     let autoConfirmCount = 0;
     const AUTO_CONFIRM_MAX = 5;
 
-    const idleTimer = options.idleWarnMs || options.idleKillMs
+    const idleTimer = options.idleWarnMs || options.idleKillMs || options.maxSessionMs
       ? setInterval(async () => {
-          const idleMs = Date.now() - lastActivityAt;
+          const now = Date.now();
+          const idleMs = now - lastActivityAt;
+          const sessionMs = now - startedAt;
           if (!warned && options.idleWarnMs && idleMs >= options.idleWarnMs) {
             warned = true;
             if (options.onIdleWarn) await options.onIdleWarn(idleMs);
@@ -1068,6 +1072,17 @@ async function streamProcess(command, args, options = {}) {
             idleKilled = true;
             clearInterval(idleTimer);
             if (options.onIdleKill) await options.onIdleKill(idleMs);
+            killChildTree(child.pid);
+            return;
+          }
+          // wall-time cap. idleKill 은 "출력이 멈춘 시간" 만 본다 — worker 가
+          // 의미 없는 출력을 계속 흘리며 진척 없이 시간만 까먹는 패턴은
+          // idleKill 로 잡히지 않는다. maxSessionMs (>0) 가 설정되면 그
+          // 시간 안에 무조건 종료해 한 작업이 며칠씩 멈춰 보이는 현상을 막는다.
+          if (options.maxSessionMs && sessionMs >= options.maxSessionMs) {
+            sessionCapKilled = true;
+            clearInterval(idleTimer);
+            if (options.onSessionCap) await options.onSessionCap(sessionMs);
             killChildTree(child.pid);
           }
         }, 5000)
@@ -1150,6 +1165,7 @@ async function streamProcess(command, args, options = {}) {
         combinedOutput: combined.trim(),
         stdoutOnly: stdoutOnly.trim(),
         idleKilled,
+        sessionCapKilled,
         permissionPromptKilled,
       });
     });
@@ -1288,6 +1304,7 @@ async function launchCommandWorker(run, files, adapter, promptText) {
   const settings = await getRuntimeSettings();
   const idleWarn = Number.isFinite(settings.idleWarnMs) ? settings.idleWarnMs : IDLE_WARN_MS;
   const idleKill = Number.isFinite(settings.idleKillMs) ? settings.idleKillMs : IDLE_KILL_MS;
+  const maxSession = Number.isFinite(Number(settings.maxSessionMs)) ? Math.max(0, Number(settings.maxSessionMs)) : 0;
   if (idleKill > 0) {
     await appendRunEvent(run.id, {
       level: "info",
@@ -1297,6 +1314,12 @@ async function launchCommandWorker(run, files, adapter, promptText) {
     await appendRunEvent(run.id, {
       level: "info",
       message: "자동 종료 비활성 — 사용자가 멈출 때까지 실행 유지",
+    });
+  }
+  if (maxSession > 0) {
+    await appendRunEvent(run.id, {
+      level: "info",
+      message: `세션 wall-time 한도: ${Math.round(maxSession / 1000 / 60)}분 (이 시간 안에 무조건 종료)`,
     });
   }
   // Claude stream-json 어댑터의 진행 텍스트 누적 — final result 이벤트가
@@ -1314,6 +1337,7 @@ async function launchCommandWorker(run, files, adapter, promptText) {
     stdinText: promptText,
     idleWarnMs: idleWarn,
     idleKillMs: idleKill,
+    maxSessionMs: maxSession,
     onSpawn: async (pid) => {
       await patchRunRecord(run.id, {
         adapter: {
@@ -1417,6 +1441,12 @@ async function launchCommandWorker(run, files, adapter, promptText) {
         message: `${run.workerId} 가 ${Math.round(idleMs / 1000)} 초간 출력이 없어 자동 중지합니다. 인증 또는 CLI 설치 상태를 확인한 뒤 다시 시작하세요.`,
       });
     },
+    onSessionCap: async (sessionMs) => {
+      await appendRunEvent(run.id, {
+        level: "warn",
+        message: `세션 wall-time 한도 (${Math.round(sessionMs / 1000 / 60)} 분) 도달 — 자동 종료합니다. autoChain 이 켜져 있으면 다른 계정에서 NEXT_TASK 가 자동 픽업됩니다.`,
+      });
+    },
     // keepStdinOpen 은 비대화형 CLI (claude --print, codex exec, gemini --prompt -) 의
     // 정상 종료 (stdin EOF = prompt 끝 신호) 를 방해하므로 사용 안 함.
     // 대신 권한 prompt 패턴이 보이면 stdin 이 이미 닫혔으므로 즉시 fail-fast.
@@ -1506,6 +1536,32 @@ async function launchCommandWorker(run, files, adapter, promptText) {
       {
         handoffStatus: "needs_user",
         handoffReason: "session_timeout",
+      },
+    );
+    return;
+  }
+
+  // session wall-time cap. idleKill 과 달리 계정을 needs-login 으로 떨어뜨리지
+  // 않는다 (계정 자체에는 문제 없음). status 는 completed 로 둬서 autoChain 이
+  // 다음 사이클을 다른 ready 계정으로 자동 이어받을 수 있게 한다.
+  if (result.sessionCapKilled) {
+    await finishRunRecord(
+      run.id,
+      {
+        status: "completed",
+        adapter: {
+          status: "session-cap",
+          mode: adapter.mode,
+          pid: result.pid,
+          exitCode: result.code,
+          logPath: relativePath(files.launchLogPath),
+          promptPath: relativePath(files.promptPath),
+          sessionDir: relativePath(adapter.sessionDir),
+        },
+      },
+      {
+        handoffStatus: "completed",
+        handoffReason: "session_cap_reached",
       },
     );
     return;

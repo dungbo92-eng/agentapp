@@ -33,6 +33,15 @@ const DEFAULT_RUNTIME = {
   settings: {
     idleWarnMs: 90 * 1000,
     idleKillMs: 30 * 60 * 1000,
+    // run wall-time cap. idleKillMs 는 "무응답" 만 본다 — worker 가 출력은 계속 내지만
+    // 진척 없이 같은 자리를 도는 경우 (autoChain depth + retry 조합) 142 시간 같은
+    // 폭주가 가능했다. maxSessionMs 가 0 이 아니면 그 시간 안에 무조건 종료한다.
+    // 기본은 0 (off) — 사용자가 "8시간 cap" 같은 프리셋을 골랐을 때만 켜진다.
+    maxSessionMs: 0,
+    // 라우팅 전략. 기본 highest_score 는 점수 1위 계정만 고른다. random_ready 는
+    // 준비된 계정 중에서 균등 추첨으로 분산 → 한 계정에 일이 몰리는 현상을 줄여
+    // 사용자가 가진 모든 ready 계정에서 작업이 골고루 나오게 한다.
+    accountSelectStrategy: "highest_score",
     autoChainEnabled: true,
     // 기본을 30 → 8 로 낮춤. 30 은 사용자 환경에서 토큰 폭주의 주범.
     // 사용자가 명시적으로 늘릴 수 있게 settings 로 노출 유지.
@@ -83,6 +92,15 @@ function normalizeSettings(raw) {
   const source = raw && typeof raw === "object" ? raw : {};
   const idleWarnMs = Number.isFinite(Number(source.idleWarnMs)) ? Math.max(0, Number(source.idleWarnMs)) : 90 * 1000;
   const idleKillMs = Number.isFinite(Number(source.idleKillMs)) ? Math.max(0, Number(source.idleKillMs)) : 30 * 60 * 1000;
+  // 0 = off (자유 자율 진행), 양수 = 그 ms 안에 run 을 강제 종료.
+  // UI 의 "8시간 cap 프리셋" 은 8 * 3600 * 1000 = 28_800_000 로 저장한다.
+  const maxSessionMs = Number.isFinite(Number(source.maxSessionMs))
+    ? Math.max(0, Number(source.maxSessionMs))
+    : 0;
+  // "highest_score" (기본) | "random_ready". 알 수 없는 값은 highest_score 로 폴백.
+  const accountSelectStrategy = source.accountSelectStrategy === "random_ready"
+    ? "random_ready"
+    : "highest_score";
   const autoChainEnabled = source.autoChainEnabled === undefined ? true : Boolean(source.autoChainEnabled);
   const autoChainMaxDepth = Number.isFinite(Number(source.autoChainMaxDepth))
     ? Math.max(1, Math.min(500, Number(source.autoChainMaxDepth)))
@@ -141,6 +159,8 @@ function normalizeSettings(raw) {
   return {
     idleWarnMs,
     idleKillMs,
+    maxSessionMs,
+    accountSelectStrategy,
     autoChainEnabled,
     autoChainMaxDepth,
     autoChainOverrideOnChainDone,
@@ -2032,7 +2052,14 @@ export function selectRoute(accounts, request) {
     };
   }
 
-  const selected = candidates[0];
+  // 선택 전략 — 기본은 점수 1위 (highest_score). "random_ready" 는 준비된 후보
+  // 중 균등 추첨으로 분산해 한 계정에 일이 몰리는 현상을 줄인다. 도메인 우선/
+  // 한도 잠금/인증 mismatch 등 필터링은 이미 위에서 끝났으므로 candidates 는
+  // 모두 정상 라우팅 가능한 후보다.
+  const strategy = String(request.selectStrategy || "highest_score");
+  const selected = strategy === "random_ready"
+    ? candidates[Math.floor(Math.random() * candidates.length)]
+    : candidates[0];
   // modelOverride provider 검증 — claude 워커에 gpt 모델 같은 mismatch 차단.
   // 사용자가 호환되지 않는 조합을 고른 경우 override 를 무시하고 profile 의
   // provider 일치 모델로 폴백한다.
@@ -3447,6 +3474,7 @@ export async function tryQuotaRetry(failedRun) {
     workerId: originalWorkerId,
     complexity: failedRun.complexity || "standard",
     modelOverride: failedRun.modelOverride || "auto",
+    selectStrategy: settings.accountSelectStrategy,
   });
   let resolvedWorker = originalWorkerId;
 
@@ -3463,6 +3491,7 @@ export async function tryQuotaRetry(failedRun) {
       workerId: "auto",
       complexity: failedRun.complexity || "standard",
       modelOverride: failedRun.modelOverride || "auto",
+      selectStrategy: settings.accountSelectStrategy,
     });
     if (routing.status === "recommended" && routing.accountId !== failedAccountId) {
       resolvedWorker = workerForProvider(routing.provider) || "auto";
@@ -3892,6 +3921,7 @@ export async function tryPolicyRetry(failedRun) {
     complexity: failedRun.complexity || "standard",
     modelOverride: "auto",
     excludeProviders: failedProvider ? [failedProvider] : [],
+    selectStrategy: settings.accountSelectStrategy,
   });
   let resolvedWorker = routing.status === "recommended"
     ? (workerForProvider(routing.provider) || "auto")
@@ -3903,6 +3933,7 @@ export async function tryPolicyRetry(failedRun) {
       workerId: failedRun.workerId,
       complexity: failedRun.complexity || "standard",
       modelOverride: "auto",
+      selectStrategy: settings.accountSelectStrategy,
     });
     if (routing.status !== "recommended" || routing.accountId === failedAccountId) {
       return null;
@@ -4116,6 +4147,11 @@ export async function startRun(input) {
   }
   const excludeAccountIds = Array.from(new Set([...explicitExcludeAccountIds, ...autoExcludeAccountIds]));
 
+  // settings 의 라우팅 전략을 모든 selectRoute 호출에 전달 → "random_ready"
+  // 프리셋이 켜져 있으면 1차/최종 라우팅 모두 랜덤 추첨이 동작한다.
+  const _settingsForRouting = normalizeSettings(runtime.settings);
+  const selectStrategy = _settingsForRouting.accountSelectStrategy;
+
   // 1차 라우팅 — modelOverride='auto' 로 보내 selectRoute 가 후보 자유 선택.
   const firstPass = selectRoute(runtime.accounts, {
     ...input,
@@ -4125,6 +4161,7 @@ export async function startRun(input) {
     preferAccountDomain: resolvedPreferDomain,
     excludeAccountIds,
     excludeProviders,
+    selectStrategy,
   });
 
   // projectLastModel 이 1차 라우팅이 고른 provider 와 호환되는지 검사.
@@ -4146,6 +4183,7 @@ export async function startRun(input) {
     preferAccountDomain: resolvedPreferDomain,
     excludeAccountIds,
     excludeProviders,
+    selectStrategy,
   };
   const routing = selectRoute(runtime.accounts, normalizedInput);
   const selectedRoutingAccount = routing.status === "recommended"
