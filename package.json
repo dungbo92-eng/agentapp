@@ -1,6 +1,6 @@
 {
   "name": "agent-app",
-  "version": "0.11.2",
+  "version": "0.12.0",
   "private": true,
   "description": "Multi-agent development orchestrator foundation",
   "author": "AgentApp Contributors",
