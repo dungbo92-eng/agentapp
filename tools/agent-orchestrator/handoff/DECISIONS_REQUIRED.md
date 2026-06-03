@@ -49,24 +49,19 @@
 - After decision: 인증 완료 후 dashboard에서 Add account → provider=Gemini → 해당 login method 선택 → ready 전환 → `pnpm agent:cycle-test -- --worker gemini-cli --execute` 재실행.
 - Created: 2026-05-16
 
+## 해결됨
+
 ### DEC-20260516-003 — Claude dashboard 한도 잠금 일치성 확인
 
-- Status: pending
+- Status: resolved
 - Priority: low
 - Category: usage_budget
 - Requested by: agent
-- Blocks: `pnpm agent:cycle-test -- --worker claude-code --execute` (dashboard 라우팅 후보 0건)
-- Context: Claude CLI 직접 호출(`claude --print ...`)은 정상적으로 응답한다. 그러나 dashboard runtime의 두 Claude 계정 모두 `quotaResetAt`가 설정돼 라우팅에서 제외됐다. `claude-dungbo92-gmail-com`은 실제 429("You've hit your limit · resets 3:30pm (Asia/Seoul)") 응답을 받은 흔적이 남아 있어 정상 잠금으로 보이지만, `claude-leemg-hanilnetworks-com`의 `quotaReason`은 `tool_result` 본문 JSON이라 false-positive 가능성이 있다(24h fallback이 적용된 reset 시각).
-- Options:
-  - A: dashboard 사이드바에서 leemg 계정 '강제 해제' 버튼 클릭 → 다음 routine 호출에서 자동 재잠금되는지 확인.
-  - B: 모두 정상 잠금으로 두고 reset 시각(2026-05-17~18 KST) 이후 자연 복구를 기다린다.
-  - C: parseQuotaReset에 tool_result 본문을 무시하는 보강을 추가한다(코드 수정).
-- Recommended: A. leemg 계정 한 건만 강제 해제하고, 잠금이 다시 잡히지 않으면 false-positive 확정. 재잠금되면 정상 한도 도달이므로 그대로 두면 된다.
-- Decision needed: 강제 해제를 즉시 진행할지, parseQuotaReset 보강 패치까지 기다릴지.
-- After decision: 강제 해제 후 `pnpm agent:cycle-test -- --worker claude-code --execute --timeout-ms 180000`을 다시 실행해 dashboard 통합 cycle을 인증.
-- Created: 2026-05-16
-
-## 해결됨
+- Blocks: (해소됨) `pnpm agent:cycle-test -- --worker claude-code --execute` false-positive 잠금
+- Context: leemg 계정의 `quotaReason`이 `tool_result` 본문 JSON이라 false-positive 24h 잠금 의심.
+- Decision: Option C 채택 — 근본 원인(코드 수정)으로 해결. `worker-launch-adapter.mjs`의 stream-json onLine 훅에서 `quotaScanLine` 가드를 두어, JSON envelope 라인은 `parseQuotaReset`에 절대 넘기지 않고 Claude의 `result` 이벤트 `finalText` 또는 plain text fallback 만 검사한다. tool_result/assistant text의 인용 문구가 잠금을 일으키는 경로가 차단됐다.
+- Resolved: 2026-05-16
+- Result: `scripts/worker-launch-adapter.mjs` (commit 이전 작업분에 포함). `validate-quota-parser`에 검증 케이스 2개 추가 (tool_result/assistant text → finalText 미노출, 진짜 result 이벤트 → finalText 노출). 사용자가 leemg 계정의 기존 false-positive 잠금만 dashboard '강제 해제' 버튼으로 1회 풀면 이후 정상 동작.
 
 ### DEC-20260509-003 — 주간 사용량 입력 방식
 

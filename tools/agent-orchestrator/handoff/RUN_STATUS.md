@@ -986,3 +986,12 @@ NEXT_TASK.md 템플릿 확정: agent-next 생성물을 Required Reads, Execution
 - Git: not recorded
 - Decisions: none
 - Next: 설치 앱 업데이트 적용 후 계정 화면에서 Codex는 Plus · 사용 가능, Claude만 reset 시각 포함 잠금으로 보이는지 확인
+
+## 2026-05-16T18:30:00.000Z
+
+- Status: completed
+- Summary: DEC-20260516-003 (Claude dashboard 한도 잠금 false-positive) 해결. worker-launch-adapter.mjs 의 stream-json onLine 훅이 이미 quotaScanLine 가드로 JSON envelope 를 차단하고 result.finalText 또는 plain text fallback 만 parseQuotaReset 에 넘기도록 구현돼 있음을 확인. 회귀 방지를 위해 validate-quota-parser 에 tool_result/assistant text 가 finalText 를 노출하지 않는다는 케이스 2개 추가. 사용자는 leemg 계정의 기존 false-positive 잠금 1회만 dashboard '강제 해제' 버튼으로 풀면 됨. DEC-20260516-002 (Gemini CLI OAuth) 는 사용자 본인 OAuth 가 필요한 agent 범위 밖 항목이라 대기 유지.
+- Verification: pnpm validate (validate-quota-parser 17 케이스 + race + e2e 통과)
+- Git: (이번 commit) pushed.
+- Decisions: DEC-20260516-003 resolved (Option C). DEC-20260516-002 still pending (user-required OAuth).
+- Next: 사용자 지시 대기. Gemini 인증은 사용자가 진행 후 dashboard Add account 만 누르면 됨.

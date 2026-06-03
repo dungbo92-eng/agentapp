@@ -561,6 +561,40 @@ try {
     }
     console.log(`[validate-quota-parser] ok claude stream-json: ${tc.name}`);
   }
+
+  // ---- DEC-20260516-003: tool_result 본문은 quota 검사 대상이 아니어야 함 ----
+  // Claude 가 코드/문서 안에서 "rate limit", "you have hit your limit" 같은 문구를
+  // 인용하면 tool_result content 에 그 단어가 그대로 들어온다. 과거에는 raw JSON
+  // 라인을 parseQuotaReset 에 그대로 넘겨 정상 계정이 24h false-positive 잠겼다.
+  // 이제 stream-json stdout 라인의 quotaScanLine 은 result.finalText 만 사용한다.
+  // 여기서는 interpretClaudeStreamLine 이 user/tool_result 이벤트에 finalText 를
+  // 채우지 않는다는 사실로 안전성을 확인한다 (호출 측이 finalText 만 보기 때문).
+  const toolResultEvents = [
+    { type: "user", message: { content: [{ type: "tool_result", content: "rate limit hit at 5pm" }] } },
+    { type: "user", message: { content: [{ type: "tool_result", is_error: true, content: "Anthropic API: rate limit exceeded, resets 3:30pm" }] } },
+    { type: "assistant", message: { content: [{ type: "text", text: "예: 사용량 한도가 차면 'You've hit your limit' 메시지가 보입니다." }] } },
+  ];
+  for (const evt of toolResultEvents) {
+    const out = interpretClaudeStreamLine(JSON.stringify(evt));
+    if (out.finalText) {
+      throw new Error(`tool_result/assistant text should not expose finalText for quota scan: ${JSON.stringify(out)}`);
+    }
+  }
+  console.log("[validate-quota-parser] ok tool_result/assistant text never expose quota scan target");
+
+  // 반대로 진짜 result 이벤트의 finalText 는 통과해야 quota 검사가 동작.
+  const realResult = interpretClaudeStreamLine(JSON.stringify({
+    type: "result",
+    subtype: "error_max_turns",
+    is_error: true,
+    num_turns: 1,
+    duration_ms: 1200,
+    result: "You've hit your limit · resets 3:30pm (Asia/Seoul)",
+  }));
+  if (typeof realResult.finalText !== "string" || !realResult.finalText.includes("hit your limit")) {
+    throw new Error(`result event finalText missing or wrong: ${JSON.stringify(realResult)}`);
+  }
+  console.log("[validate-quota-parser] ok result event finalText exposed for quota scan");
 } finally {
   Date.now = realDateNow;
   await rm(tempDir, { recursive: true, force: true });
