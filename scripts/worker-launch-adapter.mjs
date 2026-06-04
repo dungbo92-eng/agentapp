@@ -415,27 +415,65 @@ function substituteRuntimePaths(text) {
     .replace(/[A-Za-z]:\\agentApp/g, replacement);
 }
 
-const SHARED_SYNC_PREAMBLE = `[AgentApp 공통 관리 — 모든 에이전트 공통 숙지]
+// 공통관리 헤더를 **프로젝트별로 동적 생성**한다. 과거에는 AgentApp 저장소
+// 기준 하드코딩 텍스트를 모든 프로젝트에 주입해서, 외부 프로젝트(예:
+// sytleOsjang 처럼 handoff/ 가 없는 곳)의 worker 가 존재하지 않는 경로를 찾아
+// 헤매거나 "여긴 AgentApp 저장소" 로 오해하는 문제가 있었다.
+//
+// 이제 작업 디렉터리(workspace)에 **실제 존재하는** 공유 파일만 감지해 그
+// 경로만 언급한다. 여러 에이전트가 같은 프로젝트를 이어받는 "공통관리" 의도는
+// 유지하되, 각 프로젝트의 실제 구조에 맞춘다.
+async function buildSyncPreamble(workspace) {
+  if (!workspace || !existsSync(workspace)) return "";
+  const projName = path.basename(workspace.replace(/[\\/]+$/, "")) || "프로젝트";
+  const has = (...segs) => existsSync(path.join(workspace, ...segs));
 
-다음 항목은 모든 worker (Codex/Claude Code/Cursor/Gemini)가 공유하는 동기화 대상이다.
-작업 시작 전 한 번 읽고, 의미 있는 진행이 발생하면 같은 파일을 갱신한 뒤 종료한다.
+  const ruleFiles = [];
+  if (has("AGENTS.md")) ruleFiles.push("AGENTS.md");
+  if (has("CLAUDE.md")) ruleFiles.push("CLAUDE.md");
 
-- git: 현재 branch 의 working tree. 의미 있는 변경은 작은 단위로 commit. push 는 remote 가 명확할 때만.
-- \`.claude-sync/memory/project_state.md\`: 현재 상태와 다음 작업 후보. 진행 시 갱신.
-- \`.claude-sync/plans/agent-orchestrator-roadmap.md\` 등 plans: 단계 완료/방향 전환 시 체크박스 갱신.
-- \`tools/agent-orchestrator/handoff/NEXT_TASK.md\`: 다음 작업 1순위. 시작 시 확인.
-- \`tools/agent-orchestrator/handoff/RUN_STATUS.md\`: 작업 종료 시 \`pnpm agent:report\` 로 한 줄 남김.
-- \`tools/agent-orchestrator/handoff/DECISIONS_REQUIRED.md\`: 사용자 결정 필요 항목만 여기에.
+  const items = ["- git: 현재 branch 의 working tree. 의미 있는 변경은 작은 단위로 commit. push 는 remote 가 명확할 때만."];
+  if (has(".claude-sync", "memory", "project_state.md")) {
+    items.push("- `.claude-sync/memory/project_state.md`: 현재 상태와 다음 작업 후보. 진행 시 갱신.");
+  } else if (has(".claude-sync")) {
+    items.push("- `.claude-sync/`: 이 프로젝트의 공용 memory/plan. 진행 시 갱신.");
+  }
+  if (has(".claude-sync", "plans")) {
+    items.push("- `.claude-sync/plans/`: 단계 완료/방향 전환 시 해당 plan 체크박스 갱신.");
+  }
+  if (has("tools", "agent-orchestrator", "handoff", "NEXT_TASK.md")) {
+    items.push("- `tools/agent-orchestrator/handoff/NEXT_TASK.md`: 다음 작업 1순위. 시작 시 확인.");
+  }
+  if (has("tools", "agent-orchestrator", "handoff", "RUN_STATUS.md")) {
+    items.push("- `tools/agent-orchestrator/handoff/RUN_STATUS.md`: 작업 종료 시 결과 한 줄 남김.");
+  }
+  if (has("tools", "agent-orchestrator", "handoff", "DECISIONS_REQUIRED.md")) {
+    items.push("- `tools/agent-orchestrator/handoff/DECISIONS_REQUIRED.md`: 사용자 결정 필요 항목만 여기에.");
+  }
 
-자동 라우팅은 각 계정의 한도/사용량/세션 ready 상태를 보고 골고루 분배한다.
-한도 초과는 worker stderr 패턴으로 자동 감지 → 해당 계정 잠금. 수동 입력 없음.
-
-`;
+  const lines = [`[${projName} 공통 관리 — 이 프로젝트를 작업하는 모든 에이전트 공통]`, ""];
+  lines.push("여러 에이전트(Codex/Claude Code/Cursor/Gemini)가 이 프로젝트를 이어받아 작업한다.");
+  if (ruleFiles.length) {
+    lines.push(`먼저 ${ruleFiles.join(" / ")} 의 이 프로젝트 규칙을 읽는다.`);
+  }
+  lines.push("아래는 이 프로젝트에 실제 존재하는 공유 파일이다. 시작 전 확인하고, 의미 있는 진행이 있으면 갱신한 뒤 종료한다.");
+  lines.push("");
+  lines.push(...items);
+  lines.push("");
+  return `${lines.join("\n")}\n`;
+}
 
 async function writeLaunchPrompt(run, files) {
   const userPrompt = String(run.prompt || "").trim();
   const promptPrefix = String(run.promptPrefix || "").trim();
   const prefixBlock = promptPrefix ? `${promptPrefix}\n\n` : "";
+  // 작업 디렉터리를 먼저 확정해 그 프로젝트에 실제 존재하는 파일 기반으로
+  // 공통관리 헤더를 만든다. workspace 를 모르면(또는 헤더 만들 게 없으면)
+  // 헤더 없이 사용자 프롬프트만 전달한다.
+  const workspace = (await resolveProjectPath(run.projectId))
+    || (isPackagedRuntime() ? safeSpawnCwd() : REPO_ROOT);
+  const preamble = await buildSyncPreamble(workspace);
+  const preBlock = preamble ? `${preamble}\n---\n` : "";
   // 사용자가 입력한 프롬프트가 있으면 그것만 그대로 전달 (chat 모드).
   // 비어 있을 때만 워커 핸드오프 템플릿을 사용 (NEXT_TASK 자동 진행 모드).
   let body;
@@ -443,13 +481,13 @@ async function writeLaunchPrompt(run, files) {
     const launchPrompt = promptPrefix && !userPrompt.startsWith(promptPrefix)
       ? `${promptPrefix}\n\n${userPrompt}`
       : userPrompt;
-    body = `${SHARED_SYNC_PREAMBLE}\n---\n${launchPrompt}`;
+    body = `${preBlock}${launchPrompt}`;
   } else {
     const workerPrompt = await readWorkerPrompt(run.workerId);
     const inner = workerPrompt
       ? workerPrompt
       : "Continue from tools/agent-orchestrator/handoff/NEXT_TASK.md.";
-    body = `${SHARED_SYNC_PREAMBLE}\n---\n${prefixBlock}${inner}`;
+    body = `${preBlock}${prefixBlock}${inner}`;
   }
 
   await mkdir(files.runDir, { recursive: true });

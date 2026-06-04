@@ -3594,21 +3594,88 @@ export function parseNextSteps(text) {
   const itemRegex = /(^|\n)\s*-\s*title:\s*([^\n]+)([\s\S]*?)(?=(?:\n\s*-\s*title:)|$)/g;
   let match;
   while ((match = itemRegex.exec(block)) !== null) {
-    const title = String(match[2] || "").trim();
+    const title = String(match[2] || "").trim()
+      // placeholder/마커/백틱 잔여 제거
+      .replace(/^[`'"]+|[`'"]+$/g, "")
+      .trim();
+    // (E) 쓰레기 title 거부 — 템플릿 placeholder(<...>), 마커 원문, 너무 짧은 것,
+    // priority/notes 키워드만 있는 것은 실제 작업이 아니므로 버린다. 이런 게
+    // 다음 프롬프트로 새면 "- title:" / "[NEXT_STEPS]" 가 작업명이 되는 누수 발생.
     if (!title) continue;
+    if (/^<.*>$/.test(title)) continue;                       // <간결한 작업 제목> 같은 placeholder
+    if (/^\[?\/?NEXT_STEPS\]?$/i.test(title)) continue;        // 마커 원문
+    if (/^(priority|notes)\s*:/i.test(title)) continue;        // 필드명만
+    if (title.replace(/[^a-z0-9가-힣]/gi, "").length < 3) continue; // 사실상 빈 제목
     const rest = String(match[3] || "");
     const priorityMatch = rest.match(/priority:\s*(P[0-2])/i);
     const notesMatch = rest.match(/notes:\s*([^\n]+)/);
+    const notes = notesMatch
+      ? notesMatch[1].trim().replace(/^[`'"]+|[`'"]+$/g, "").replace(/^<.*>$/, "")
+      : "";
     items.push({
       title,
       priority: priorityMatch ? priorityMatch[1].toUpperCase() : "P1",
-      notes: notesMatch ? notesMatch[1].trim() : "",
+      notes,
     });
   }
   // P0 > P1 > P2 순 정렬 (안정 정렬 — 같은 priority 면 입력 순서 유지)
   const priorityRank = { P0: 0, P1: 1, P2: 2 };
   items.sort((a, b) => (priorityRank[a.priority] ?? 1) - (priorityRank[b.priority] ?? 1));
   return { done: false, steps: items };
+}
+
+// 토큰 자카드 유사도 — 0~1. 같은 작업을 시각/날짜만 바꿔 반복하는 패턴을
+// "사실상 동일" 로 잡기 위해 단어 집합 교집합/합집합으로 측정한다.
+function tokenJaccard(a, b) {
+  const tok = (s) => new Set(
+    String(s || "")
+      .toLowerCase()
+      .replace(/\[[^\]]*\]/g, " ")        // [에러분석] 등 태그 제거
+      .replace(/\d{4}-\d{2}-\d{2}/g, " ")  // 날짜 제거 (같은 작업 다른 날 동일 취급)
+      .replace(/[^a-z0-9가-힣]+/g, " ")
+      .trim()
+      .split(/\s+/)
+      .filter((w) => w.length > 1),
+  );
+  const A = tok(a), B = tok(b);
+  if (A.size === 0 || B.size === 0) return 0;
+  let inter = 0;
+  for (const x of A) if (B.has(x)) inter += 1;
+  return inter / (A.size + B.size - inter);
+}
+
+// (A) NEXT_STEPS P0 게이트 — worker 가 낸 다음 작업을 무비판적으로 즉시
+// 실행하기 전에 거른다. 시간 의존(미래 시점)·사용자 입력 의존·최근 작업과의
+// 중복을 잡아 토큰 소진 무한 루프를 끊는다.
+//   반환: { ok:true } | { ok:false, stop:true, reason, awaitingUser? }
+//         stop:true 면 사이클 종료, stop 없이 ok:false 면 마커를 버리고 폴백.
+function gateNextStep(step, recentPrompts) {
+  if (!step) return { ok: false, reason: "no_marker" };
+  const title = String(step.title || "").trim();
+  const notes = String(step.notes || "").trim();
+  const hay = `${title} ${notes}`;
+  if (!title || title.replace(/[^a-z0-9가-힣]/gi, "").length < 3) {
+    return { ok: false, reason: "invalid_title" };
+  }
+  // (A-1) 시간 의존 — 미래 시점 작업은 지금 실행해도 진척 0. 같은 작업을 "내일
+  // 자정 검증" 처럼 무한 재호출하던 핵심 폭주 원인.
+  const FUTURE_TIME = /(내일|자정|모레|다음\s*(사이클|날|자정|주기)|이후\s*(재|다시|확인|검증)|쌓인\s*후|축적\s*후|경과\s*후|\b\d{1,2}:\d{2}\s*(이후|부근|경|넘어)|00:0\d|새벽|아침\s*(에|첫)|tomorrow|next\s+(cycle|day|midnight|run)|after\s+midnight|later\s+today|post-?midnight|24h\s*후|하루\s*뒤)/i;
+  if (FUTURE_TIME.test(hay)) {
+    return { ok: false, stop: true, reason: "time_dependent", awaitingUser: true };
+  }
+  // (A-2) 사용자/외부 입력 의존 — dev PC 에서 불가하거나 비밀번호/시크릿/운영서버
+  // 접근이 필요한 작업. 자동 진행해도 결국 막힘.
+  const NEEDS_USER = /(비밀번호|패스워드|password|secret|시크릿|토큰\s*발급\s*받|입력\s*받아|제공\s*받아|운영\s*서버에서|운영서버\s*(에서|로그|출력|smoke)|dev\s*PC에서는?\s*(수행\s*)?불가|사용자가?\s*(직접|먼저)\s*(등록|설정|입력|확인)|IAM|AWS\s*(bucket|credential)|GitHub\s*Secrets?\s*(등록|설정|입력|재))/i;
+  if (NEEDS_USER.test(hay)) {
+    return { ok: false, stop: true, reason: "needs_user_input", awaitingUser: true };
+  }
+  // (A-3) 최근 작업과 중복 — 시각/날짜 정규화 후 자카드 ≥ 0.6 이면 같은 작업의 재탕.
+  for (const rp of recentPrompts) {
+    if (tokenJaccard(title, rp) >= 0.6) {
+      return { ok: false, stop: true, reason: "duplicate_of_recent" };
+    }
+  }
+  return { ok: true };
 }
 
 export async function tryAutoChain(prevRun, opts = {}) {
@@ -3719,7 +3786,55 @@ export async function tryAutoChain(prevRun, opts = {}) {
       reason: `worker 가 [NEXT_NONE] 으로 다음 작업 없음을 보고했습니다 — ${nextStepsParsed.reason}. 사용자 답변 입력으로 이어 진행할 수 있습니다.`,
     };
   }
-  const markerStep = nextStepsParsed.steps[0] || null;
+  // (A) NEXT_STEPS P0 게이트 적용 — worker 가 낸 다음 작업을 즉시 실행하기
+  // 전에 시간/사용자 의존·중복을 거른다. 최근 같은 프로젝트의 prompt 들을
+  // 중복 비교 대상으로 모은다 (직전 prompt 포함).
+  const recentPrompts = [
+    String(prevRun.prompt || ""),
+    ...(runtime.runHistory || [])
+      .filter((r) => r.projectId === prevRun.projectId && r.id !== prevRun.id)
+      .slice(0, 6)
+      .map((r) => String(r.prompt || "")),
+  ].filter(Boolean);
+
+  let markerStep = nextStepsParsed.steps[0] || null;
+  if (markerStep) {
+    const gate = gateNextStep(markerStep, recentPrompts);
+    if (!gate.ok) {
+      if (gate.stop) {
+        const reasonLabel = {
+          time_dependent: "미래 시점 작업 (지금 실행해도 진척 없음)",
+          needs_user_input: "사용자/외부 입력 필요",
+          duplicate_of_recent: "최근 작업과 사실상 동일 (재탕)",
+        }[gate.reason] || gate.reason;
+        if (gate.awaitingUser) {
+          try {
+            await patchRunRecord(prevRun.id, {
+              awaitingUserInput: true,
+              awaitingReason: reasonLabel,
+              awaitingPromptHint: `${markerStep.title}${markerStep.notes ? ` (${markerStep.notes})` : ""}`,
+            });
+          } catch { /* best-effort */ }
+          try {
+            await pushNotification({
+              kind: "awaiting",
+              title: "AgentApp — 자동 진행 중지",
+              message: `[${prevRun.projectId || "?"}] ${reasonLabel}: ${markerStep.title}`,
+              runId: prevRun.id,
+              projectId: prevRun.projectId || "",
+            });
+          } catch { /* best-effort */ }
+        }
+        return {
+          stopped: true,
+          awaitingUserInput: Boolean(gate.awaitingUser),
+          reason: `NEXT_STEPS 게이트 차단 (${reasonLabel}) — '${markerStep.title}'. 토큰 소진 방지를 위해 자동 진행을 멈춥니다.`,
+        };
+      }
+      // stop 아닌 거부(쓰레기 마커)는 버리고 NEXT_TASK / 진행률 폴백.
+      markerStep = null;
+    }
+  }
 
   // 사용자가 "대기/사용자 확인으로 멈추는 케이스를 최대한 줄여달라" 고 요청.
   // 기본은 가장 명확한 종료 신호 (DECISIONS_REQUIRED) 만 stop 으로 인정한다.
