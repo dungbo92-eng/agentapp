@@ -3573,6 +3573,45 @@ export function decorateAutoChainPrompt(prompt) {
   return text + STATUS_MARKER_RULE + CHAIN_DONE_PROMPT_RULE + NEXT_STEPS_RULE;
 }
 
+const HANDOFF_CONTEXT_MARKER = "## 직전 세션 인계";
+
+// 이어받기 괴리 방지 — 각 worker run 은 fresh 세션(claude --print 등)이라
+// 이전 추론·대화가 0 이다. 직전 worker 의 최종 보고(lastMessage)가 가장 풍부한
+// 인계 자료인데 기존엔 다음 프롬프트에 전혀 전달되지 않아, 같은 프로젝트를
+// 이어받는데도 매번 절반쯤 다시 시작하는 "띄엄띄엄" 현상이 생겼다. 직전 작업
+// 제목 + 최종 보고 요약을 다음 프롬프트 앞에 주입해 끝 지점을 명시한다.
+function buildHandoffContext(prevRun, lastMessageText) {
+  // 직전 작업 제목 — 공통관리 헤더와 규칙 블록을 떼어내고 실제 지시만.
+  let prevTitle = String(prevRun?.prompt || "");
+  if (prevTitle.includes("\n---\n")) prevTitle = prevTitle.split("\n---\n").pop();
+  // 이전 사이클에서 주입된 인계 블록이 또 있으면 그 뒤(실제 작업)만.
+  if (prevTitle.includes(HANDOFF_CONTEXT_MARKER)) {
+    const segs = prevTitle.split(/\n---\n/);
+    prevTitle = segs[segs.length - 1];
+  }
+  prevTitle = prevTitle.split(/\n\n\[/)[0].trim().slice(0, 220);
+
+  // 직전 worker 최종 보고 — STATUS/CHAIN_DONE/NEXT_STEPS 규칙·마커 텍스트를
+  // 제거한 실제 보고 본문의 마지막 ~900자 (보통 "작업 요약" 이 끝에 있음).
+  let summary = String(lastMessageText || "")
+    .replace(/\[\/?(?:STATUS|CHAIN_DONE|NEXT_STEPS|NEXT_NONE)\b[^\]]*\][^\n]*/g, "")
+    .replace(/^\s*-\s*(?:title|priority|notes)\s*:.*$/gim, "")
+    .replace(/^\s*\[(?:STATUS|CHAIN_DONE)\].*$/gim, "")
+    .replace(/\n{3,}/g, "\n\n")
+    .trim();
+  if (summary.length > 900) summary = `…(앞부분 생략)\n${summary.slice(-900)}`;
+
+  if (!prevTitle && !summary) return "";
+  const parts = [HANDOFF_CONTEXT_MARKER + " (같은 프로젝트 이어받기)"];
+  if (prevTitle) parts.push(`- 직전 작업: ${prevTitle}`);
+  if (summary) parts.push(`- 직전 세션 최종 보고:\n${summary}`);
+  parts.push(
+    "위는 직전 세션이 멈춘 지점이다. 이 프로젝트를 처음부터 다시 시작하지 말고, " +
+    "memory/plan/git 으로 현재 상태를 확인한 뒤 **위 맥락에 이어서** 진행한다.",
+  );
+  return `${parts.join("\n")}\n\n---\n\n`;
+}
+
 // worker 응답에서 NEXT_STEPS / NEXT_NONE 마커를 파싱.
 // 반환:
 //   { done: true, reason }                 — NEXT_NONE 마커 검출
@@ -3788,14 +3827,25 @@ export async function tryAutoChain(prevRun, opts = {}) {
   }
   // (A) NEXT_STEPS P0 게이트 적용 — worker 가 낸 다음 작업을 즉시 실행하기
   // 전에 시간/사용자 의존·중복을 거른다. 최근 같은 프로젝트의 prompt 들을
-  // 중복 비교 대상으로 모은다 (직전 prompt 포함).
+  // 중복 비교 대상으로 모은다 (직전 prompt 포함). 각 prompt 에서 공통관리
+  // 헤더 / 인계 맥락 / 규칙 블록을 떼어내고 **실제 작업 지시 텍스트만** 추출해야
+  // 자카드 유사도가 정확하다 (헤더·규칙이 공통이라 노이즈로 유사도를 끌어올림).
+  const extractTaskCore = (p) => {
+    let t = String(p || "");
+    if (t.includes("\n---\n")) t = t.split("\n---\n").pop();
+    if (t.includes(HANDOFF_CONTEXT_MARKER)) {
+      const segs = t.split(/\n---\n/);
+      t = segs[segs.length - 1];
+    }
+    return t.split(/\n\n\[/)[0].trim();
+  };
   const recentPrompts = [
     String(prevRun.prompt || ""),
     ...(runtime.runHistory || [])
       .filter((r) => r.projectId === prevRun.projectId && r.id !== prevRun.id)
       .slice(0, 6)
       .map((r) => String(r.prompt || "")),
-  ].filter(Boolean);
+  ].map(extractTaskCore).filter(Boolean);
 
   let markerStep = nextStepsParsed.steps[0] || null;
   if (markerStep) {
@@ -3940,7 +3990,12 @@ export async function tryAutoChain(prevRun, opts = {}) {
     basePrompt = "이전 작업을 완료한 상태입니다. 메모리/계획/핸드오프 파일을 참고해 다음에 진행할 항목을 스스로 판단하고 이어서 진행해 주세요.";
     chainReason = "generic_continuation";
   }
-  const chainPrompt = decorateAutoChainPrompt(basePrompt);
+  // 이어받기 괴리 방지 — 직전 세션의 끝 지점(작업 제목 + 최종 보고)을 다음
+  // 프롬프트 앞에 주입. generic_continuation 처럼 작업 지시가 약할수록 직전
+  // 맥락이 더 중요하다. NEXT_STEPS 마커는 worker 가 방금 낸 거라 이미 맥락이
+  // 일부 있지만, 그래도 "직전에 뭘 끝냈는지" 를 붙이면 중복 작업이 준다.
+  const handoffContext = buildHandoffContext(prevRun, lastMessageText);
+  const chainPrompt = decorateAutoChainPrompt(`${handoffContext}${basePrompt}`);
   const nextWorkerId = prevRun.workerAuto ? "auto" : prevRun.workerId;
 
   const result = await startRun({

@@ -1,5 +1,28 @@
 # RUN_STATUS
 
+## 2026-06-04T_handoff_context_injection
+
+사용자 보고 — 같은 프로젝트인데 worker 가 매번 절반쯤 다시 시작하는 "띄엄띄엄" 현상. 직전 세션 분석:
+
+원인 (직전 worker 진단):
+1. `claude --print` 같은 fresh 세션은 이전 추론·대화가 0. 인계는 오로지 파일에만 의존.
+2. `decorateAutoChainPrompt` 가 다음 작업 제목 + 규칙만 붙임. 직전 worker 의 `lastMessage` (가장 풍부한 인계 자료) 는 다음 프롬프트에 전혀 안 들어감.
+3. project 마다 handoff 기록률 편차 (sytleOsjang 의 RUN_STATUS 기록률 3%). 다음 세션이 깜깜이로 시작.
+
+수정 (`scripts/dashboard-runtime.mjs`):
+- `buildHandoffContext(prevRun, lastMessageText)` 추가. 직전 작업 제목 + 최종 보고 본문(마지막 ~900자, STATUS/CHAIN_DONE/NEXT_STEPS 마커 라인 제거) 을 `## 직전 세션 인계` 블록으로 묶어 다음 프롬프트 앞에 주입.
+- `tryAutoChain` 의 `chainPrompt` 조립을 `decorateAutoChainPrompt(\`${handoffContext}${basePrompt}\`)` 로 변경. generic_continuation 처럼 작업 지시가 약할수록 직전 맥락이 더 결정적.
+- 중복 게이트(`recentPrompts`) 의 자카드 유사도가 헤더·규칙 노이즈로 거짓 양성 내는 문제 보정. `extractTaskCore(prompt)` 가 공통관리 헤더 / 인계 블록 / 규칙 블록을 떼어내고 실제 작업 지시만 추출해 비교 대상으로 사용.
+
+검증:
+- pnpm validate 통과 (quota parser / runtime race / e2e server 전부 ok).
+- pnpm dashboard:build 통과.
+- buildHandoffContext sanity 4 케이스 — 빈 입력 / NEXT_STEPS 마커 제거 / 이중 split 시 실제 작업만 추출 / 900자 초과 시 앞부분 생략 — 모두 통과.
+
+호환성: 직전 prompt/lastMessage 가 비면 빈 문자열을 반환해 기존 흐름과 동일. `decorateAutoChainPrompt` 의 idempotent 마커 첨부도 그대로.
+
+이어받기 메타: 직전 에이전트가 토큰 한도로 빌드 직전에 중단 → 이 세션이 같은 git working tree 에서 inline sanity test + build 검증 + handoff/commit/push/release 까지 마감.
+
 ## 2026-05-17T_writeruntime_race_and_fixed_port
 
 사용자 보고: (1) "프로젝트/계정 설정이 다 날아감" (2) "모바일 접속 포트가 매 시작 바뀜".
