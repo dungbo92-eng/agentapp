@@ -118,7 +118,8 @@
 - [x] codebase-memory-mcp 세션 프로필 MCP 등록 설정 예시(Claude/Gemini/Codex)
 - [x] Ponytail 룰 dry-run 주입 스크립트(`pnpm agent:ponytail`)와 멱등성 검증
 - [x] 두 도구 통합 문서 + plugins.example.yaml 레지스트리
-- [ ] (DEC-20260619-001 결정 후) `worker-launch-adapter.mjs`에 opt-in MCP 등록 + 인덱스 제외 추가
-- [ ] (결정 후) `dashboard-runtime.mjs`에 Ponytail 프리앰블 주입(코드 작업 한정)
-- [ ] dashboard에 통합 on/off 토글 + 상태 표시
-- [ ] cycle-test로 MCP 활성 worker 1회 실행 검증
+- [x] (DEC-20260619-001=A) `worker-launch-adapter.mjs` opt-in MCP 등록 (claude `--mcp-config` / codex·gemini config dir)
+- [x] `dashboard-runtime.mjs` Ponytail 프리앰블 주입 (off/lite/full, 멱등)
+- [x] dashboard 통합 토글 (MCP on/off + 바이너리 경로 + Ponytail 모드)
+- [x] `validate-integrations` 회귀 검증 11 케이스 + dashboard build 통과
+- [ ] 인증된 세션에서 MCP 활성 worker 실 사이클 검증 (Claude/Gemini 로그인 필요)

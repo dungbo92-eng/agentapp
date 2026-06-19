@@ -32,23 +32,6 @@
 
 ## 대기
 
-### DEC-20260619-001 — codebase-memory-mcp 프로덕션 도입 + 설치 경로
-
-- Status: pending
-- Priority: medium
-- Category: worker
-- Requested by: user
-- Blocks: `worker-launch-adapter.mjs` 세션 프로필에 codebase-memory MCP 자동 등록 (Phase 13)
-- Context: 서드파티 prebuilt 바이너리 MCP다. security-model상 신규 MCP/connector 설치는 결정이 필요하다. v0.8.1 contained PoC(로컬 `.tooling/`)는 사용자 승인하에 완료했고 이 repo 색인·질의·토큰 절감을 실측했다(`integrations/codebase-memory-mcp/INTEGRATION.md`). 남은 결정은 프로덕션 채택 방식이다.
-- Options:
-  - A: contained 방식 유지 — AgentApp이 핀된 버전을 자체 경로에 두고 세션 프로필에만 등록. 전역 에이전트 설정 비침해, 롤백 쉬움. (권장)
-  - B: 공식 `install.ps1`/`install` 사용 — 11개 에이전트 전역 자동 설정. 편하지만 사용자 글로벌 설정을 변경.
-  - C: 도입 보류 — PoC만 남기고 프로덕션 wiring 안 함.
-- Recommended: A. 핀된 버전 + sha256 검증 + 로컬 read-only + 세션 프로필 경계 유지가 보안 모델과 가장 잘 맞는다.
-- Decision needed: 채택 방식(A/B/C)과, 켤 프로젝트 범위(전체 opt-in vs 선택 프로젝트).
-- After decision: A면 Phase 13에서 `resolveAdapter`에 opt-in MCP 등록 + 인덱스 제외(`.tooling/`,`data/`) 추가 후 cycle-test.
-- Created: 2026-06-19
-
 ### DEC-20260516-002 — Gemini CLI 인증 + dashboard 계정 등록
 
 - Status: pending
@@ -67,6 +50,18 @@
 - Created: 2026-05-16
 
 ## 해결됨
+
+### DEC-20260619-001 — codebase-memory-mcp 프로덕션 도입 + 설치 경로
+
+- Status: resolved
+- Priority: medium
+- Category: worker
+- Requested by: user
+- Blocks: (해소됨) worker 세션 프로필에 codebase-memory MCP 자동 등록
+- Context: 서드파티 prebuilt 바이너리 MCP. security-model상 신규 MCP/connector 설치는 결정이 필요했다. v0.8.1 contained PoC로 색인·토큰 절감을 실측한 뒤 채택 방식을 결정.
+- Decision: **Option A (contained)** 채택. AgentApp이 opt-in 시 세션 프로필 경계 안에만 등록(전역 에이전트 설정 비침해), 바이너리 경로는 settings/env/.tooling/PATH 순 해석, 못 찾으면 graceful skip.
+- Resolved: 2026-06-19
+- Result: `worker-launch-adapter.mjs` `resolveAdapter`가 claude `--mcp-config`, codex/gemini config dir에 등록. `dashboard-runtime.mjs`가 Ponytail 프리앰블(off/lite/full) 주입. dashboard 설정에 MCP 토글+경로+Ponytail 모드 추가. `scripts/validate-integrations.mjs` 11케이스 + dashboard build 통과. 켤 범위는 전역 settings 토글(기본 off). 실 사이클 검증만 인증 세션(Claude/Gemini 로그인) 대기.
 
 ### DEC-20260516-003 — Claude dashboard 한도 잠금 일치성 확인
 

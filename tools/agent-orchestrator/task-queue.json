@@ -651,15 +651,13 @@
       "title": "외부 도구 프로덕션 wiring (worker-launch-adapter + dashboard 토글)",
       "phase": "phase-13",
       "priority": 38,
-      "status": "hold",
+      "status": "done",
       "depends_on": [
         "codebase-memory-mcp-poc",
         "ponytail-rule-dry-run"
       ],
-      "blocked_by": [
-        "DEC-20260619-001"
-      ],
-      "reason": "MCP 등록과 Ponytail 프리앰블 주입을 실제 launch 흐름에 넣으려면 데스크탑 트리거 경로(worker-launch-adapter/dashboard-runtime)를 바꿔야 한다. DEC-20260619-001 결정 후 진행한다."
+      "blocked_by": [],
+      "reason": "DEC-20260619-001=A(contained) 채택. worker-launch-adapter가 opt-in 시 세션 프로필에 codebase-memory MCP를 등록(claude --mcp-config, codex/gemini config dir)하고, dashboard-runtime이 Ponytail 프리앰블을 주입(off/lite/full). dashboard 설정 토글 + validate-integrations 11케이스 + dashboard build 통과. 실 사이클 검증만 인증 세션 대기."
     }
   ]
 }

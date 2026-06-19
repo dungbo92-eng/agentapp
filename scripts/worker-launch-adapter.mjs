@@ -12,6 +12,7 @@ import {
   appendRunEvent,
   buildInterruptedWorktreePatch,
   finishRunRecord,
+  getRuntimeSettings,
   patchRunRecord,
   readRuntime,
   relativePath,
@@ -722,6 +723,49 @@ function buildSessionProfileDir(provider, sessionProfile) {
   return path.join(sharedSessionProfilesRoot(), sanitizeSegment(provider), sanitizeSegment(sessionProfile));
 }
 
+// codebase-memory MCP 바이너리 위치 해석. 우선순위: settings 경로 > env > .tooling(dev) > PATH.
+// 못 찾으면 "" 반환 → 등록을 건너뛰고 launch 는 정상 진행 (graceful).
+async function resolveCmmBinary(settings) {
+  const explicit = settings?.integrations?.codebaseMemoryMcpPath || "";
+  if (explicit && existsSync(explicit)) return explicit;
+  const fromEnv = process.env.AGENTAPP_CMM_COMMAND || "";
+  if (fromEnv && existsSync(fromEnv)) return fromEnv;
+  const dev = path.join(REPO_ROOT, ".tooling", "codebase-memory-mcp", "extracted", "codebase-memory-mcp.exe");
+  if (existsSync(dev)) return dev;
+  return (await commandPathFor("codebase-memory-mcp")) || "";
+}
+
+// 세션 프로필 경계 안에 codebase-memory MCP 를 등록한다. claude 는 --mcp-config 로
+// 가리킬 JSON 경로를 반환, codex/gemini 는 자기 config dir 파일에 기록 후 "" 반환.
+// 설정 예시: tools/agent-orchestrator/integrations/codebase-memory-mcp/.
+export async function registerCodebaseMemoryMcp(provider, sessionDir, binPath) {
+  const name = "codebase-memory";
+  if (provider === "claude-code") {
+    const file = path.join(sessionDir, "codebase-memory.mcp.json");
+    await writeFile(file, JSON.stringify({ mcpServers: { [name]: { command: binPath, args: [] } } }, null, 2));
+    return file;
+  }
+  if (provider === "codex") {
+    const file = path.join(sessionDir, "config.toml");
+    let existing = "";
+    try { existing = await readFile(file, "utf8"); } catch { /* 새 프로필 */ }
+    if (!existing.includes(`[mcp_servers.${name}]`)) {
+      const block = `\n[mcp_servers.${name}]\ncommand = ${JSON.stringify(binPath)}\nargs = []\n`;
+      await writeFile(file, existing + block);
+    }
+    return "";
+  }
+  if (provider === "gemini-cli") {
+    const file = path.join(sessionDir, "settings.json");
+    let json = {};
+    try { json = JSON.parse(await readFile(file, "utf8")); } catch { /* 새 프로필 */ }
+    json.mcpServers = { ...(json.mcpServers || {}), [name]: { command: binPath, args: [] } };
+    await writeFile(file, JSON.stringify(json, null, 2));
+    return "";
+  }
+  return "";
+}
+
 const CLAUDE_MODEL_ALIASES = {
   auto: "",
   best_available: "opus",
@@ -767,6 +811,10 @@ async function resolveAdapter(run, files) {
   // 우선순위: 선택된 프로젝트 경로 > 패키징 환경의 safeSpawnCwd > REPO_ROOT
   const workspace = projectPath || (isPackagedRuntime() ? safeSpawnCwd() : REPO_ROOT);
 
+  // codebase-memory MCP opt-in. 켜져 있고 바이너리가 해석되면 세션 프로필에 등록.
+  const settings = await getRuntimeSettings();
+  const cmmBin = settings.integrations?.codebaseMemoryMcp ? await resolveCmmBinary(settings) : "";
+
   if (run.workerId === "codex") {
     const command = process.env.AGENTAPP_CODEX_COMMAND || (await commandPathFor("codex"));
     if (!command) {
@@ -779,6 +827,7 @@ async function resolveAdapter(run, files) {
 
     const sessionDir = buildSessionProfileDir("codex", sessionProfile);
     await mkdir(sessionDir, { recursive: true });
+    if (cmmBin) await registerCodebaseMemoryMcp("codex", sessionDir, cmmBin);
     return {
       status: "ready",
       mode: "command",
@@ -860,6 +909,11 @@ async function resolveAdapter(run, files) {
 
     const sessionDir = buildSessionProfileDir("claude-code", sessionProfile);
     await mkdir(sessionDir, { recursive: true });
+    let claudeMcpArgs = [];
+    if (cmmBin) {
+      const cfg = await registerCodebaseMemoryMcp("claude-code", sessionDir, cmmBin);
+      if (cfg) claudeMcpArgs = ["--mcp-config", cfg];
+    }
     const claudeModel = mapClaudeModel(run.routing?.model || run.modelOverride);
     return {
       status: "ready",
@@ -877,6 +931,7 @@ async function resolveAdapter(run, files) {
         "stream-json",
         "--verbose",
         "--dangerously-skip-permissions",
+        ...claudeMcpArgs,
         ...(claudeModel ? ["--model", claudeModel] : []),
       ],
       env: {
@@ -908,6 +963,7 @@ async function resolveAdapter(run, files) {
 
     const sessionDir = buildSessionProfileDir("gemini-cli", sessionProfile);
     await mkdir(sessionDir, { recursive: true });
+    if (cmmBin) await registerCodebaseMemoryMcp("gemini-cli", sessionDir, cmmBin);
     const geminiModel = mapGeminiModel(run.routing?.model || run.modelOverride);
     return {
       status: "ready",

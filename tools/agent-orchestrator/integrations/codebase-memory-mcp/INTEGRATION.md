@@ -66,6 +66,12 @@ AgentApp은 worker별 세션 프로필 경계 안에 등록한다. 예시는 [`m
 - 색인 제외 목록에 `.tooling/`, `data/`, `dist-desktop/`를 추가 권장.
 - 인자 없이 실행하면 stdio MCP 서버로 동작한다.
 
-## 프로덕션 wiring 설계 (보류 — Phase 13)
+## 프로덕션 wiring (적용됨 — DEC-20260619-001=A)
 
-`worker-launch-adapter.mjs`의 각 어댑터(`resolveAdapter`)에서 프로젝트가 opt-in이면 세션 프로필 dir에 위 MCP 설정을 1회 기록한다. 이 파일은 데스크탑 트리거 경로라 변경 시 자동 릴리즈가 걸리므로, PoC와 분리된 별도 task로 검토 후 적용한다.
+`worker-launch-adapter.mjs`의 `resolveAdapter`가 `settings.integrations.codebaseMemoryMcp`가 켜져 있고 바이너리가 해석되면 세션 프로필에 MCP를 등록한다:
+
+- **Claude**: 세션 dir에 `codebase-memory.mcp.json` 작성 후 `claude --print`에 `--mcp-config <file>` 전달 (전역/프로젝트 무변경)
+- **Codex**: `$CODEX_HOME/config.toml`에 `[mcp_servers.codebase-memory]` 추가 (멱등)
+- **Gemini**: `$GEMINI_CONFIG_DIR/settings.json`의 `mcpServers`에 병합
+
+바이너리 경로 해석 순서: `settings.integrations.codebaseMemoryMcpPath` → `AGENTAPP_CMM_COMMAND` env → `.tooling/`(dev) → PATH. 못 찾으면 등록을 건너뛰고 launch는 정상 진행한다. dashboard 설정 패널에서 on/off + 경로를 편집한다. 회귀 검증: `scripts/validate-integrations.mjs`.

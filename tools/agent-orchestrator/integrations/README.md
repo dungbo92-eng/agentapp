@@ -8,8 +8,8 @@ AgentApp이 관리하는 worker(Claude Code / Codex / Cursor / Gemini)에 외부
 
 | 통합 | 종류 | 절감 위치 | 위험도 | 상태 |
 |---|---|---|---|---|
-| [codebase-memory-mcp](codebase-memory-mcp/INTEGRATION.md) | 로컬 MCP 서버 (서드파티 바이너리) | 입력 토큰 (코드 이해 → 그래프) | 중 (prebuilt 바이너리) | PoC 검증 완료, 프로덕션 wiring 보류 |
-| [ponytail](ponytail/INTEGRATION.md) | 코드 최소화 룰/프롬프트 프리앰블 | 출력 토큰 (불필요 코드 억제) | 낮음 (instruction-only) | dry-run 검증 완료 |
+| [codebase-memory-mcp](codebase-memory-mcp/INTEGRATION.md) | 로컬 MCP 서버 (서드파티 바이너리) | 입력 토큰 (코드 이해 → 그래프) | 중 (prebuilt 바이너리) | **프로덕션 wiring 적용** (opt-in, 기본 off) |
+| [ponytail](ponytail/INTEGRATION.md) | 코드 최소화 룰/프롬프트 프리앰블 | 출력 토큰 (불필요 코드 억제) | 낮음 (instruction-only) | **프로덕션 wiring 적용** (off/lite/full) |
 
 ## 공통 원칙
 
@@ -19,6 +19,10 @@ AgentApp이 관리하는 worker(Claude Code / Codex / Cursor / Gemini)에 외부
 - 서드파티 바이너리는 버전 핀 + sha256 + 다운로드 출처를 통합 문서에 기록하고, 바이너리 자체는 `.tooling/`(gitignore)에 둔다.
 - 신규 MCP/connector 설치는 `DECISIONS_REQUIRED.md`에 등록 후 진행한다.
 
-## 프로덕션 wiring (다음 단계, 보류)
+## 프로덕션 wiring (적용됨, DEC-20260619-001=A)
 
-실제 `worker-launch-adapter.mjs` 주입은 데스크탑 트리거 경로라 자동 릴리즈를 유발한다. 따라서 PoC/dry-run 검증과 분리해 별도 task로 진행한다(roadmap Phase 13).
+- MCP 등록: `worker-launch-adapter.mjs` `resolveAdapter` → claude `--mcp-config` / codex·gemini config dir.
+- Ponytail 주입: `dashboard-runtime.mjs` `applyPonytailPreamble`.
+- 토글: dashboard 설정 패널 (MCP on/off + 바이너리 경로 + Ponytail 모드).
+- 검증: `scripts/validate-integrations.mjs` (11 케이스), dashboard build.
+- 남은 것: 인증된 worker 세션에서 실 사이클 검증(Claude/Gemini 로그인 필요).

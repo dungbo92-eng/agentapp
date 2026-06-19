@@ -1,6 +1,7 @@
 #!/usr/bin/env node
 
 import { mkdir, readdir, readFile, rename, stat, unlink, writeFile } from "node:fs/promises";
+import { readFileSync } from "node:fs";
 import { spawn } from "node:child_process";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
@@ -156,6 +157,18 @@ function normalizeSettings(raw) {
     : tokenValid
       ? tokenRaw
       : "";
+  // 외부 도구 통합 (codebase-memory MCP / ponytail). 기본 전부 off (opt-in).
+  // 설계: tools/agent-orchestrator/integrations/.
+  const integrationsRaw = source.integrations && typeof source.integrations === "object" ? source.integrations : {};
+  const integrations = {
+    codebaseMemoryMcp: Boolean(integrationsRaw.codebaseMemoryMcp),
+    codebaseMemoryMcpPath: typeof integrationsRaw.codebaseMemoryMcpPath === "string"
+      ? integrationsRaw.codebaseMemoryMcpPath.trim()
+      : "",
+    ponytailMode: ["off", "lite", "full"].includes(integrationsRaw.ponytailMode)
+      ? integrationsRaw.ponytailMode
+      : "off",
+  };
   return {
     idleWarnMs,
     idleKillMs,
@@ -175,6 +188,7 @@ function normalizeSettings(raw) {
     companyAccountPromptPreamble,
     lanAccessEnabled,
     lanAccessToken,
+    integrations,
   };
 }
 
@@ -3573,6 +3587,31 @@ export function decorateAutoChainPrompt(prompt) {
   return text + STATUS_MARKER_RULE + CHAIN_DONE_PROMPT_RULE + NEXT_STEPS_RULE;
 }
 
+// Ponytail 코드 최소화 룰을 프롬프트 앞에 1회 prepend (멱등). settings.integrations.
+// ponytailMode 가 lite/full 일 때만. 단일 소스 = ponytail.rule.md (tools/** 로 패키징됨).
+const PONYTAIL_MARKER = "[PONYTAIL 규칙]";
+const PONYTAIL_RULE_FILE = path.join(
+  REPO_ROOT, "tools", "agent-orchestrator", "integrations", "ponytail", "ponytail.rule.md",
+);
+const PONYTAIL_LITE =
+  "코드 작성 전 YAGNI 사다리(필요? → stdlib → 네이티브 → 기존 의존성 → 한 줄 → 최소 구현). 검증/에러처리/보안/접근성은 최소화 대상 아님.";
+let ponytailFullCache = null;
+function ponytailBody(mode) {
+  if (mode === "lite") return PONYTAIL_LITE;
+  if (ponytailFullCache === null) {
+    try { ponytailFullCache = readFileSync(PONYTAIL_RULE_FILE, "utf8").trim(); }
+    catch { ponytailFullCache = PONYTAIL_LITE; }
+  }
+  return ponytailFullCache;
+}
+export function applyPonytailPreamble(prompt, mode = "off") {
+  if (mode !== "lite" && mode !== "full") return prompt;
+  const text = String(prompt || "");
+  if (text.includes(PONYTAIL_MARKER)) return text;
+  const block = `${PONYTAIL_MARKER}\n${ponytailBody(mode)}\n[/PONYTAIL 규칙]`;
+  return text ? `${block}\n\n${text}` : block;
+}
+
 const HANDOFF_CONTEXT_MARKER = "## 직전 세션 인계";
 
 // 이어받기 괴리 방지 — 각 worker run 은 fresh 세션(claude --print 등)이라
@@ -3995,7 +4034,9 @@ export async function tryAutoChain(prevRun, opts = {}) {
   // 맥락이 더 중요하다. NEXT_STEPS 마커는 worker 가 방금 낸 거라 이미 맥락이
   // 일부 있지만, 그래도 "직전에 뭘 끝냈는지" 를 붙이면 중복 작업이 준다.
   const handoffContext = buildHandoffContext(prevRun, lastMessageText);
-  const chainPrompt = decorateAutoChainPrompt(`${handoffContext}${basePrompt}`);
+  const chainPrompt = decorateAutoChainPrompt(
+    applyPonytailPreamble(`${handoffContext}${basePrompt}`, settings.integrations?.ponytailMode),
+  );
   const nextWorkerId = prevRun.workerAuto ? "auto" : prevRun.workerId;
 
   const result = await startRun({
@@ -4387,9 +4428,10 @@ export async function startRun(input) {
     selectedRoutingAccount,
     maintenanceDomain,
   );
+  const ponytailRawPrompt = applyPonytailPreamble(rawPrompt, settingsForRouting.integrations?.ponytailMode);
   const decoratedPrompt = settingsForRouting.autoChainEnabled
-    ? decorateAutoChainPrompt(rawPrompt)
-    : rawPrompt;
+    ? decorateAutoChainPrompt(ponytailRawPrompt)
+    : ponytailRawPrompt;
   const run = {
     id,
     status: routing.status === "blocked" ? "queued" : "running",

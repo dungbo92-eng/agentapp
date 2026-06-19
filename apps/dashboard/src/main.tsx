@@ -285,6 +285,11 @@ type RuntimeSettings = {
   notifyWebhookUrl?: string;
   notifyEnabled?: boolean;
   strictUserWait?: boolean;
+  integrations?: {
+    codebaseMemoryMcp?: boolean;
+    codebaseMemoryMcpPath?: string;
+    ponytailMode?: "off" | "lite" | "full";
+  };
 };
 
 type RuntimeNotification = {
@@ -1231,6 +1236,11 @@ function RuntimeSettingsPanel({
   const [quotaRetry, setQuotaRetry] = React.useState<boolean>(settings?.quotaRetryEnabled !== false);
   const [notifyEnabled, setNotifyEnabled] = React.useState<boolean>(settings?.notifyEnabled !== false);
   const [notifyWebhookUrl, setNotifyWebhookUrl] = React.useState<string>(settings?.notifyWebhookUrl ?? "");
+  const [cmmEnabled, setCmmEnabled] = React.useState<boolean>(Boolean(settings?.integrations?.codebaseMemoryMcp));
+  const [cmmPath, setCmmPath] = React.useState<string>(settings?.integrations?.codebaseMemoryMcpPath ?? "");
+  const [ponytailMode, setPonytailMode] = React.useState<"off" | "lite" | "full">(
+    settings?.integrations?.ponytailMode ?? "off",
+  );
   const [saving, setSaving] = React.useState(false);
 
   React.useEffect(() => {
@@ -1249,8 +1259,11 @@ function RuntimeSettingsPanel({
       setQuotaRetry(settings.quotaRetryEnabled !== false);
       setNotifyEnabled(settings.notifyEnabled !== false);
       setNotifyWebhookUrl(settings.notifyWebhookUrl ?? "");
+      setCmmEnabled(Boolean(settings.integrations?.codebaseMemoryMcp));
+      setCmmPath(settings.integrations?.codebaseMemoryMcpPath ?? "");
+      setPonytailMode(settings.integrations?.ponytailMode ?? "off");
     }
-  }, [settings?.idleWarnMs, settings?.idleKillMs, settings?.maxSessionMs, settings?.accountSelectStrategy, settings?.autoChainEnabled, settings?.autoChainMaxDepth, settings?.autoChainOverrideOnChainDone, settings?.quotaRetryEnabled, settings?.notifyEnabled, settings?.notifyWebhookUrl]);
+  }, [settings?.idleWarnMs, settings?.idleKillMs, settings?.maxSessionMs, settings?.accountSelectStrategy, settings?.autoChainEnabled, settings?.autoChainMaxDepth, settings?.autoChainOverrideOnChainDone, settings?.quotaRetryEnabled, settings?.notifyEnabled, settings?.notifyWebhookUrl, settings?.integrations?.codebaseMemoryMcp, settings?.integrations?.codebaseMemoryMcpPath, settings?.integrations?.ponytailMode]);
 
   // 추천 프리셋 — 사용자가 한 번에 자주 쓰는 조합으로 모든 값을 갈아끼운다.
   // 저장 버튼을 누르면 실제로 반영됨 (프리셋 클릭 = 미리보기 값 채우기).
@@ -1439,6 +1452,38 @@ function RuntimeSettingsPanel({
             ntfy 사용: 폰에 ntfy 앱 설치 + 임의 토픽 구독 (예: agentapp-leemg-xyz) → 이 URL 에 https://ntfy.sh/&lt;토픽&gt; 입력
           </small>
         </label>
+        <label className="toggleRow" title="코드베이스를 그래프로 색인하는 codebase-memory MCP 를 worker 세션에 등록합니다. 에이전트가 파일을 직접 읽는 대신 구조 질의로 답을 얻어 입력 토큰을 크게 줄입니다. 바이너리를 못 찾으면 등록을 건너뛰고 정상 실행합니다.">
+          <input
+            type="checkbox"
+            checked={cmmEnabled}
+            onChange={(event) => setCmmEnabled(event.target.checked)}
+          />
+          <span>🧠 codebase-memory MCP (코드 인텔리전스 · 입력 토큰 절감)</span>
+        </label>
+        {cmmEnabled ? (
+          <label className="toggleRow column" title="codebase-memory-mcp 실행 파일의 절대 경로. 비워두면 AGENTAPP_CMM_COMMAND env → .tooling → PATH 순으로 자동 탐색합니다.">
+            <span>📁 codebase-memory-mcp 경로 (선택)</span>
+            <input
+              type="text"
+              placeholder="비우면 자동 탐색 (env / .tooling / PATH)"
+              value={cmmPath}
+              onChange={(event) => setCmmPath(event.target.value)}
+              style={{ width: "100%", padding: "4px 6px", marginTop: 4 }}
+            />
+          </label>
+        ) : null}
+        <label className="toggleRow column" title="Ponytail 코드 최소화 룰을 worker 프롬프트 앞에 주입합니다. off=사용 안 함, lite=한 줄 요약, full=전체 룰. 검증/보안/접근성 가드는 보존되며 출력(코드) 토큰을 줄입니다.">
+          <span>✂️ Ponytail 코드 최소화 룰 (출력 토큰 절감)</span>
+          <select
+            value={ponytailMode}
+            onChange={(event) => setPonytailMode(event.target.value as "off" | "lite" | "full")}
+            style={{ width: "100%", padding: "4px 6px", marginTop: 4 }}
+          >
+            <option value="off">off — 사용 안 함</option>
+            <option value="lite">lite — 한 줄 요약 주입</option>
+            <option value="full">full — 전체 룰 주입</option>
+          </select>
+        </label>
       </div>
       <button
         type="button"
@@ -1463,6 +1508,11 @@ function RuntimeSettingsPanel({
               quotaRetryEnabled: quotaRetry,
               notifyEnabled,
               notifyWebhookUrl: notifyWebhookUrl.trim(),
+              integrations: {
+                codebaseMemoryMcp: cmmEnabled,
+                codebaseMemoryMcpPath: cmmPath.trim(),
+                ponytailMode,
+              },
             });
           } finally {
             setSaving(false);
