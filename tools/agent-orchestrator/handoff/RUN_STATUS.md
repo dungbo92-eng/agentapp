@@ -1,5 +1,22 @@
 # RUN_STATUS
 
+## 2026-06-19T_external_tool_integration_eval
+
+사용자 요청: codebase-memory-mcp + Ponytail 두 OSS 를 AgentApp 에 붙일 수 있는지 평가/체크.
+
+수행:
+- **codebase-memory-mcp v0.8.1 contained PoC**: Windows 바이너리 + cosign 번들을 `.tooling/`(gitignore)에 다운로드(sha256 a602ad…), `cli index_repository` 로 이 repo 색인 — 94 files / 2191 nodes / 4330 edges / git 268 commits, ~6s, node_modules 등 7개 디렉터리 자동 제외. `search_code applyQuotaLockout` → 정의+참조처 ~1.4KB JSON(파일 직독 265KB 대비 ~99%↓), `get_architecture` → 구조도 ~1.6KB. 전역 `install` 대신 세션 프로필 경계 등록 설계로 contained.
+- **Ponytail v4.7.0 dry-run**: 핵심 룰/플러그인 매니페스트 스테이징, `scripts/integrate-ponytail.mjs`(+ `pnpm agent:ponytail`) 로 off/lite/full 프리앰블 합성 + 멱등성 검증. instruction-only, safety 가드 보존 확인.
+- 통합 문서 `tools/agent-orchestrator/integrations/**`, `plugins.example.yaml` 레지스트리, roadmap Phase 13, task-queue 3건, `DEC-20260619-001`, project_state 갱신.
+
+검증:
+- pnpm validate 중 validate-configs / validate-quota-parser / validate-e2e-server 통과, 신규 스크립트 node --check 통과.
+- validate-runtime-race FAIL — **사전 존재 환경 플래키**(이 PC에서 50-way 동시 write 시 Windows `rename` EPERM). 변경 파일에 runtime/*.mjs 없음(git status로 확인), 본 작업과 무관.
+
+Git: 커밋 + main push 완료. **자동 릴리즈 건너뜀** — package.json 이 트리거 경로지만 변경은 CLI 스크립트 alias + 문서뿐이라 데스크탑/대시보드/런타임 동작 변화 없음.
+
+Next: DEC-20260619-001 결정 후 worker-launch-adapter MCP 등록 + dashboard 토글(Phase 13 프로덕션 wiring).
+
 ## 2026-06-04T_handoff_context_injection
 
 사용자 보고 — 같은 프로젝트인데 worker 가 매번 절반쯤 다시 시작하는 "띄엄띄엄" 현상. 직전 세션 분석:

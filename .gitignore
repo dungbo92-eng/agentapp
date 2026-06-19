@@ -47,5 +47,9 @@ worktrees/
 data/
 storage/
 
+# Third-party tool binaries fetched for local PoC (codebase-memory-mcp 등).
+# 버전/sha/다운로드 URL은 integrations 문서에 기록하므로 바이너리는 추적하지 않는다.
+.tooling/
+
 # Per-PC usage budget (real account data). Examples and empty fallback stay in repo.
 tools/agent-orchestrator/usage-budget.json

@@ -1,0 +1,61 @@
+version: 1
+
+# plugin/MCP 확장 레지스트리 예시.
+# 기준: docs/plugin-mcp-extension-strategy.md, docs/security-model.md.
+# 비밀값/토큰/계정 식별자는 여기 넣지 않는다.
+
+defaults:
+  default_mode: local_read
+  opt_in: true            # 모든 외부 통합은 프로젝트별 opt-in, 기본 off
+  required_reads:
+    - "AGENTS.md"
+    - "docs/security-model.md"
+    - "tools/agent-orchestrator/approval-policy.yaml"
+
+plugins:
+  - id: codebase-memory-mcp
+    kind: mcp_server
+    source: "https://github.com/DeusData/codebase-memory-mcp"
+    license: MIT
+    pinned_version: "0.8.1"
+    default_mode: local_read       # repo read-only + 로컬 SQLite 캐시
+    integration_doc: "tools/agent-orchestrator/integrations/codebase-memory-mcp/INTEGRATION.md"
+    allowed_use:
+      - index_repository
+      - search_code
+      - search_graph
+      - get_architecture
+      - trace_path
+      - query_graph            # read-only Cypher
+    hold_for_user:
+      - install_or_register     # 신규 MCP 등록 → DEC-20260619-001
+      - global_agent_install    # install.ps1 전역 설정 변경
+    deny:
+      - store_secrets_in_config
+    handoff_notes:
+      - "그래프 결과를 handoff에 남길 때 경로만, 비밀값 없음"
+      - "프로덕션 색인 제외: .tooling/, data/, dist-desktop/"
+    verification:
+      - "codebase-memory-mcp.exe cli index_status '{\"project\":\"<name>\"}'"
+      - "pnpm validate"
+
+  - id: ponytail
+    kind: instruction_rule
+    source: "https://github.com/DietrichGebert/ponytail"
+    license: MIT
+    pinned_version: "4.7.0"
+    default_mode: local_read       # 프롬프트 프리앰블 주입, 외부 통신 없음
+    integration_doc: "tools/agent-orchestrator/integrations/ponytail/INTEGRATION.md"
+    allowed_use:
+      - inject_preamble            # pnpm agent:ponytail
+      - code_minimization_review
+    hold_for_user:
+      - official_plugin_marketplace_install   # 전역 에이전트 플러그인 설치
+    deny:
+      - weaken_safety_validation_security
+    handoff_notes:
+      - "코드 작성 작업(standard/complex)에서만 켠다"
+      - "기존 토큰 최적화 프로토콜과 역할 분담: 입력=프로토콜, 출력=ponytail"
+    verification:
+      - "pnpm agent:ponytail -- --mode lite"
+      - "pnpm validate"

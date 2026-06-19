@@ -29,6 +29,7 @@
     "agent:setup": "node scripts/agent-environment-setup.mjs",
     "agent:cycle-test": "node scripts/user-environment-cycle-test.mjs",
     "agent:report": "node scripts/agent-report.mjs",
+    "agent:ponytail": "node scripts/integrate-ponytail.mjs",
     "dashboard:prepare": "node scripts/dashboard-prepare.mjs",
     "dashboard:dev": "pnpm dashboard:prepare && pnpm --dir apps/dashboard dev",
     "dashboard:build": "pnpm dashboard:prepare && pnpm --dir apps/dashboard build",

@@ -625,6 +625,41 @@
         "cursor-manual-confirmation"
       ],
       "reason": "Codex/Claude/Cursor/Gemini CLI installation is complete. Codex reaches the CLI but returns 401 Unauthorized in the session profile, Claude/Gemini profiles still require user login, and Cursor opens successfully but needs manual UI completion."
+    },
+    {
+      "id": "codebase-memory-mcp-poc",
+      "title": "codebase-memory-mcp contained PoC + 통합 설계",
+      "phase": "phase-13",
+      "priority": 40,
+      "status": "done",
+      "depends_on": [],
+      "blocked_by": [],
+      "reason": "v0.8.1 Windows 바이너리를 .tooling에 contained 설치하고 이 repo를 색인(2191노드/4330엣지)했다. search_code/get_architecture로 토큰 ~99% 절감을 실측하고 세션 프로필 MCP 등록 설정 예시와 INTEGRATION 문서를 작성했다."
+    },
+    {
+      "id": "ponytail-rule-dry-run",
+      "title": "Ponytail 코드 최소화 룰 dry-run 주입",
+      "phase": "phase-13",
+      "priority": 39,
+      "status": "done",
+      "depends_on": [],
+      "blocked_by": [],
+      "reason": "pnpm agent:ponytail dry-run 스크립트로 off/lite/full 모드 프리앰블 합성과 멱등성을 검증했다. 기존 토큰 최적화 프로토콜과의 역할 분담을 INTEGRATION 문서에 정리했다."
+    },
+    {
+      "id": "external-tools-production-wiring",
+      "title": "외부 도구 프로덕션 wiring (worker-launch-adapter + dashboard 토글)",
+      "phase": "phase-13",
+      "priority": 38,
+      "status": "hold",
+      "depends_on": [
+        "codebase-memory-mcp-poc",
+        "ponytail-rule-dry-run"
+      ],
+      "blocked_by": [
+        "DEC-20260619-001"
+      ],
+      "reason": "MCP 등록과 Ponytail 프리앰블 주입을 실제 launch 흐름에 넣으려면 데스크탑 트리거 경로(worker-launch-adapter/dashboard-runtime)를 바꿔야 한다. DEC-20260619-001 결정 후 진행한다."
     }
   ]
 }

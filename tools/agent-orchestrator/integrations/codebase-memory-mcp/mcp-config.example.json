@@ -1,0 +1,10 @@
+{
+  "_comment": "Claude Code / Gemini CLI mcpServers 등록 예시. AgentApp은 이 블록을 세션 프로필 config dir(CLAUDE_CONFIG_DIR / GEMINI_CONFIG_DIR)에 기록한다. command 경로는 프로덕션에서 안정 설치 경로로 교체한다. 비밀값을 넣지 않는다.",
+  "mcpServers": {
+    "codebase-memory": {
+      "command": "E:\\agentApp\\.tooling\\codebase-memory-mcp\\extracted\\codebase-memory-mcp.exe",
+      "args": [],
+      "env": {}
+    }
+  }
+}

@@ -32,6 +32,23 @@
 
 ## 대기
 
+### DEC-20260619-001 — codebase-memory-mcp 프로덕션 도입 + 설치 경로
+
+- Status: pending
+- Priority: medium
+- Category: worker
+- Requested by: user
+- Blocks: `worker-launch-adapter.mjs` 세션 프로필에 codebase-memory MCP 자동 등록 (Phase 13)
+- Context: 서드파티 prebuilt 바이너리 MCP다. security-model상 신규 MCP/connector 설치는 결정이 필요하다. v0.8.1 contained PoC(로컬 `.tooling/`)는 사용자 승인하에 완료했고 이 repo 색인·질의·토큰 절감을 실측했다(`integrations/codebase-memory-mcp/INTEGRATION.md`). 남은 결정은 프로덕션 채택 방식이다.
+- Options:
+  - A: contained 방식 유지 — AgentApp이 핀된 버전을 자체 경로에 두고 세션 프로필에만 등록. 전역 에이전트 설정 비침해, 롤백 쉬움. (권장)
+  - B: 공식 `install.ps1`/`install` 사용 — 11개 에이전트 전역 자동 설정. 편하지만 사용자 글로벌 설정을 변경.
+  - C: 도입 보류 — PoC만 남기고 프로덕션 wiring 안 함.
+- Recommended: A. 핀된 버전 + sha256 검증 + 로컬 read-only + 세션 프로필 경계 유지가 보안 모델과 가장 잘 맞는다.
+- Decision needed: 채택 방식(A/B/C)과, 켤 프로젝트 범위(전체 opt-in vs 선택 프로젝트).
+- After decision: A면 Phase 13에서 `resolveAdapter`에 opt-in MCP 등록 + 인덱스 제외(`.tooling/`,`data/`) 추가 후 cycle-test.
+- Created: 2026-06-19
+
 ### DEC-20260516-002 — Gemini CLI 인증 + dashboard 계정 등록
 
 - Status: pending

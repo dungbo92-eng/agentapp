@@ -109,3 +109,16 @@
 - [x] dashboard cycle test CLI (`pnpm agent:cycle-test`)
 - [x] v0.1.0 CHANGELOG와 Windows EXE 재패키징
 - [ ] Claude/Gemini CLI 설치 후 실제 authenticated cycle 재검증
+
+## Phase 13 — 외부 도구 통합 (코드 인텔리전스 + 코드 최소화)
+
+평가/PoC 완료, 프로덕션 wiring 보류. 세부: `tools/agent-orchestrator/integrations/`.
+
+- [x] codebase-memory-mcp v0.8.1 contained PoC (색인 2191노드/4330엣지, 토큰 절감 실측)
+- [x] codebase-memory-mcp 세션 프로필 MCP 등록 설정 예시(Claude/Gemini/Codex)
+- [x] Ponytail 룰 dry-run 주입 스크립트(`pnpm agent:ponytail`)와 멱등성 검증
+- [x] 두 도구 통합 문서 + plugins.example.yaml 레지스트리
+- [ ] (DEC-20260619-001 결정 후) `worker-launch-adapter.mjs`에 opt-in MCP 등록 + 인덱스 제외 추가
+- [ ] (결정 후) `dashboard-runtime.mjs`에 Ponytail 프리앰블 주입(코드 작업 한정)
+- [ ] dashboard에 통합 on/off 토글 + 상태 표시
+- [ ] cycle-test로 MCP 활성 worker 1회 실행 검증
