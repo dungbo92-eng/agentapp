@@ -1,10 +1,10 @@
 {
-  "generated_at": "2026-06-19T21:16:15.931Z",
+  "generated_at": "2026-06-19T21:24:19.655Z",
   "repo_root": "E:\\agentApp",
   "progress": {
-    "percent": 94,
-    "done": 72,
-    "total": 77,
+    "percent": 97,
+    "done": 76,
+    "total": 78,
     "phases": [
       {
         "title": "Phase 0 — 프로젝트 운영 골격",
@@ -375,8 +375,8 @@
       },
       {
         "title": "Phase 13 — 외부 도구 통합 (코드 인텔리전스 + 코드 최소화)",
-        "done": 4,
-        "total": 8,
+        "done": 8,
+        "total": 9,
         "items": [
           {
             "title": "codebase-memory-mcp v0.8.1 contained PoC (색인 2191노드/4330엣지, 토큰 절감 실측)",
@@ -395,19 +395,23 @@
             "done": true
           },
           {
-            "title": "(DEC-20260619-001 결정 후) `worker-launch-adapter.mjs`에 opt-in MCP 등록 + 인덱스 제외 추가",
-            "done": false
+            "title": "(DEC-20260619-001=A) `worker-launch-adapter.mjs` opt-in MCP 등록 (claude `--mcp-config` / codex·gemini config dir)",
+            "done": true
           },
           {
-            "title": "(결정 후) `dashboard-runtime.mjs`에 Ponytail 프리앰블 주입(코드 작업 한정)",
-            "done": false
+            "title": "`dashboard-runtime.mjs` Ponytail 프리앰블 주입 (off/lite/full, 멱등)",
+            "done": true
           },
           {
-            "title": "dashboard에 통합 on/off 토글 + 상태 표시",
-            "done": false
+            "title": "dashboard 통합 토글 (MCP on/off + 바이너리 경로 + Ponytail 모드)",
+            "done": true
           },
           {
-            "title": "cycle-test로 MCP 활성 worker 1회 실행 검증",
+            "title": "`validate-integrations` 회귀 검증 11 케이스 + dashboard build 통과",
+            "done": true
+          },
+          {
+            "title": "인증된 세션에서 MCP 활성 worker 실 사이클 검증 (Claude/Gemini 로그인 필요)",
             "done": false
           }
         ]
@@ -422,12 +426,6 @@
     "priority": "n/a"
   },
   "pending_decisions": [
-    {
-      "title": "DEC-20260619-001 — codebase-memory-mcp 프로덕션 도입 + 설치 경로",
-      "priority": "medium",
-      "category": "worker",
-      "blocks": "`worker-launch-adapter.mjs` 세션 프로필에 codebase-memory MCP 자동 등록 (Phase 13)"
-    },
     {
       "title": "DEC-20260516-002 — Gemini CLI 인증 + dashboard 계정 등록",
       "priority": "medium",
@@ -444,12 +442,6 @@
   },
   "approval_queue": {
     "pending_decisions": [
-      {
-        "title": "DEC-20260619-001 — codebase-memory-mcp 프로덕션 도입 + 설치 경로",
-        "priority": "medium",
-        "category": "worker",
-        "blocks": "`worker-launch-adapter.mjs` 세션 프로필에 codebase-memory MCP 자동 등록 (Phase 13)"
-      },
       {
         "title": "DEC-20260516-002 — Gemini CLI 인증 + dashboard 계정 등록",
         "priority": "medium",
@@ -469,15 +461,6 @@
           "cursor-manual-confirmation"
         ],
         "reason": "Codex/Claude/Cursor/Gemini CLI installation is complete. Codex reaches the CLI but returns 401 Unauthorized in the session profile, Claude/Gemini profiles still require user login, and Cursor opens successfully but needs manual UI completion."
-      },
-      {
-        "id": "external-tools-production-wiring",
-        "title": "외부 도구 프로덕션 wiring (worker-launch-adapter + dashboard 토글)",
-        "status": "hold",
-        "blocked_by": [
-          "DEC-20260619-001"
-        ],
-        "reason": "MCP 등록과 Ponytail 프리앰블 주입을 실제 launch 흐름에 넣으려면 데스크탑 트리거 경로(worker-launch-adapter/dashboard-runtime)를 바꿔야 한다. DEC-20260619-001 결정 후 진행한다."
       }
     ],
     "policy": {
@@ -623,19 +606,19 @@
       "title": "DECISIONS_REQUIRED.md",
       "path": "tools/agent-orchestrator/handoff/DECISIONS_REQUIRED.md",
       "heading": "DECISIONS_REQUIRED",
-      "status": "2 pending",
+      "status": "1 pending",
       "next": "",
       "generated": "",
-      "decision_count": 2,
-      "line_count": 128,
-      "excerpt": "# DECISIONS_REQUIRED\n\n사용자 결정이 필요한 항목을 모은 큐다. 에이전트는 `approval-policy.yaml`의 `hold_for_user` 또는 `deny`에 해당하는 작업을 임의 실행하지 않고, 여기 구조에 맞춰 기록한다.\n\n## 기록 규칙\n\n- 새 항목은 `대기` 아래에 추가한다.\n- 해결된 항목은 `해결됨` 아래로 옮기고 `Resolved`를 채운다.\n- 비밀값, 토큰, 계정명, 이메일, 세션 정보는 기록하지 않는다.\n- 결정 없이 진행 가능한 로컬 작업은 멈추지 말고 완료한다.\n- 결정이 필요한 작업만 명확히 분리한다.\n\n## 항목 템플릿\n\n```md\n### DEC-YYYYMMDD-001 — 짧은 제목\n\n- Status: pending\n- Priority: high | medium | low\n- Category: product | safety | git | usage_budget | worker | deployment | other\n- Requested by: user | agent\n- Blocks: 어떤 작업이 막히는지\n- Context: 왜 결정이 필요한지\n- Options:\n  - A: 선택지와 영향\n  - B: 선택지와 영향\n- Recommended: 권장 선택과 이유\n- Decision needed: 사용자가 답해야 할 짧은 질문\n- After decision: 결정 후 에이전트가 수행할 작업\n- Created: YYYY-MM-DD\n```\n\n## 대기\n\n### DEC-20260619-001 — codebase-memory-mcp 프로덕션 도입 + 설치 경로\n\n- Status: pending\n- Priority: medium\n- Category: worker\n- Requested by: user\n- Blocks: `worker-launch-adapter.mjs` 세션 프로필에 codebase-memory MCP 자동 등록 (Phase 13)\n- Context: 서드파티 prebuilt 바이너리 MCP다. security-model상 신규 MCP/connector 설치는 결정이 필요하다. v0.8.1 contained PoC(로컬 `.tooling/`)는 사용자 승인하에 완료했고 이 repo 색인·질의·토큰 절감을 실측했다(`integrations/codebase-memory-mcp/INTEGRATION.md`). 남은 결정은 프로덕션 채택 방식이다.\n- Options:\n  - A: contained 방식 유지 — AgentApp이 핀된 버전을 자체 경로에 두고 세션 프로필에만 등록. 전역 에이전트 설정 비침해, 롤백 쉬움. (권장)\n  - B: 공식 `install.ps1`/`install` 사용 — 11개 에이전트 전역 자동 설정. 편하지만 사용자 글로벌 설정을 변경.\n  - C: 도입 보류 — PoC만 남기고 프로덕션 wiring 안 함.\n- Recommended: A. 핀된 버전 + sha256 검증 + 로컬 read-only + 세션 프로필 경계 유지가 보안 모델과 가장 잘 맞는다.\n- Decision needed: 채택 방식(A/B/C)과, 켤 프로젝트 범위(전체 opt-in vs 선택 프로젝트).\n- After decision: A면 Phase 13에서 `resolveAdapter`에 opt-in MCP 등록 + 인덱스 제외(`.tooling/`,`data/`) 추가 후 cycle-test.\n- Created: 2026-06-19\n\n### DEC-20260516-002 — Gemini CLI 인증 + dashboard 계정 등록\n\n- Status: pending\n- Priority: medium\n- Category: worker\n- Requested by: agent\n- Blocks: `pnpm agent:cycle-test -- --worker gemini-cli --execute` (현재 라우팅 후보 0건)\n- Context: Gemini CLI 0.41.2가 설치돼 있지만 `gemini -p`가 `Please set an Auth method in your C:\\Users\\lee\\.gemini\\settings.json or specify GEMINI_API_KEY / GOOGLE_GENAI_USE_VERTEXAI / GOOGLE_GENAI_USE_GCA` 안내로 종료한다. dashboard runtime에도 등록된 Gemini 계정이 없다.\n- Options:\n  - A: GEMINI_API_KEY 발급 후 환경..."
+      "decision_count": 1,
+      "line_count": 123,
+      "excerpt": "# DECISIONS_REQUIRED\n\n사용자 결정이 필요한 항목을 모은 큐다. 에이전트는 `approval-policy.yaml`의 `hold_for_user` 또는 `deny`에 해당하는 작업을 임의 실행하지 않고, 여기 구조에 맞춰 기록한다.\n\n## 기록 규칙\n\n- 새 항목은 `대기` 아래에 추가한다.\n- 해결된 항목은 `해결됨` 아래로 옮기고 `Resolved`를 채운다.\n- 비밀값, 토큰, 계정명, 이메일, 세션 정보는 기록하지 않는다.\n- 결정 없이 진행 가능한 로컬 작업은 멈추지 말고 완료한다.\n- 결정이 필요한 작업만 명확히 분리한다.\n\n## 항목 템플릿\n\n```md\n### DEC-YYYYMMDD-001 — 짧은 제목\n\n- Status: pending\n- Priority: high | medium | low\n- Category: product | safety | git | usage_budget | worker | deployment | other\n- Requested by: user | agent\n- Blocks: 어떤 작업이 막히는지\n- Context: 왜 결정이 필요한지\n- Options:\n  - A: 선택지와 영향\n  - B: 선택지와 영향\n- Recommended: 권장 선택과 이유\n- Decision needed: 사용자가 답해야 할 짧은 질문\n- After decision: 결정 후 에이전트가 수행할 작업\n- Created: YYYY-MM-DD\n```\n\n## 대기\n\n### DEC-20260516-002 — Gemini CLI 인증 + dashboard 계정 등록\n\n- Status: pending\n- Priority: medium\n- Category: worker\n- Requested by: agent\n- Blocks: `pnpm agent:cycle-test -- --worker gemini-cli --execute` (현재 라우팅 후보 0건)\n- Context: Gemini CLI 0.41.2가 설치돼 있지만 `gemini -p`가 `Please set an Auth method in your C:\\Users\\lee\\.gemini\\settings.json or specify GEMINI_API_KEY / GOOGLE_GENAI_USE_VERTEXAI / GOOGLE_GENAI_USE_GCA` 안내로 종료한다. dashboard runtime에도 등록된 Gemini 계정이 없다.\n- Options:\n  - A: GEMINI_API_KEY 발급 후 환경 변수 또는 dashboard secret으로 등록 → 무료 한도 + API 키 인증으로 가장 단순.\n  - B: `gemini` 인터랙티브 모드로 Google 계정 OAuth 로그인 완료 → GCA 인증 후 dashboard에서 Add account → session profile 생성.\n  - C: Vertex AI(GOOGLE_GENAI_USE_VERTEXAI) 경로 → 기업 계정/프로젝트 설정 필요.\n- Recommended: B. Google OAuth가 사용자가 보유한 Gemini Pro 한도를 그대로 사용하고 비밀값 저장도 피한다.\n- Decision needed: Gemini 인증 방식과 사용할 계정 한 가지.\n- After decision: 인증 완료 후 dashboard에서 Add account → provider=Gemini → 해당 login method 선택 → ready 전환 → `pnpm agent:cycle-test -- --worker gemini-cli --execute` 재실행.\n- Created: 2026-05-16\n\n## 해결됨\n\n### DEC-20260619-001 — codebase-memory-mcp 프로덕션 도입 + 설치 경로\n\n- Status: resolved\n- Priority: medium\n- Category: worker\n- Requested by: user\n- Blocks: (해소됨) worker 세션 프로필에 codebase-memory MCP 자동 등록\n- Context: 서드파티 prebuilt 바이너리 MCP. security-model상 신규 MCP/connector 설치는 결정이 필요했다. v0.8.1 contained PoC로 색인·토큰 절감을 실측한 뒤 채택 방식을 결정.\n- Decision: **Option A (contained)** 채택. AgentApp이 opt-in 시 세션 프로필 경계 안에만 등록(전역 에이전트 설정..."
     }
   ],
   "task_queue": {
     "total": 54,
     "statuses": {
-      "done": 52,
-      "hold": 2
+      "done": 53,
+      "hold": 1
     },
     "next": []
   },
@@ -724,5 +707,5 @@
       "handoff_summary": ""
     }
   ],
-  "project_state_excerpt": "# Project State\n\nLast updated: 2026-05-11\n\n## 프로젝트 한 줄\n\nAgentApp은 여러 AI 개발 에이전트가 같은 memory/plan/handoff를 공유하며 안전한 작업을 이어받게 하는 멀티 에이전트 개발 오케스트레이터다.\n\n## 현재 상태\n\n- `AGENTS.md`, `CLAUDE.md` 공통 규칙 초안 생성.\n- `.claude-sync` memory/plan 동기화 구조 생성.\n- `scripts/claude-sync.mjs`, `install-hooks.mjs` 생성.\n- `scripts/agent-doctor.mjs`, `agent-next.mjs`, `agent-progress.mjs`, `agent-report.mjs` 생성.\n- `tools/agent-orchestrator` 아래 승인 정책, worker 예시, handoff 초안 생성.\n- `git init`, `pnpm install`, hook 설치 완료.\n- `pnpm validate`, `pnpm agent:doctor`, `pnpm agent:progress`, `pnpm agent:next`, `pnpm agent:status` 검증 완료.\n- 새 PC/새 에이전트 세션에서 `pnpm agent:doctor`로 Node/pnpm/git, hooks, `.claude-sync`, 로컬 `~/.claude`, git UTF-8 설정, sync 상태를 점검한다.\n- `approval-policy.yaml`을 allow/hold/deny 구조로 확정하고 로컬 commit/remote push 기준을 명시했다.\n- git remote `origin`은 `git@github.com:dungbo92-eng/agentapp.git`, 기본 브랜치는 `main`으로 설정했다.\n- `workers.example.yaml`을 Codex, Claude Code, Cursor, Gemini CLI용 registry 예시로 확정했다.\n- `pnpm agent:next`가 생성하는 `NEXT_TASK.md` 템플릿을 Required Reads, 실행 규칙, 완료 체크리스트, handoff 갱신 목록, context snapshot 구조로 확정했다.\n- `pnpm agent:report`가 `RUN_STATUS.md`에 Status, Summary, Verification, Git, Decisions, Next 필드를 가진"
+  "project_state_excerpt": "# Project State\n\nLast updated: 2026-06-20\n\n> 릴리즈는 git 기준 **v0.12.2**. 아래 \"현재 상태\" 세부는 v0.1.0 시점 기록이며, 이후 변경 이력은 `RUN_STATUS.md`와 git log가 정본이다.\n\n## 프로젝트 한 줄\n\nAgentApp은 여러 AI 개발 에이전트가 같은 memory/plan/handoff를 공유하며 안전한 작업을 이어받게 하는 멀티 에이전트 개발 오케스트레이터다.\n\n## 현재 상태\n\n- `AGENTS.md`, `CLAUDE.md` 공통 규칙 초안 생성.\n- `.claude-sync` memory/plan 동기화 구조 생성.\n- `scripts/claude-sync.mjs`, `install-hooks.mjs` 생성.\n- `scripts/agent-doctor.mjs`, `agent-next.mjs`, `agent-progress.mjs`, `agent-report.mjs` 생성.\n- `tools/agent-orchestrator` 아래 승인 정책, worker 예시, handoff 초안 생성.\n- `git init`, `pnpm install`, hook 설치 완료.\n- `pnpm validate`, `pnpm agent:doctor`, `pnpm agent:progress`, `pnpm agent:next`, `pnpm agent:status` 검증 완료.\n- 새 PC/새 에이전트 세션에서 `pnpm agent:doctor`로 Node/pnpm/git, hooks, `.claude-sync`, 로컬 `~/.claude`, git UTF-8 설정, sync 상태를 점검한다.\n- `approval-policy.yaml`을 allow/hold/deny 구조로 확정하고 로컬 commit/remote push 기준을 명시했다.\n- git remote `origin`은 `git@github.com:dungbo92-eng/agentapp.git`, 기본 브랜치는 `main`으로 설정했다.\n- `workers.example.yaml`을 Codex, Claude Code, Cursor, Gemini CLI용 registry 예시로 확정했다.\n- `pnpm agent:next`가 생성하는 `NEXT_TASK.md` 템플릿을 Required Reads, 실행 규칙, 완료 체크리스트, handoff 갱신 목록, context snapshot 구조로 확정했"
 }
