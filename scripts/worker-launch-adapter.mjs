@@ -805,35 +805,6 @@ async function resolveProjectPath(projectId) {
   return "";
 }
 
-// `claude --remote-control` 세션 실행 스펙 (계정별). main.mjs 가 node-pty 로 spawn 한다.
-// 폰(Claude 앱/웹)에서 이 세션을 원격 조종한다. 각 계정의 CLAUDE_CONFIG_DIR 로 실행해
-// 계정별 세션이 분리되고, name 으로 모바일에서 구분한다.
-export async function buildRemoteControlSpec(account, options = {}) {
-  const command = process.env.AGENTAPP_CLAUDE_COMMAND || (await commandPathFor("claude"));
-  if (!command) return { status: "blocked", reason: "이 PC에서 Claude CLI 를 찾지 못했습니다." };
-  const accountId = String(account?.id || "default");
-  const sessionProfile = account?.sessionProfile || `claude-code-${accountId}`;
-  const sessionDir = buildSessionProfileDir("claude-code", sessionProfile);
-  await mkdir(sessionDir, { recursive: true });
-  const name = String(options.name || account?.loginLabel || account?.email || accountId).slice(0, 40);
-  const workspace = options.workspace || (isPackagedRuntime() ? safeSpawnCwd() : REPO_ROOT);
-  return {
-    status: "ready",
-    command,
-    args: ["--remote-control", name],
-    env: {
-      CLAUDE_CONFIG_DIR: sessionDir,
-      AGENTAPP_SESSION_PROFILE: sessionProfile,
-      AGENTAPP_ACCOUNT_ID: accountId,
-    },
-    cwd: workspace,
-    sessionDir,
-    sessionProfile,
-    name,
-    accountId,
-  };
-}
-
 async function resolveAdapter(run, files) {
   const sessionProfile = run.routing?.sessionProfile || `${run.workerId}-${run.routing?.accountId || "default"}`;
   const projectPath = await resolveProjectPath(run.projectId);

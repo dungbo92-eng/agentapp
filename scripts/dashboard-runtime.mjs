@@ -157,9 +157,6 @@ function normalizeSettings(raw) {
     : tokenValid
       ? tokenRaw
       : "";
-  // 시작 시 ready Claude 계정마다 `claude --remote-control` 을 자동 실행한다. 기본 on.
-  // 폰(Claude 앱/웹)에서 각 계정 세션을 원격 조종할 수 있게 한다.
-  const remoteControlAutoStart = source.remoteControlAutoStart === undefined ? true : Boolean(source.remoteControlAutoStart);
   // 외부 도구 통합 (codebase-memory MCP / ponytail). 기본 전부 off (opt-in).
   // 설계: tools/agent-orchestrator/integrations/.
   const integrationsRaw = source.integrations && typeof source.integrations === "object" ? source.integrations : {};
@@ -191,7 +188,6 @@ function normalizeSettings(raw) {
     companyAccountPromptPreamble,
     lanAccessEnabled,
     lanAccessToken,
-    remoteControlAutoStart,
     integrations,
   };
 }
@@ -1440,25 +1436,6 @@ export async function detectAccountSession(account) {
     ? `이 계정의 세션 폴더에 ${expected} 가 없습니다. '로그인' 버튼으로 격리 브라우저에서 OAuth 를 완료하세요.`
     : "세션 프로필이 비어 있습니다. '로그인' 버튼으로 격리 브라우저에서 인증을 완료하세요.";
   return { sessionStatus: "needs-login", reason: hint };
-}
-
-// 세션이 ready 인 enabled Claude 계정 목록. `claude --remote-control` 을 계정별로
-// 실행할 대상 선택에 사용. detectAccountSession 은 CLI 존재 + 자격증명/토큰 파일을 확인.
-export async function listReadyClaudeAccounts() {
-  const runtime = await readRuntime();
-  const claudeAccounts = (runtime.accounts || []).filter(
-    (account) => account.enabled !== false && normalizeId(account.provider || "") === "claude",
-  );
-  const ready = [];
-  for (const account of claudeAccounts) {
-    try {
-      const detection = await detectAccountSession(account);
-      if (detection.sessionStatus === "ready") ready.push(account);
-    } catch {
-      /* best-effort — 감지 실패는 not ready 로 간주 */
-    }
-  }
-  return ready;
 }
 
 export async function runAccountLogin(accountId) {

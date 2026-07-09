@@ -1,5 +1,21 @@
 # RUN_STATUS
 
+## 2026-06-20T_rc_crash_fix_status_light
+
+사용자 보고: 설치 앱에서 `Cannot find module '../build/Release/conpty.node'` 오류. + "그냥 왼쪽 계정에 초록/빨강 상태등만 있어도 될듯".
+
+원인: v0.15.0 의 remote-control 자동실행이 시작 시 node-pty(conpty.node)를 로드하는데, 패키징 앱에서 `conpty.node` 가 asar 에서 해결되지 않아 매 시작 로드 실패가 떴다.
+
+수정 (de-scope):
+- remote-control PTY 자동실행 + 패널 + IPC + preload API + `buildRemoteControlSpec` + `listReadyClaudeAccounts` + `remoteControlAutoStart` + `validate-remote-control` **전부 제거** (v0.15.0 되돌림). 시작 시 pty 로드 안 함 → conpty 오류 사라짐.
+- 대신 왼쪽 계정 카드 이름 옆 **세션 상태등** 추가: ready=🟢, paused=🟡, needs-login/기타=🔴 (`account.sessionStatus` 기반).
+- 원격제어가 필요하면 사용자가 계정별로 터미널에서 `claude --remote-control` 직접 실행 (상태등으로 어느 계정이 살아있는지 확인).
+- 참고: in-app 터미널의 node-pty 는 lazy 로드라 시작 크래시와 별개. 패키지 conpty.node 해결은 후속 과제.
+
+검증: pnpm dashboard:build 통과; validate-integrations 11/11 (pnpm validate 내); node --check 전체 통과; dangling ref 0 grep. (validate-runtime-race 플래키 무관.)
+
+Git: commit + main push + desktop 릴리즈(patch).
+
 ## 2026-06-20T_claude_remote_control
 
 사용자 정정: "RC" = LAN 대시보드가 아니라 **`claude --remote-control`** (Claude CLI 내장 원격제어, `claude --help` 에 존재). 계정별로 그 명령을 실행만 하면 됨. 지난 auto-rc(LAN) 는 오해였음.

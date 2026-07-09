@@ -228,16 +228,6 @@ async function createMainWindow() {
     lanAccessToken: initialLanSettings.lanAccessToken,
   });
 
-  // 시작 시 ready Claude 계정마다 `claude --remote-control` 세션 자동 시작 (기본 on).
-  // 폰(Claude 앱/웹)에서 각 계정 세션을 원격 조종. 창 생성을 막지 않도록 non-blocking.
-  try {
-    const { getRuntimeSettings } = await import("../../scripts/dashboard-runtime.mjs");
-    const rcSettings = await getRuntimeSettings();
-    if (rcSettings.remoteControlAutoStart !== false) void startRemoteControlSessions();
-  } catch {
-    /* best-effort — 원격제어 자동 시작 실패는 앱 실행을 막지 않는다 */
-  }
-
   mainWindow = new BrowserWindow({
     width: initialDims.width,
     height: initialDims.height,
@@ -958,89 +948,6 @@ app.on("before-quit", () => {
   }
   ptySessions.clear();
 });
-
-// ===== Claude Remote Control (계정별 `claude --remote-control`) =====
-// 앱 시작 시 ready Claude 계정마다 remote-control 세션을 node-pty 로 띄워 유지한다.
-// 폰(Claude 앱/웹)에서 각 세션을 원격 조종. 앱 종료 시 정리. LAN/방화벽 무관 —
-// Anthropic 자체 원격제어라 계정으로 어디서든 접속된다.
-const rcSessions = new Map(); // accountId -> { proc, name, sessionProfile, startedAt, status, exitCode, tail }
-
-async function startRemoteControlSessions() {
-  let accounts = [];
-  try {
-    const { listReadyClaudeAccounts } = await import("../../scripts/dashboard-runtime.mjs");
-    accounts = await listReadyClaudeAccounts();
-  } catch (error) {
-    return { ok: false, reason: `ready Claude 계정 조회 실패: ${error?.message || error}` };
-  }
-  if (accounts.length === 0) return { ok: true, started: 0, total: 0, reason: "ready 상태의 Claude 계정이 없습니다." };
-  const pty = await loadPtyModule();
-  if (!pty) return { ok: false, reason: "node-pty 로드 실패" };
-  const { buildRemoteControlSpec } = await import("../../scripts/worker-launch-adapter.mjs");
-  let started = 0;
-  for (const account of accounts) {
-    const accountId = String(account.id || "");
-    const existing = rcSessions.get(accountId);
-    if (existing && existing.status === "running") continue; // 이미 실행 중이면 스킵
-    const spec = await buildRemoteControlSpec(account);
-    if (spec.status !== "ready") {
-      rcSessions.set(accountId, { status: "blocked", name: accountId, reason: spec.reason });
-      continue;
-    }
-    try {
-      const proc = pty.spawn(spec.command, spec.args, {
-        name: "xterm-color",
-        cols: 100,
-        rows: 30,
-        cwd: spec.cwd,
-        env: { ...process.env, ...spec.env, TERM: "xterm-256color" },
-      });
-      const session = { proc, name: spec.name, sessionProfile: spec.sessionProfile, startedAt: Date.now(), status: "running", tail: "" };
-      proc.onData((data) => {
-        session.tail = (session.tail + String(data)).slice(-2000);
-        if (mainWindow && !mainWindow.isDestroyed() && !mainWindow.webContents.isDestroyed()) {
-          mainWindow.webContents.send("agentapp:remote-control-data", { accountId, data: String(data) });
-        }
-      });
-      proc.onExit(({ exitCode }) => {
-        session.status = "stopped";
-        session.exitCode = exitCode;
-        if (mainWindow && !mainWindow.isDestroyed() && !mainWindow.webContents.isDestroyed()) {
-          mainWindow.webContents.send("agentapp:remote-control-exit", { accountId, exitCode });
-        }
-      });
-      rcSessions.set(accountId, session);
-      started += 1;
-    } catch (error) {
-      rcSessions.set(accountId, { status: "error", name: spec.name, error: error?.message || String(error) });
-    }
-  }
-  return { ok: true, started, total: accounts.length };
-}
-
-function stopRemoteControlSessions() {
-  for (const session of rcSessions.values()) {
-    try { session.proc?.kill(); } catch { /* ignore */ }
-  }
-  rcSessions.clear();
-}
-
-function remoteControlStatus() {
-  return Array.from(rcSessions.entries()).map(([accountId, s]) => ({
-    accountId,
-    name: s.name || accountId,
-    status: s.status,
-    startedAt: s.startedAt || 0,
-    exitCode: s.exitCode,
-    reason: s.reason || s.error || "",
-  }));
-}
-
-ipcMain.handle("agentapp:get-remote-control", () => remoteControlStatus());
-ipcMain.handle("agentapp:remote-control-start", () => startRemoteControlSessions());
-ipcMain.handle("agentapp:remote-control-stop", () => { stopRemoteControlSessions(); return { ok: true }; });
-
-app.on("before-quit", () => { stopRemoteControlSessions(); });
 
 // ===== 클립보드 paste =====
 // prompt textarea 에서 이미지/엑셀 테이블을 Ctrl+V 로 붙여 넣었을 때 renderer
