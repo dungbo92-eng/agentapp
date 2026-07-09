@@ -28,6 +28,14 @@ try {
   check("remoteControlAutoStart default true", (await rt.getRuntimeSettings()).remoteControlAutoStart === true);
   check("listReadyClaudeAccounts [] when no accounts", (await rt.listReadyClaudeAccounts()).length === 0);
   check("listRemoteControlTargets [] when no accounts", (await rt.listRemoteControlTargets()).length === 0);
+  // 교차곱: 계정 2 × 프로젝트 2 = 4 세션(각 계정이 모든 프로젝트에 대해 세션). 라운드로빈 아님.
+  const a = [{ id: "acc1" }, { id: "acc2" }];
+  const p = [{ id: "pA" }, { id: "pB" }];
+  const cross = rt.buildRemoteControlTargets(a, p);
+  check("cross product count = accounts*projects", cross.length === 4);
+  check("cross product acc1 has both projects", cross.filter((t) => t.account.id === "acc1").map((t) => t.project.id).sort().join(",") === "pA,pB");
+  check("cross product acc2 has both projects", cross.filter((t) => t.account.id === "acc2").map((t) => t.project.id).sort().join(",") === "pA,pB");
+  check("no projects → one per account (fallback)", rt.buildRemoteControlTargets(a, []).length === 2 && rt.buildRemoteControlTargets(a, []).every((t) => t.project === null));
   check("spawnRemoteControlConsole is exported", typeof wl.spawnRemoteControlConsole === "function");
   check("buildRemoteControlLaunchScript is exported", typeof wl.buildRemoteControlLaunchScript === "function");
 

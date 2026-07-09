@@ -1488,9 +1488,10 @@ export async function listReadyClaudeAccounts() {
   return ready;
 }
 
-// 원격제어 세션 대상 목록. 사용자가 등록한 **프로젝트 경로마다 1세션**을 만들어
-// 폰에서 프로젝트별로 접근하게 한다(경로 4개면 4세션). ready Claude 계정을 라운드로빈으로
-// 배정한다. 유효 프로젝트 경로가 없으면 계정당 1세션(기본 workspace)으로 폴백한다.
+// 원격제어 세션 대상 목록. **ready Claude 계정 × 선택된 프로젝트**의 교차곱을 만든다.
+// 즉 각 계정이 선택된 모든 프로젝트에 대해 세션을 연다(계정 2 × 프로젝트 2 = 계정마다 2세션,
+// 총 4세션). 폰에서 계정별로 프로젝트 세션 전부에 접근할 수 있다. 라운드로빈이 아니다.
+// 유효 프로젝트 경로가 없으면 계정당 1세션(기본 workspace)으로 폴백한다.
 // 반환: [{ account, project }] — project 가 null 이면 폴백(기본 cwd).
 export async function listRemoteControlTargets() {
   const readyAccounts = await listReadyClaudeAccounts();
@@ -1504,13 +1505,23 @@ export async function listRemoteControlTargets() {
       && project.path.trim()
       && existsSync(project.path),
   );
-  if (projects.length === 0) {
-    return readyAccounts.map((account) => ({ account, project: null }));
+  return buildRemoteControlTargets(readyAccounts, projects);
+}
+
+// 순수 함수(테스트용). 계정 × 프로젝트 교차곱. 프로젝트가 없으면 계정당 폴백(project:null).
+export function buildRemoteControlTargets(accounts, projects) {
+  const accs = Array.isArray(accounts) ? accounts : [];
+  const projs = Array.isArray(projects) ? projects : [];
+  if (projs.length === 0) {
+    return accs.map((account) => ({ account, project: null }));
   }
-  return projects.map((project, index) => ({
-    account: readyAccounts[index % readyAccounts.length],
-    project,
-  }));
+  const targets = [];
+  for (const account of accs) {
+    for (const project of projs) {
+      targets.push({ account, project });
+    }
+  }
+  return targets;
 }
 
 export async function runAccountLogin(accountId) {

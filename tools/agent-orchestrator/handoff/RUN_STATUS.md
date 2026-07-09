@@ -1,5 +1,15 @@
 # RUN_STATUS
 
+## 2026-07-09T_rc_account_project_cross_product
+
+사용자 요청: 선택된 프로젝트가 2개면 계정을 나눠 총 2세션이 아니라, **각 계정이 프로젝트마다 세션을 열어야** 함(계정 2 × 프로젝트 2 = 계정마다 2세션, 총 4세션).
+
+수정: `listRemoteControlTargets` 를 라운드로빈 → **ready 계정 × 선택 프로젝트 교차곱**으로 변경. 순수 함수 `buildRemoteControlTargets(accounts, projects)` 로 분리(테스트용). 프로젝트 없으면 계정당 1세션 폴백 유지. main.mjs 세션 키는 이미 `accountId::projectId` 라 유니크 — 각 (계정,프로젝트) 쌍이 독립 세션. 계정 카드 배지 `📡 RC ×N` 의 N = 그 계정의 프로젝트 세션 수.
+
+검증: node --check; validate-remote-control 31/31(신규: 교차곱 개수/계정별 프로젝트 매핑/폴백); dashboard:build 통과.
+
+Git: commit + main push + desktop 릴리즈(patch).
+
 ## 2026-07-09T_rc_trust_dialog_root_cause_and_project_toggle
 
 사용자 보고: (1) "2개 켜졌다는데 폰에 아무 세션도 안 보임", (2) 프로젝트별로 모바일 세션 켤지 선택하게.
