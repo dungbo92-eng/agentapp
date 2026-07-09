@@ -27,7 +27,9 @@ const check = (name, cond) => {
 try {
   check("remoteControlAutoStart default true", (await rt.getRuntimeSettings()).remoteControlAutoStart === true);
   check("listReadyClaudeAccounts [] when no accounts", (await rt.listReadyClaudeAccounts()).length === 0);
+  check("listRemoteControlTargets [] when no accounts", (await rt.listRemoteControlTargets()).length === 0);
   check("spawnRemoteControlConsole is exported", typeof wl.spawnRemoteControlConsole === "function");
+  check("buildRemoteControlLaunchScript is exported", typeof wl.buildRemoteControlLaunchScript === "function");
 
   const spec = await wl.buildRemoteControlSpec({ id: "acct1", email: "a@b.com", sessionProfile: "claude-code-acct1" });
   check("spec ready", spec.status === "ready");
@@ -39,6 +41,21 @@ try {
 
   const spec2 = await wl.buildRemoteControlSpec({ id: "acct2" }, { name: "phone-2" });
   check("name override", spec2.args[1] === "phone-2");
+
+  // 프로젝트 경로별 세션: workspace override 로 cwd(작업 경로)를 지정한다.
+  const spec3 = await wl.buildRemoteControlSpec({ id: "acct3" }, { name: "proj-a", workspace: profDir });
+  check("workspace override sets cwd", spec3.cwd === profDir);
+  check("workspace override sets name", spec3.args[1] === "proj-a");
+
+  // 창 없이 띄우는 PowerShell 스크립트 — 숨김/PassThru/작업경로/env 가 모두 들어가야 한다.
+  const script = wl.buildRemoteControlLaunchScript(spec3);
+  check("launch script Start-Process", script.includes("Start-Process"));
+  check("launch script hidden window", script.includes("-WindowStyle Hidden"));
+  check("launch script PassThru", script.includes("-PassThru"));
+  check("launch script prints pid", script.includes("$p.Id"));
+  check("launch script sets working dir", script.includes("-WorkingDirectory"));
+  check("launch script sets CLAUDE_CONFIG_DIR env", script.includes("$env:CLAUDE_CONFIG_DIR="));
+  check("launch script escapes single quotes", wl.buildRemoteControlLaunchScript({ command: "c", args: ["it's"], env: {}, cwd: "x" }).includes("'it''s'"));
 } finally {
   await rm(dataDir, { recursive: true, force: true });
   await rm(profDir, { recursive: true, force: true });

@@ -1,5 +1,22 @@
 # RUN_STATUS
 
+## 2026-07-09T_rc_hidden_window_and_per_project
+
+사용자 요청: (1) RC cmd 창이 뜬다 → 창 완전 숨김(백그라운드), (2) 숨겨도 모바일 세션은 사용 가능해야 함, (3) RC 세션 프로젝트 경로 기본값이 이상 → **프로젝트 경로마다 세션 생성**(경로 4개면 4세션).
+
+근본 원인(창): 기존 `spawnRemoteControlConsole` 은 `cmd /c ... {detached:true, windowsHide:true, stdio:ignore}`. `detached`=`DETACHED_PROCESS` 라 자식이 콘솔을 못 받고, `claude`(Ink TUI)가 스스로 `AllocConsole` → **보이는 창**을 만든다. `windowsHide` 로는 이 창을 못 막는다.
+
+수정:
+- **worker-launch-adapter**: `spawnRemoteControlConsole` 을 **PowerShell `Start-Process -WindowStyle Hidden -PassThru`** 로 교체. Start-Process 는 stdio 를 리다이렉트하지 않으므로 claude 가 **실제 콘솔 TTY** 를 확보(→`--print` 로 안 빠짐 = 모바일 원격제어 유지)하고 그 콘솔 창은 숨겨진다. `-PassThru` 로 실제 PID 를 stdout 에 받아 tree-kill 에 사용. 15s 가드. `buildRemoteControlLaunchScript(spec)`(순수 함수, env/args/cwd 를 안전 이스케이프) 분리·export. 반환을 `Promise<{pid,reason}>` 으로 변경. 비 win32 는 기존 detached 폴백.
+- **dashboard-runtime**: `listRemoteControlTargets()` 추가 — 등록된 **프로젝트 경로마다** ready Claude 계정을 라운드로빈 배정해 `{account,project}` 목록 반환. 유효 경로 없으면 계정당 1세션(기본 cwd) 폴백. `existsSync` import.
+- **main.mjs**: 계정당 1세션 → **타깃(프로젝트)당 1세션**. rcSessions 키 `accountId::projectId`. spawn 을 `await`(PID 수신)로, `isPidAlive(pid)`(process.kill(pid,0)) 로 liveness/중복 스킵/상태 재판정. spec 에 `{name:프로젝트명, workspace:프로젝트경로}` 주입. status 에 projectId/projectName 포함.
+- **main.tsx**: RC status 타입에 projectId/projectName. 계정당 다중 세션을 running 우선 집계 + 실행 프로젝트명 tooltip, 배지 `📡 RC ×N`.
+- **validate-remote-control**: 신규 시그니처 검증 케이스 추가(21/21 통과) — launch script 의 Start-Process/Hidden/PassThru/WorkingDirectory/env/따옴표 이스케이프, workspace override, listRemoteControlTargets [].
+
+검증: node --check 3파일; validate-remote-control 21/21; pnpm validate 는 validate-runtime-race(사전 플래키, write 경로 무관)만 FAIL 나머지 통과(integrations 11, remote-control 21); pnpm dashboard:build 통과. **실측**: 무해한 node 프로세스를 hidden Start-Process 로 띄워 PID 캡처 + 생존 확인(창 안 뜸). 실 claude 세션+폰 end-to-end 는 업데이트 후 사용자 확인 필요.
+
+Git: commit + main push + desktop 릴리즈(minor — 프로젝트별 세션 기능 추가).
+
 ## 2026-07-09T_claude_session_expiry_detection
 
 사용자: "AgentApp에 세션 있을텐데 걔로 바로 remote control 못 시켜? 내가 뭘 해야하니?" — RC 가 계정 프로필로 떴는데 로그인을 다시 요구.

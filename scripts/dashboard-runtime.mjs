@@ -1,7 +1,7 @@
 #!/usr/bin/env node
 
 import { mkdir, readdir, readFile, rename, stat, unlink, writeFile } from "node:fs/promises";
-import { readFileSync } from "node:fs";
+import { readFileSync, existsSync } from "node:fs";
 import { spawn } from "node:child_process";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
@@ -1484,6 +1484,26 @@ export async function listReadyClaudeAccounts() {
     }
   }
   return ready;
+}
+
+// 원격제어 세션 대상 목록. 사용자가 등록한 **프로젝트 경로마다 1세션**을 만들어
+// 폰에서 프로젝트별로 접근하게 한다(경로 4개면 4세션). ready Claude 계정을 라운드로빈으로
+// 배정한다. 유효 프로젝트 경로가 없으면 계정당 1세션(기본 workspace)으로 폴백한다.
+// 반환: [{ account, project }] — project 가 null 이면 폴백(기본 cwd).
+export async function listRemoteControlTargets() {
+  const readyAccounts = await listReadyClaudeAccounts();
+  if (readyAccounts.length === 0) return [];
+  const runtime = await readRuntime();
+  const projects = (runtime.projects || []).filter(
+    (project) => project && typeof project.path === "string" && project.path.trim() && existsSync(project.path),
+  );
+  if (projects.length === 0) {
+    return readyAccounts.map((account) => ({ account, project: null }));
+  }
+  return projects.map((project, index) => ({
+    account: readyAccounts[index % readyAccounts.length],
+    project,
+  }));
 }
 
 export async function runAccountLogin(accountId) {

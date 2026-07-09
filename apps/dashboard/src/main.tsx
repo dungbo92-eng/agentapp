@@ -2218,7 +2218,7 @@ function App() {
       hasTailscale?: boolean;
     }>;
     remoteControl?: {
-      status: () => Promise<Array<{ accountId: string; name: string; status: string; startedAt: number; reason?: string }>>;
+      status: () => Promise<Array<{ accountId: string; projectId?: string; projectName?: string; name: string; status: string; startedAt: number; reason?: string }>>;
       start: () => Promise<{ ok: boolean; started?: number; total?: number; reason?: string }>;
       stop: () => Promise<{ ok: boolean }>;
     };
@@ -2281,7 +2281,10 @@ function App() {
     }
   }, [desktopApi]);
   // 계정별 원격제어 실행 상태 (accountId -> status). 5초 폴링. 계정 카드에 📡 표시.
+  // 프로젝트별 세션이므로 계정당 여러 세션 가능 → 하나라도 running 이면 running 으로 집계하고,
+  // 실행 중인 프로젝트명 목록을 tooltip 용으로 모은다.
   const [rcByAccount, setRcByAccount] = React.useState<Record<string, string>>({});
+  const [rcProjectsByAccount, setRcProjectsByAccount] = React.useState<Record<string, string[]>>({});
   React.useEffect(() => {
     if (!desktopApi?.remoteControl) return;
     let stopped = false;
@@ -2290,8 +2293,15 @@ function App() {
         const list = await desktopApi.remoteControl!.status();
         if (stopped) return;
         const map: Record<string, string> = {};
-        for (const s of list) map[s.accountId] = s.status;
+        const projMap: Record<string, string[]> = {};
+        for (const s of list) {
+          map[s.accountId] = map[s.accountId] === "running" ? "running" : s.status;
+          if (s.status === "running" && s.projectName) {
+            (projMap[s.accountId] ||= []).push(s.projectName);
+          }
+        }
         setRcByAccount(map);
+        setRcProjectsByAccount(projMap);
       } catch { /* ignore */ }
     };
     void refresh();
@@ -3605,10 +3615,15 @@ function App() {
                       <strong>{account.displayName || account.id}</strong>
                       {rcByAccount[account.id] === "running" ? (
                         <span
-                          title="원격제어 실행 중 — 폰 Claude 앱/웹에서 이 계정 세션을 조종할 수 있습니다"
+                          title={
+                            (rcProjectsByAccount[account.id]?.length
+                              ? `원격제어 실행 중 — 프로젝트: ${rcProjectsByAccount[account.id].join(", ")}`
+                              : "원격제어 실행 중") +
+                            " · 폰 Claude 앱/웹에서 이 계정 세션을 조종할 수 있습니다"
+                          }
                           style={{ fontSize: 11, color: "#0369a1", fontWeight: 600 }}
                         >
-                          📡 RC
+                          📡 RC{rcProjectsByAccount[account.id]?.length ? ` ×${rcProjectsByAccount[account.id].length}` : ""}
                         </span>
                       ) : null}
                       {account.source === "config" ? (

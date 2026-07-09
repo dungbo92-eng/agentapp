@@ -829,20 +829,81 @@ export async function buildRemoteControlSpec(account, options = {}) {
   };
 }
 
-// 숨긴 콘솔(cmd /c)에서 claude --remote-control 을 실행한다. detached + windowsHide 로
-// 보이는 창 없이 TTY 를 확보 → Claude(Ink TUI)가 정상 기동해 원격제어에 연결된다.
-// node-pty 불필요 (win32 prebuilt 없이 동작). 반환: detached child (pid 로 tree-kill).
+// PowerShell 값 리터럴로 안전하게 감싼다(작은따옴표 이스케이프).
+function psSingleQuote(value) {
+  return `'${String(value ?? "").replace(/'/g, "''")}'`;
+}
+
+// `claude --remote-control` 을 창 없이 띄우는 PowerShell 스크립트를 만든다.
+// 핵심: Start-Process 는 stdio 를 리다이렉트하지 않으므로 claude(Ink TUI)가 **실제 콘솔
+// TTY** 를 확보한다(→ --print 로 빠지지 않아 모바일 원격제어가 유지됨). -WindowStyle Hidden
+// 으로 그 콘솔 창은 숨긴다. -PassThru 로 실제 프로세스 PID 를 stdout 에 찍어 tree-kill 에 쓴다.
+export function buildRemoteControlLaunchScript(spec) {
+  const lines = [];
+  for (const [key, val] of Object.entries(spec.env || {})) {
+    lines.push(`$env:${key}=${psSingleQuote(val)}`);
+  }
+  const argList = (spec.args || []).map(psSingleQuote).join(",");
+  const startArgs = [
+    `-FilePath ${psSingleQuote(spec.command)}`,
+    argList ? `-ArgumentList ${argList}` : "",
+    spec.cwd ? `-WorkingDirectory ${psSingleQuote(spec.cwd)}` : "",
+    "-WindowStyle Hidden",
+    "-PassThru",
+  ].filter(Boolean).join(" ");
+  lines.push(`$p = Start-Process ${startArgs}`);
+  lines.push("if ($p) { [Console]::Out.Write($p.Id) }");
+  return lines.join("; ");
+}
+
+// 창 없이 claude --remote-control 을 실행한다. node-pty 불필요.
+// 반환: Promise<{ pid, reason }>. pid>0 이면 성공(그 pid 로 tree-kill).
 export function spawnRemoteControlConsole(spec) {
-  const comspec = process.env.ComSpec || "cmd.exe";
-  const child = spawn(comspec, ["/c", spec.command, ...spec.args], {
-    cwd: spec.cwd,
-    env: { ...process.env, ...spec.env },
-    detached: true,
-    stdio: "ignore",
-    windowsHide: true,
+  if (process.platform !== "win32") {
+    // 비 Windows(개발 환경) — 창 개념이 없으므로 detached 로 그대로 실행.
+    const child = spawn(spec.command, spec.args, {
+      cwd: spec.cwd,
+      env: { ...process.env, ...spec.env },
+      detached: true,
+      stdio: "ignore",
+    });
+    child.unref();
+    return Promise.resolve({ pid: child.pid || 0, reason: child.pid ? "" : "프로세스를 시작하지 못했습니다." });
+  }
+  const script = buildRemoteControlLaunchScript(spec);
+  return new Promise((resolve) => {
+    let out = "";
+    let done = false;
+    const finish = (pid, reason) => {
+      if (done) return;
+      done = true;
+      resolve({ pid, reason });
+    };
+    let child;
+    try {
+      child = spawn(
+        "powershell.exe",
+        ["-NoProfile", "-NonInteractive", "-WindowStyle", "Hidden", "-Command", script],
+        { windowsHide: true, stdio: ["ignore", "pipe", "pipe"] },
+      );
+    } catch (error) {
+      finish(0, `PowerShell 실행 실패: ${error?.message || error}`);
+      return;
+    }
+    child.stdout?.on("data", (chunk) => { out += String(chunk); });
+    child.on("error", (err) => finish(0, err?.message || String(err)));
+    child.on("exit", () => {
+      const pid = Number.parseInt(out.trim(), 10);
+      if (Number.isInteger(pid) && pid > 0) finish(pid, "");
+      else finish(0, "원격제어 세션 PID 를 받지 못했습니다.");
+    });
+    const guard = setTimeout(() => {
+      if (done) return;
+      try { child.kill(); } catch { /* ignore */ }
+      finish(0, "원격제어 실행 시간 초과.");
+    }, 15000);
+    guard.unref?.();
   });
-  child.unref();
-  return child;
 }
 
 async function resolveAdapter(run, files) {

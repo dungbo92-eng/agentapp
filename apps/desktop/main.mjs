@@ -960,48 +960,62 @@ app.on("before-quit", () => {
   ptySessions.clear();
 });
 
-// ===== Claude Remote Control (계정별 `claude --remote-control`, 숨긴 콘솔) =====
-// node-pty 없이 detached + windowsHide 콘솔로 실행 → TTY 확보, 창 안 뜸. 앱 시작 시
-// ready Claude 계정마다 실행하고 폰(Claude 앱/웹)에서 원격 조종한다. 앱 종료 시 tree-kill.
-const rcSessions = new Map(); // accountId -> { pid, name, startedAt, status, reason }
+// ===== Claude Remote Control (`claude --remote-control`, 창 없이 실행) =====
+// node-pty 없이 PowerShell Start-Process -WindowStyle Hidden 으로 실행 → 콘솔 TTY 확보 +
+// 창 안 뜸. 앱 시작 시 등록된 **프로젝트 경로마다** 세션을 띄워(경로 4개면 4세션) 폰(Claude
+// 앱/웹)에서 프로젝트별로 원격 조종한다. 앱 종료 시 실제 PID 로 tree-kill.
+const rcSessions = new Map(); // key(accountId::projectId) -> { pid, name, projectId, projectName, accountId, startedAt, status, reason }
 
 function killPidTree(pid) {
   if (!pid) return;
   try { cpSpawn("taskkill", ["/PID", String(pid), "/T", "/F"], { stdio: "ignore", windowsHide: true }); } catch { /* ignore */ }
 }
 
+function isPidAlive(pid) {
+  if (!pid) return false;
+  try { process.kill(pid, 0); return true; } catch (error) { return error?.code === "EPERM"; }
+}
+
 async function startRemoteControlSessions() {
-  let accounts = [];
+  let targets = [];
   try {
-    const { listReadyClaudeAccounts } = await import("../../scripts/dashboard-runtime.mjs");
-    accounts = await listReadyClaudeAccounts();
+    const { listRemoteControlTargets } = await import("../../scripts/dashboard-runtime.mjs");
+    targets = await listRemoteControlTargets();
   } catch (error) {
-    return { ok: false, reason: `ready Claude 계정 조회 실패: ${error?.message || error}` };
+    return { ok: false, reason: `원격제어 대상 조회 실패: ${error?.message || error}` };
   }
-  if (accounts.length === 0) return { ok: true, started: 0, total: 0, reason: "ready 상태의 Claude 계정이 없습니다." };
+  if (targets.length === 0) {
+    return { ok: true, started: 0, total: 0, reason: "ready 상태의 Claude 계정이 없습니다." };
+  }
   const { buildRemoteControlSpec, spawnRemoteControlConsole } = await import("../../scripts/worker-launch-adapter.mjs");
   let started = 0;
-  for (const account of accounts) {
+  for (const { account, project } of targets) {
     const accountId = String(account.id || "");
-    const existing = rcSessions.get(accountId);
-    if (existing && existing.status === "running") continue; // 이미 실행 중이면 스킵
-    const spec = await buildRemoteControlSpec(account);
+    const projectId = project ? String(project.id || "") : "";
+    const projectName = project ? String(project.name || projectId) : "";
+    const key = `${accountId}::${projectId || "default"}`;
+    const existing = rcSessions.get(key);
+    if (existing && existing.status === "running" && isPidAlive(existing.pid)) continue; // 이미 실행 중이면 스킵
+    // 이름은 폰에서 세션을 구분하는 라벨 — 프로젝트가 있으면 프로젝트명 우선.
+    const specOptions = project ? { name: project.name, workspace: project.path } : {};
+    const spec = await buildRemoteControlSpec(account, specOptions);
     if (spec.status !== "ready") {
-      rcSessions.set(accountId, { status: "blocked", name: accountId, reason: spec.reason });
+      rcSessions.set(key, { status: "blocked", name: projectName || accountId, projectId, projectName, accountId, reason: spec.reason });
       continue;
     }
     try {
-      const child = spawnRemoteControlConsole(spec);
-      const session = { pid: child.pid, name: spec.name, startedAt: Date.now(), status: "running" };
-      child.on("exit", () => { if (session.status === "running") session.status = "stopped"; });
-      child.on("error", (err) => { session.status = "error"; session.reason = err?.message || String(err); });
-      rcSessions.set(accountId, session);
-      started += 1;
+      const { pid, reason } = await spawnRemoteControlConsole(spec);
+      if (pid > 0) {
+        rcSessions.set(key, { pid, name: spec.name, projectId, projectName, accountId, startedAt: Date.now(), status: "running" });
+        started += 1;
+      } else {
+        rcSessions.set(key, { status: "error", name: spec.name, projectId, projectName, accountId, reason: reason || "세션 시작 실패" });
+      }
     } catch (error) {
-      rcSessions.set(accountId, { status: "error", name: spec.name, reason: error?.message || String(error) });
+      rcSessions.set(key, { status: "error", name: spec.name, projectId, projectName, accountId, reason: error?.message || String(error) });
     }
   }
-  return { ok: true, started, total: accounts.length };
+  return { ok: true, started, total: targets.length };
 }
 
 function stopRemoteControlSessions() {
@@ -1012,13 +1026,19 @@ function stopRemoteControlSessions() {
 }
 
 function remoteControlStatus() {
-  return Array.from(rcSessions.entries()).map(([accountId, s]) => ({
-    accountId,
-    name: s.name || accountId,
-    status: s.status,
-    startedAt: s.startedAt || 0,
-    reason: s.reason || "",
-  }));
+  return Array.from(rcSessions.values()).map((s) => {
+    let status = s.status;
+    if (status === "running" && !isPidAlive(s.pid)) { status = "stopped"; s.status = "stopped"; }
+    return {
+      accountId: s.accountId || "",
+      projectId: s.projectId || "",
+      projectName: s.projectName || "",
+      name: s.name || s.accountId || "",
+      status,
+      startedAt: s.startedAt || 0,
+      reason: s.reason || "",
+    };
+  });
 }
 
 ipcMain.handle("agentapp:get-remote-control", () => remoteControlStatus());
