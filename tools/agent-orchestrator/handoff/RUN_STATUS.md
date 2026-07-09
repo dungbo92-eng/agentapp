@@ -1,5 +1,20 @@
 # RUN_STATUS
 
+## 2026-07-09T_rc_trust_dialog_root_cause_and_project_toggle
+
+사용자 보고: (1) "2개 켜졌다는데 폰에 아무 세션도 안 보임", (2) 프로젝트별로 모바일 세션 켤지 선택하게.
+
+**근본 원인 규명(#1, 실측)**: `claude --remote-control` 은 **interactive TTY 필수**(비-TTY면 `--print` 로 빠져 "Input must be provided..." 즉시 실패 — 실측). 숨긴 Start-Process 는 TTY 를 준다(실측 stdin/stdout isTTY=true). 계정 프로필도 인증 정상(`--print`→OK). 그런데도 폰에 안 뜸. 이유 = **미신뢰 폴더에서 interactive 진입 시 "이 폴더를 신뢰?" 대화상자에 (창이 숨겨져) 멈춰 RC 등록이 안 됨.** 프로필 `.claude.json` 신뢰 폴더는 tmpdir 1개뿐이었고, dev cwd=E:\agentApp 는 미신뢰였음. **폰 실측으로 확정**: 신뢰된 tmpdir 세션 → 폰에 뜸 / 미신뢰 폴더 → 안 뜸 / 미신뢰 폴더를 사전신뢰 처리 → 다시 뜸(dungdy92 계정, 3회 A/B 확인).
+
+**수정**:
+- **worker-launch-adapter**: `normalizeClaudeCwd(p)`(claude 프로젝트 키 형식 = forward-slash + 드라이브 대문자, `--print` 로 claude 실제 키가 `E:/agentApp` 임을 확인해 일치 검증) + `ensureClaudeFolderTrusted(configDir, cwd)`(spawn 전 `.claude.json` 의 `projects[key].hasTrustDialogAccepted=true` 기록, best-effort, 멱등). `buildRemoteControlSpec` 이 cwd 를 normalize 하고 신뢰 처리 후 반환. **이게 폰 미표시의 진짜 수정.**
+- **arg 견고화**: `Start-Process -ArgumentList` 가 공백/따옴표 인자를 재파싱하며 쪼개던 버그(실측: 복잡한 `-e` 인자 실행 실패) → `quoteWindowsArg`(MSVCRT 규칙)로 단일 커맨드라인 문자열 구성. 프로젝트명에 공백 있어도 세션명 안 깨짐.
+- **프로젝트별 토글(#2)**: `normalizeProject` 에 `remoteControl`(기본 on), `updateProject()` 추가. `listRemoteControlTargets` 가 `remoteControl!==false` 프로젝트만. server `POST /api/agentapp/projects/update`. UI 프로젝트 행에 📱 토글(on/off, 흐림 표시) + `toggleProjectRemoteControl`.
+
+검증: node --check 3파일; validate-remote-control 27/27(신규: normalizeClaudeCwd, ensureClaudeFolderTrusted 기록/멱등, arg 공백, updateProject); pnpm validate(runtime-race 사전 플래키만 FAIL); dashboard:build 통과. **폰 실측 A/B/C** 로 근본원인·수정 확정.
+
+Git: commit + main push + desktop 릴리즈(minor — 프로젝트 토글 기능 + RC 실동작 수정).
+
 ## 2026-07-09T_rc_hidden_window_and_per_project
 
 사용자 요청: (1) RC cmd 창이 뜬다 → 창 완전 숨김(백그라운드), (2) 숨겨도 모바일 세션은 사용 가능해야 함, (3) RC 세션 프로젝트 경로 기본값이 이상 → **프로젝트 경로마다 세션 생성**(경로 4개면 4세션).

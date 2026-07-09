@@ -11,6 +11,7 @@ import {
   runAccountLogin,
   addProject,
   deleteProject,
+  updateProject,
   readProjectMeta,
   readProjectCodeView,
   updateRuntimeSettings,
@@ -144,6 +145,10 @@ async function handleApi(req, res, url) {
   }
   if (req.method === "POST" && url === "/api/agentapp/projects/delete") {
     sendJson(res, 200, await deleteProject(await readBody(req)));
+    return true;
+  }
+  if (req.method === "POST" && url === "/api/agentapp/projects/update") {
+    sendJson(res, 200, await updateProject(await readBody(req)));
     return true;
   }
   if (req.method === "POST" && url === "/api/agentapp/projects/browse") {

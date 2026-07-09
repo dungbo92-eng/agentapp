@@ -471,6 +471,8 @@ function normalizeProject(input) {
     progress: 0,
     lastModel: String(input.lastModel || input.last_model || "").trim(),
     lastWorker: String(input.lastWorker || input.last_worker || "").trim(),
+    // 모바일 원격제어(RC) 세션 대상 여부. 기본 on. false 면 이 프로젝트는 RC 세션을 안 띄운다.
+    remoteControl: input.remoteControl !== false && input.remote_control !== false,
   };
 }
 
@@ -1495,7 +1497,12 @@ export async function listRemoteControlTargets() {
   if (readyAccounts.length === 0) return [];
   const runtime = await readRuntime();
   const projects = (runtime.projects || []).filter(
-    (project) => project && typeof project.path === "string" && project.path.trim() && existsSync(project.path),
+    (project) =>
+      project
+      && project.remoteControl !== false // 사용자가 이 프로젝트의 모바일 세션을 끈 경우 제외
+      && typeof project.path === "string"
+      && project.path.trim()
+      && existsSync(project.path),
   );
   if (projects.length === 0) {
     return readyAccounts.map((account) => ({ account, project: null }));
@@ -1631,6 +1638,21 @@ export async function applyAccountPreset(input) {
 export async function addProject(input) {
   const runtime = await readRuntime();
   runtime.projects = uniqueById([...runtime.projects, normalizeProject(input)]);
+  return writeRuntime(runtime);
+}
+
+// 기존 프로젝트의 일부 필드만 병합 갱신한다(현재는 remoteControl 토글에 사용).
+export async function updateProject(input) {
+  const runtime = await readRuntime();
+  const id = normalizeId(input?.id || "");
+  if (!id) return runtime;
+  runtime.projects = (runtime.projects || []).map((project) => {
+    if (project.id !== id) return project;
+    const next = { ...project };
+    if (input.remoteControl !== undefined) next.remoteControl = input.remoteControl !== false;
+    if (typeof input.name === "string" && input.name.trim()) next.name = input.name.trim();
+    return next;
+  });
   return writeRuntime(runtime);
 }
 

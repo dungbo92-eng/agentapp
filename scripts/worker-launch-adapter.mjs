@@ -805,6 +805,47 @@ async function resolveProjectPath(projectId) {
   return "";
 }
 
+// claude 가 프로젝트 신뢰 상태를 저장하는 키 형식(관측: "C:/Users/.../Temp").
+// forward-slash + 드라이브 대문자. spawn cwd 와 신뢰 키를 이 함수로 통일해 항상 매칭시킨다.
+export function normalizeClaudeCwd(folderPath) {
+  const resolved = path.resolve(String(folderPath || "."));
+  return resolved.replace(/\\/g, "/").replace(/^([a-z]):/, (m, drive) => `${drive.toUpperCase()}:`);
+}
+
+// interactive `claude` 는 **미신뢰 폴더**에서 "이 폴더를 신뢰하시겠습니까?" 대화상자를 띄우고
+// 멈춘다. RC 세션은 창이 숨겨져 이 프롬프트에 응답할 수 없어 → 세션이 폰에 **등록되지 않는다**.
+// (실측: 신뢰된 폴더면 폰에 뜨고, 미신뢰면 안 뜸.) 그래서 spawn 전에 해당 폴더를 프로필
+// 설정(.claude.json)에 미리 신뢰 처리해 대화상자를 건너뛰게 한다. best-effort — 실패해도 진행.
+export async function ensureClaudeFolderTrusted(configDir, normalizedCwd) {
+  if (!configDir || !normalizedCwd) return false;
+  const file = path.join(configDir, ".claude.json");
+  let json = {};
+  try { json = JSON.parse(await readFile(file, "utf8")); } catch { json = {}; }
+  if (!json || typeof json !== "object") json = {};
+  if (!json.projects || typeof json.projects !== "object") json.projects = {};
+  const existing = json.projects[normalizedCwd] && typeof json.projects[normalizedCwd] === "object"
+    ? json.projects[normalizedCwd]
+    : null;
+  if (existing?.hasTrustDialogAccepted === true) return true; // 이미 신뢰됨
+  json.projects[normalizedCwd] = {
+    allowedTools: [],
+    mcpServers: {},
+    enabledMcpjsonServers: [],
+    disabledMcpjsonServers: [],
+    ...(existing || {}),
+    hasTrustDialogAccepted: true,
+    projectOnboardingSeenCount: Math.max(1, Number(existing?.projectOnboardingSeenCount) || 0),
+    hasClaudeMdExternalIncludesApproved: existing?.hasClaudeMdExternalIncludesApproved ?? false,
+    hasClaudeMdExternalIncludesWarningShown: existing?.hasClaudeMdExternalIncludesWarningShown ?? false,
+  };
+  try {
+    await writeFile(file, JSON.stringify(json, null, 2));
+    return true;
+  } catch {
+    return false;
+  }
+}
+
 // `claude --remote-control` 실행 스펙 (계정별). 각 계정의 CLAUDE_CONFIG_DIR 로 실행해
 // 세션이 분리되고, name 으로 폰(Claude 앱/웹)에서 구분한다.
 export async function buildRemoteControlSpec(account, options = {}) {
@@ -815,7 +856,10 @@ export async function buildRemoteControlSpec(account, options = {}) {
   const sessionDir = buildSessionProfileDir("claude-code", sessionProfile);
   await mkdir(sessionDir, { recursive: true });
   const name = String(options.name || account?.loginLabel || account?.email || accountId).slice(0, 40);
-  const workspace = options.workspace || (isPackagedRuntime() ? safeSpawnCwd() : REPO_ROOT);
+  const rawWorkspace = options.workspace || (isPackagedRuntime() ? safeSpawnCwd() : REPO_ROOT);
+  const workspace = normalizeClaudeCwd(rawWorkspace);
+  // 숨긴 RC 세션이 신뢰 대화상자에 걸리지 않도록 이 폴더를 미리 신뢰 처리한다.
+  await ensureClaudeFolderTrusted(sessionDir, workspace);
   return {
     status: "ready",
     command,
@@ -834,6 +878,31 @@ function psSingleQuote(value) {
   return `'${String(value ?? "").replace(/'/g, "''")}'`;
 }
 
+// Windows 커맨드라인 인자 하나를 안전하게 따옴표 처리한다(MSVCRT 규칙).
+// Start-Process -ArgumentList 에 **단일 문자열**로 넘길 때 공백/따옴표 있는 인자가
+// 재파싱되며 쪼개지는 문제를 막는다(예: 프로젝트명 "My Project" 가 두 인자로 깨짐).
+function quoteWindowsArg(value) {
+  const str = String(value ?? "");
+  if (str === "") return '""';
+  if (!/[ \t"]/.test(str)) return str;
+  let out = '"';
+  let backslashes = 0;
+  for (const ch of str) {
+    if (ch === "\\") {
+      backslashes += 1;
+      out += ch;
+    } else if (ch === '"') {
+      out += "\\".repeat(backslashes) + '\\"';
+      backslashes = 0;
+    } else {
+      backslashes = 0;
+      out += ch;
+    }
+  }
+  out += "\\".repeat(backslashes) + '"';
+  return out;
+}
+
 // `claude --remote-control` 을 창 없이 띄우는 PowerShell 스크립트를 만든다.
 // 핵심: Start-Process 는 stdio 를 리다이렉트하지 않으므로 claude(Ink TUI)가 **실제 콘솔
 // TTY** 를 확보한다(→ --print 로 빠지지 않아 모바일 원격제어가 유지됨). -WindowStyle Hidden
@@ -843,10 +912,11 @@ export function buildRemoteControlLaunchScript(spec) {
   for (const [key, val] of Object.entries(spec.env || {})) {
     lines.push(`$env:${key}=${psSingleQuote(val)}`);
   }
-  const argList = (spec.args || []).map(psSingleQuote).join(",");
+  // 인자는 하나의 커맨드라인 문자열로 합쳐 단일 -ArgumentList 로 넘긴다(공백 안전).
+  const argLine = (spec.args || []).map(quoteWindowsArg).join(" ");
   const startArgs = [
     `-FilePath ${psSingleQuote(spec.command)}`,
-    argList ? `-ArgumentList ${argList}` : "",
+    argLine ? `-ArgumentList ${psSingleQuote(argLine)}` : "",
     spec.cwd ? `-WorkingDirectory ${psSingleQuote(spec.cwd)}` : "",
     "-WindowStyle Hidden",
     "-PassThru",

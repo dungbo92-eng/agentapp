@@ -200,6 +200,7 @@ type ManagedProject = {
   progress: number;
   lastModel?: string;
   lastWorker?: string;
+  remoteControl?: boolean;
 };
 
 type RunRecord = {
@@ -2950,6 +2951,16 @@ function App() {
     }
   }
 
+  // 프로젝트별 모바일 원격제어(RC) 세션 on/off 토글. 앱 시작 시 on 인 프로젝트마다 세션이 뜬다.
+  function toggleProjectRemoteControl(project: ManagedProject) {
+    const next = project.remoteControl === false;
+    void updateRuntime(runtimeRequest("projects/update", { id: project.id, remoteControl: next }));
+    setToast({
+      kind: "info",
+      message: `'${project.name}' 모바일 세션 ${next ? "켜짐" : "꺼짐"} — 앱 재시작 또는 원격제어 재시작 시 반영됩니다.`,
+    });
+  }
+
   function addProject(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault();
     const projectPath = projectForm.path.trim();
@@ -3495,6 +3506,22 @@ function App() {
                   <small>{project.path}</small>
                   <ProgressBar value={project.progress} />
                 </button>
+                {project.id !== "current" && project.path ? (
+                  <button
+                    className="projectRcBtn"
+                    type="button"
+                    aria-pressed={project.remoteControl !== false}
+                    title={
+                      project.remoteControl !== false
+                        ? "모바일 원격제어 세션: 켜짐 — 앱 시작 시 이 경로로 세션이 뜹니다. 클릭하면 끕니다."
+                        : "모바일 원격제어 세션: 꺼짐 — 이 프로젝트는 세션을 띄우지 않습니다. 클릭하면 켭니다."
+                    }
+                    onClick={() => toggleProjectRemoteControl(project)}
+                    style={{ opacity: project.remoteControl !== false ? 1 : 0.35 }}
+                  >
+                    📱
+                  </button>
+                ) : null}
                 {project.id !== "current" ? (
                   <button
                     className="projectDeleteBtn"
