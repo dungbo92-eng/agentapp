@@ -1,5 +1,5 @@
 {
-  "generated_at": "2026-07-09T12:53:23.852Z",
+  "generated_at": "2026-07-09T12:57:15.353Z",
   "repo_root": "E:\\agentApp",
   "progress": {
     "percent": 97,
@@ -586,7 +586,7 @@
       "next": "사용자 지시 대기. Gemini 인증은 사용자가 진행 후 dashboard Add account 만 누르면 됨.",
       "generated": "2026-05-16T18:30:00.000Z",
       "decision_count": 0,
-      "line_count": 816,
+      "line_count": 828,
       "excerpt": "...--prune; pnpm validate; pnpm dashboard:build; Browser compact smoke test\n- Git: not recorded\n- Decisions: none\n- Next: See tools/agent-orchestrator/handoff/NEXT_TASK.md\n\n## 2026-05-19T02:29:39.551Z\n\n- Status: completed\n- Summary: compact 실행 상태 불일치 수정 커밋을 main에 push했고, 자동 업데이트용 v0.10.2 NSIS 릴리즈를 발행했다. GitHub Release에는 NSIS setup, blockmap, latest.yml이 업로드됐다.\n- Verification: pnpm validate; pnpm dashboard:build; pnpm --dir apps/dashboard build; Browser compact smoke test; gh release view v0.10.2\n- Git: not recorded\n- Decisions: none\n- Next: See tools/agent-orchestrator/handoff/NEXT_TASK.md\n\n## 2026-05-19T03:10:01.363Z\n\n- Status: completed\n- Summary: Codex 계정이 실제로는 사용 가능한데 소진처럼 보이던 quota 표시를 정리했다. 잠긴 계정만 사용 가능 수에서 제외하고, Codex의 timezone 없는 try again at 시간은 로컬 시간으로 해석하도록 수정했다.\n- Verification: pnpm validate; pnpm dashboard:build; Browser quota UI check\n- Git: not recorded\n- Decisions: none\n- Next: 자동 업데이트 릴리즈 적용 후 설치 앱에서 Codex 계정이 Plus · 사용 가능으로 보이는지 확인\n\n## 2026-05-19T03:13:34.669Z\n\n- Status: completed\n- Summary: Codex quota 표시/로컬 reset 시간 수정 커밋을 main에 push했고, 자동 업데이트용 v0.10.3 NSIS 릴리즈를 발행했다. GitHub Release에는 NSIS setup, blockmap, latest.yml이 업로드됐다.\n- Verification: pnpm validate; pnpm dashboard:build; Browser quota UI check; gh release view v0.10.3\n- Git: not recorded\n- Decisions: none\n- Next: 설치 앱 업데이트 적용 후 계정 화면에서 Codex는 Plus · 사용 가능, Claude만 reset 시각 포함 잠금으로 보이는지 확인\n\n## 2026-05-16T18:30:00.000Z\n\n- Status: completed\n- Summary: DEC-20260516-003 (Claude dashboard 한도 잠금 false-positive) 해결. worker-launch-adapter.mjs 의 stream-json onLine 훅이 이미 quotaScanLine 가드로 JSON envelope 를 차단하고 result.finalText 또는 plain text fallback 만 parseQuotaReset 에 넘기도록 구현돼 있음을 확인. 회귀 방지를 위해 validate-quota-parser 에 tool_result/assistant text 가 finalText 를 노출하지 않는다는 케이스 2개 추가. 사용자는 leemg 계정의 기존 false-positive 잠금 1회만 dashboard '강제 해제' 버튼으로 풀면 됨. DEC-20260516-002 (Gemini CLI OAuth) 는 사용자 본인 OAuth 가 필요한 agent 범위 밖 항목이라 대기 유지.\n- Verification: pnpm validate (validate-quota-parser 17 케이스 + race + e2e 통과)\n- Git: (이번 commit) pushed.\n- Decisions: DEC-20260516-003 resolved (Option C). DEC-20260516-002 still pending (user-required OAuth).\n- Next: 사용자 지시 대기. Gemini 인증은 사용자가 진행 후 dashboard Add account 만 누르면 됨."
     },
     {
