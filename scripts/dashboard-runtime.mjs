@@ -1394,6 +1394,21 @@ async function hasSessionArtifacts(provider, sessionProfile) {
   return false;
 }
 
+// Claude 세션 프로필의 .credentials.json 에서 OAuth 만료 시각(ms)을 읽는다. 없으면 0.
+// ready 오탐(파일은 있지만 토큰이 죽은 경우) 방지용.
+async function readClaudeTokenExpiry(sessionProfile) {
+  try {
+    const { sharedSessionProfilesRoot } = await import("./worker-launch-adapter.mjs");
+    const subdir = (PROVIDER_CLI.claude?.configSubdir || "claude-code").replace(/^session-profiles\//, "");
+    const profileDir = path.join(sharedSessionProfilesRoot(), subdir, sanitizeSegment(sessionProfile));
+    const raw = await readFile(path.join(profileDir, ".credentials.json"), "utf8");
+    const expiresAt = Number(JSON.parse(raw)?.claudeAiOauth?.expiresAt);
+    return Number.isFinite(expiresAt) ? expiresAt : 0;
+  } catch {
+    return 0;
+  }
+}
+
 function sanitizeSegment(value) {
   return String(value || "default")
     .trim()
@@ -1417,6 +1432,17 @@ export async function detectAccountSession(account) {
   }
   const sessionProfile = account.sessionProfile || sessionProfileFor(provider, account.email, account.loginLabel);
   if (await hasSessionArtifacts(provider, sessionProfile)) {
+    // Claude OAuth 토큰 만료 검사 — 파일만 있고 토큰이 오래전에 죽은 경우(refresh 실패)
+    // 를 ready 오탐하지 않게 한다. 7일 넘게 만료된 토큰은 needs-login 으로 본다.
+    if (provider === "claude") {
+      const expiresAt = await readClaudeTokenExpiry(sessionProfile);
+      if (expiresAt && Date.now() > expiresAt + 7 * 24 * 60 * 60 * 1000) {
+        return {
+          sessionStatus: "needs-login",
+          reason: `저장된 로그인 토큰이 ${new Date(expiresAt).toLocaleString("ko-KR")} 에 만료됐습니다. 계정의 '로그인' 으로 다시 인증하세요.`,
+        };
+      }
+    }
     const expectedEmail = String(account.email || "").trim().toLowerCase();
     const actualEmail = await readActualIdentity(provider, sessionProfile);
     if (expectedEmail && actualEmail && expectedEmail !== actualEmail) {

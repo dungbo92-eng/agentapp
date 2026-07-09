@@ -1,5 +1,19 @@
 # RUN_STATUS
 
+## 2026-07-09T_claude_session_expiry_detection
+
+사용자: "AgentApp에 세션 있을텐데 걔로 바로 remote control 못 시켜? 내가 뭘 해야하니?" — RC 가 계정 프로필로 떴는데 로그인을 다시 요구.
+
+진단: AgentApp Claude 세션 프로필의 `.credentials.json` 은 존재하지만 **OAuth 토큰이 2026-06-03 에 만료**(5주 전, dungbo92/leemg 둘 다). `claude --print` 테스트 = `401 Invalid authentication credentials`. 그런데 `detectAccountSession`/`hasSessionArtifacts` 는 **파일 존재만** 보고 ready 로 판정 → **오탐**. 그래서 죽은 세션에 RC 를 띄워 로그인 요구. (인증은 키체인 아님, 프로필의 `.credentials.json` 에 저장됨.)
+
+수정: `dashboard-runtime.mjs` 에 `readClaudeTokenExpiry(sessionProfile)` 추가. `detectAccountSession` 의 claude ready 경로에서 `.credentials.json` 의 `claudeAiOauth.expiresAt` 를 읽어 **7일 넘게 만료면 needs-login** 으로(만료일 + '로그인' 안내 reason). → 만료 계정은 상태등 🔴, `listReadyClaudeAccounts` 에서 제외돼 RC 가 죽은 세션을 안 띄운다.
+
+검증(실 데이터): 두 Claude 계정 모두 needs-login 으로 재판정, `listReadyClaudeAccounts` 2→0. pnpm validate(remote-control/integrations/configs) 통과.
+
+사용자 액션: 각 Claude 계정을 AgentApp 에서 **한 번 재로그인**(계정 카드 '로그인' 버튼) → 토큰 갱신 → 이후 RC 자동 연결.
+
+Git: commit + main push + desktop 릴리즈(patch).
+
 ## 2026-06-20T_rc_hidden_console_working
 
 사용자: "remote control 켜진거 맞냐? 안 켜졌는데" — v0.15.1 에서 내가 "상태등만"을 "기능 제거"로 과하게 해석해 실제로 꺼져 있었음. 정정하고 제대로 작동하게 붙임.
