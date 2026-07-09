@@ -2208,9 +2208,6 @@ function App() {
     checkForUpdates?: () => Promise<{ ok: boolean; reason?: string }>;
     getLanAccess?: () => Promise<{
       enabled: boolean;
-      manualEnabled?: boolean;
-      autoActivated?: boolean;
-      autoRcOnSession?: boolean;
       boundLan: boolean;
       needsRestart: boolean;
       token: string;
@@ -2220,6 +2217,13 @@ function App() {
       ips: string[];
       hasTailscale?: boolean;
     }>;
+    remoteControl?: {
+      status: () => Promise<Array<{ accountId: string; name: string; status: string; startedAt: number; exitCode?: number; reason?: string }>>;
+      start: () => Promise<{ ok: boolean; started?: number; total?: number; reason?: string }>;
+      stop: () => Promise<{ ok: boolean }>;
+      onData: (handler: (payload: { accountId: string; data: string }) => void) => () => void;
+      onExit: (handler: (payload: { accountId: string; exitCode?: number }) => void) => () => void;
+    };
     // 클립보드 paste — 이미지/엑셀 테이블을 prompt 에 첨부. main 에서 처리.
     clipboard?: {
       inspect: () => Promise<{
@@ -2259,9 +2263,6 @@ function App() {
   type LanEntry = { url: string; address: string; kind: string; interface: string };
   type LanState = {
     enabled: boolean;
-    manualEnabled?: boolean;
-    autoActivated?: boolean;
-    autoRcOnSession?: boolean;
     boundLan: boolean;
     needsRestart: boolean;
     token: string;
@@ -2281,6 +2282,23 @@ function App() {
       setLanAccess(null);
     }
   }, [desktopApi]);
+  type RcSession = { accountId: string; name: string; status: string; startedAt: number; exitCode?: number; reason?: string };
+  const [rcSessions, setRcSessions] = React.useState<RcSession[]>([]);
+  const refreshRemoteControl = React.useCallback(async () => {
+    if (!desktopApi?.remoteControl) return;
+    try {
+      setRcSessions(await desktopApi.remoteControl.status());
+    } catch {
+      setRcSessions([]);
+    }
+  }, [desktopApi]);
+  React.useEffect(() => {
+    if (!desktopApi?.remoteControl) return;
+    void refreshRemoteControl();
+    const offExit = desktopApi.remoteControl.onExit?.(() => { void refreshRemoteControl(); });
+    const timer = window.setInterval(() => { void refreshRemoteControl(); }, 5000);
+    return () => { offExit?.(); window.clearInterval(timer); };
+  }, [desktopApi, refreshRemoteControl]);
   React.useEffect(() => {
     if (!desktopApi) return;
     let off: (() => void) | undefined;
@@ -4655,6 +4673,68 @@ function App() {
 
           <section className="railPanel">
             <div className="sectionTitle compact">
+              <h2>📱 원격제어 (Claude)</h2>
+            </div>
+            <small style={{ color: "#64748b" }}>
+              앱 시작 시 ready Claude 계정마다 <code>claude --remote-control</code> 세션을 자동 실행합니다. 폰의 Claude 앱/웹에서 같은 계정으로 로그인하면 이 세션들을 원격 조종할 수 있어요 (LAN·방화벽 무관).
+            </small>
+            {rcSessions.length > 0 ? (
+              <div style={{ display: "flex", flexDirection: "column", gap: 4, marginTop: 6 }}>
+                {rcSessions.map((s) => {
+                  const color = s.status === "running" ? "#16a34a" : s.status === "stopped" ? "#64748b" : "#dc2626";
+                  const label = s.status === "running" ? "실행 중" : s.status === "stopped" ? "종료됨" : s.status === "blocked" ? "차단" : "오류";
+                  return (
+                    <div key={s.accountId} style={{ display: "flex", alignItems: "center", gap: 8, fontSize: 12 }}>
+                      <span style={{ width: 8, height: 8, borderRadius: "50%", background: color, flexShrink: 0 }} />
+                      <span style={{ fontWeight: 600 }}>{s.name}</span>
+                      <span style={{ color }}>{label}</span>
+                      {s.reason ? <span style={{ color: "#64748b", fontSize: 11 }}>{s.reason}</span> : null}
+                    </div>
+                  );
+                })}
+              </div>
+            ) : (
+              <small style={{ color: "#64748b", marginTop: 4, display: "block" }}>실행 중인 세션 없음 (ready Claude 계정이 없거나 아직 시작 전).</small>
+            )}
+            <div style={{ display: "flex", gap: 6, marginTop: 8 }}>
+              <button
+                type="button"
+                className="button ghost"
+                style={{ fontSize: 12 }}
+                title="ready Claude 계정마다 remote-control 세션을 (재)시작합니다."
+                onClick={async () => {
+                  try {
+                    const r = await desktopApi?.remoteControl?.start();
+                    await refreshRemoteControl();
+                    setToast({ kind: r?.ok ? "success" : "warn", message: r?.ok ? `원격제어 시작: ${r.started ?? 0}/${r.total ?? 0} 계정` : (r?.reason || "시작 실패") });
+                  } catch (caught) {
+                    setToast({ kind: "warn", message: caught instanceof Error ? caught.message : "시작 실패" });
+                  }
+                }}
+              >
+                시작 / 재시작
+              </button>
+              <button
+                type="button"
+                className="button ghost"
+                style={{ fontSize: 12 }}
+                title="모든 remote-control 세션을 종료합니다."
+                onClick={async () => {
+                  try {
+                    await desktopApi?.remoteControl?.stop();
+                    await refreshRemoteControl();
+                    setToast({ kind: "info", message: "원격제어 세션 종료됨" });
+                  } catch (caught) {
+                    setToast({ kind: "warn", message: caught instanceof Error ? caught.message : "종료 실패" });
+                  }
+                }}
+              >
+                모두 중지
+              </button>
+            </div>
+          </section>
+          <section className="railPanel">
+            <div className="sectionTitle compact">
               <h2>모바일 접속</h2>
               <Smartphone aria-hidden="true" size={16} />
             </div>
@@ -4664,7 +4744,7 @@ function App() {
             >
               <input
                 type="checkbox"
-                checked={Boolean(lanAccess?.manualEnabled ?? lanAccess?.enabled)}
+                checked={Boolean(lanAccess?.enabled)}
                 onChange={async (event) => {
                   const next = event.target.checked;
                   try {
@@ -4684,41 +4764,8 @@ function App() {
                   }
                 }}
               />
-              <span>같은 Wi-Fi 에서 접속 허용 (수동)</span>
+              <span>같은 Wi-Fi 에서 접속 허용</span>
             </label>
-            <label
-              style={{ display: "flex", alignItems: "center", gap: 8, fontSize: 13, cursor: "pointer" }}
-              title="앱을 켤 때 Claude 계정 세션이 살아있으면 모바일 접속(RC)을 자동으로 켭니다. 세션이 없으면 자동으로 꺼진 상태로 시작합니다. 수동 토글과 별개로 동작합니다."
-            >
-              <input
-                type="checkbox"
-                checked={lanAccess?.autoRcOnSession !== false}
-                onChange={async (event) => {
-                  const next = event.target.checked;
-                  try {
-                    await runtimeRequest("settings", { autoRcOnSession: next });
-                    await refreshLanAccess();
-                    setToast({
-                      kind: "info",
-                      message: next
-                        ? "Claude 세션이 살아있으면 다음 시작부터 모바일 접속이 자동으로 켜집니다."
-                        : "자동 켜기 해제. 이제 수동 토글로만 켜집니다.",
-                    });
-                  } catch (caught) {
-                    setToast({
-                      kind: "warn",
-                      message: caught instanceof Error ? caught.message : "설정 저장 실패",
-                    });
-                  }
-                }}
-              />
-              <span>Claude 세션 있으면 자동 켜기 (RC)</span>
-            </label>
-            {lanAccess?.autoActivated ? (
-              <small style={{ color: "#0369a1" }}>
-                🟢 Claude 세션 감지됨 → 이번 실행에 모바일 접속 자동 활성화. 아래 URL 로 폰에서 바로 접속하세요 (세션 없으면 다음 시작 때 자동으로 꺼짐).
-              </small>
-            ) : null}
             {lanAccess?.needsRestart ? (
               <small style={{ color: "#b45309" }}>
                 ⚠ 설정 변경됨 — 트레이 메뉴 → 종료 후 재실행해야 새 bind 가 적용됩니다.

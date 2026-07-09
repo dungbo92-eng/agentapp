@@ -1,5 +1,25 @@
 # RUN_STATUS
 
+## 2026-06-20T_claude_remote_control
+
+사용자 정정: "RC" = LAN 대시보드가 아니라 **`claude --remote-control`** (Claude CLI 내장 원격제어, `claude --help` 에 존재). 계정별로 그 명령을 실행만 하면 됨. 지난 auto-rc(LAN) 는 오해였음.
+
+**되돌림 (v0.14.0 LAN auto-rc revert)**: main.mjs 시작 auto-bind + get-lan-access 필드(manualEnabled/autoActivated/autoRcOnSession) + needsRestart 변경, main.tsx 토글/힌트/manualEnabled, dashboard-runtime `autoRcOnSession`/`ensureLanAccessToken`/`hasReadyClaudeSession`, validate-auto-rc 전부 제거. 수동 "모바일 접속" 토글은 원래대로.
+
+**구현 (제대로)**:
+- dashboard-runtime: `remoteControlAutoStart`(기본 on), `listReadyClaudeAccounts()`(enabled+ready Claude 계정 목록).
+- worker-launch-adapter: `buildRemoteControlSpec(account)` — claude 경로 + 계정 `CLAUDE_CONFIG_DIR` + args `["--remote-control", <name>]` + cwd.
+- main.mjs: 시작 시 ready Claude 계정마다 node-pty 로 `claude --remote-control <계정명>` spawn·유지, 앱 종료 시 정리. IPC get/start/stop + data/exit 이벤트.
+- preload: `remoteControl` API. main.tsx: 원격제어 패널(세션 목록 상태 + 시작/중지 버튼).
+- `validate-remote-control.mjs`(9 케이스) 추가, pnpm validate 체인에 auto-rc 대체 등록.
+
+동작: 앱 켜지면 ready Claude 계정마다 remote-control 세션 자동 실행 → 폰 Claude 앱/웹에서 같은 계정 로그인 → 원격 조종. LAN·방화벽·Tailscale 불필요.
+
+검증: pnpm dashboard:build 통과; validate-remote-control 9/9 + validate-integrations 11/11 (pnpm validate 내); node --check 전체. (validate-runtime-race 플래키 무관.)
+미검증(불가): 실제 세션이 폰에 잡히는 end-to-end — remote-control 실행은 사용자 Claude 계정에 붙는 외부 부작용이라 여기서 자동 실행하지 않음. 업데이트 후 사용자 확인 필요.
+
+Git: commit + main push + desktop 릴리즈(기능=minor).
+
 ## 2026-06-20T_auto_rc_on_claude_session
 
 사용자 요청: 앱 시작 시 Claude 계정 세션을 체크해 살아있으면 모바일 원격 접속(RC/LAN)을 자동으로 켜라 — 모바일에서 Claude 세션 사용.

@@ -157,9 +157,9 @@ function normalizeSettings(raw) {
     : tokenValid
       ? tokenRaw
       : "";
-  // 시작 시 Claude 세션이 살아있으면 LAN(RC) 접속을 자동으로 켠다. 기본 on.
-  // 모바일에서 Claude 계정 세션을 바로 쓸 수 있게 하기 위한 편의 기능.
-  const autoRcOnSession = source.autoRcOnSession === undefined ? true : Boolean(source.autoRcOnSession);
+  // 시작 시 ready Claude 계정마다 `claude --remote-control` 을 자동 실행한다. 기본 on.
+  // 폰(Claude 앱/웹)에서 각 계정 세션을 원격 조종할 수 있게 한다.
+  const remoteControlAutoStart = source.remoteControlAutoStart === undefined ? true : Boolean(source.remoteControlAutoStart);
   // 외부 도구 통합 (codebase-memory MCP / ponytail). 기본 전부 off (opt-in).
   // 설계: tools/agent-orchestrator/integrations/.
   const integrationsRaw = source.integrations && typeof source.integrations === "object" ? source.integrations : {};
@@ -191,7 +191,7 @@ function normalizeSettings(raw) {
     companyAccountPromptPreamble,
     lanAccessEnabled,
     lanAccessToken,
-    autoRcOnSession,
+    remoteControlAutoStart,
     integrations,
   };
 }
@@ -204,17 +204,6 @@ function generateLanAccessToken() {
     out += alphabet[Math.floor(Math.random() * alphabet.length)];
   }
   return out;
-}
-
-// LAN(RC) 접속 토큰을 보장한다. lanAccessEnabled 와 무관하게, 없으면 생성·영속 후 반환.
-// RC 자동 활성화(auto-rc)가 lanAccessEnabled=false 인 상태에서도 URL 토큰이 필요하다.
-export async function ensureLanAccessToken() {
-  const settings = await getRuntimeSettings();
-  const current = String(settings.lanAccessToken || "");
-  if (/^[A-Za-z0-9_-]{16,64}$/.test(current)) return current;
-  const token = generateLanAccessToken();
-  await updateRuntimeSettings({ lanAccessToken: token });
-  return token;
 }
 
 export async function getRuntimeSettings() {
@@ -1453,22 +1442,23 @@ export async function detectAccountSession(account) {
   return { sessionStatus: "needs-login", reason: hint };
 }
 
-// 시작 시 RC 자동 활성화 판단용 — enabled Claude 계정 중 세션이 ready 인 게 하나라도
-// 있으면 true. detectAccountSession 은 CLI 존재 + 자격증명/토큰 파일 존재를 확인한다.
-export async function hasReadyClaudeSession() {
+// 세션이 ready 인 enabled Claude 계정 목록. `claude --remote-control` 을 계정별로
+// 실행할 대상 선택에 사용. detectAccountSession 은 CLI 존재 + 자격증명/토큰 파일을 확인.
+export async function listReadyClaudeAccounts() {
   const runtime = await readRuntime();
   const claudeAccounts = (runtime.accounts || []).filter(
     (account) => account.enabled !== false && normalizeId(account.provider || "") === "claude",
   );
+  const ready = [];
   for (const account of claudeAccounts) {
     try {
       const detection = await detectAccountSession(account);
-      if (detection.sessionStatus === "ready") return true;
+      if (detection.sessionStatus === "ready") ready.push(account);
     } catch {
       /* best-effort — 감지 실패는 not ready 로 간주 */
     }
   }
-  return false;
+  return ready;
 }
 
 export async function runAccountLogin(accountId) {

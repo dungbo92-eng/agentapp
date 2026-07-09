@@ -9,9 +9,6 @@ let dashboardServer;
 let mainWindow;
 let tray;
 let windowMode = "full"; // "full" | "compact"
-// 이번 실행에서 RC(LAN)가 Claude 세션 감지로 자동 활성화됐는지. get-lan-access 가
-// UI 에 "자동 켜짐" 힌트를 내려주기 위해 사용.
-let lanAutoActivated = false;
 let isQuitting = false;
 let savedFullBounds = null;
 
@@ -214,24 +211,13 @@ async function createMainWindow() {
   // 안의 모바일/태블릿에서 토큰 URL 로 접근 가능. 토글 변경은 앱 재시작 후 적용
   // (이미 listen 한 서버의 bind 주소는 바꿀 수 없음).
   let initialLanSettings = { lanAccessEnabled: false, lanAccessToken: "" };
-  // RC 자동 활성화: lanAccessEnabled 가 꺼져 있어도 autoRcOnSession 이 켜져 있고
-  // Claude 세션이 살아있으면 이번 실행에서 LAN 바인딩을 켠다 (모바일에서 Claude
-  // 세션 사용). lanAccessEnabled 설정 자체는 바꾸지 않으므로, 세션이 없으면 다음
-  // 시작 때 자동으로 다시 127.0.0.1 로 돌아간다.
   try {
-    const { getRuntimeSettings, hasReadyClaudeSession, ensureLanAccessToken } =
-      await import("../../scripts/dashboard-runtime.mjs");
+    const { getRuntimeSettings } = await import("../../scripts/dashboard-runtime.mjs");
     const s = await getRuntimeSettings();
-    let effectiveLan = Boolean(s.lanAccessEnabled);
-    if (!effectiveLan && s.autoRcOnSession !== false && (await hasReadyClaudeSession())) {
-      effectiveLan = true;
-      lanAutoActivated = true;
-    }
-    let token = String(s.lanAccessToken || "");
-    if (effectiveLan && !/^[A-Za-z0-9_-]{16,64}$/.test(token)) {
-      token = await ensureLanAccessToken();
-    }
-    initialLanSettings = { lanAccessEnabled: effectiveLan, lanAccessToken: token };
+    initialLanSettings = {
+      lanAccessEnabled: Boolean(s.lanAccessEnabled),
+      lanAccessToken: String(s.lanAccessToken || ""),
+    };
   } catch {
     // settings 읽기 실패 시 안전 default (LAN off).
   }
@@ -241,6 +227,16 @@ async function createMainWindow() {
     host: initialLanSettings.lanAccessEnabled ? "0.0.0.0" : "127.0.0.1",
     lanAccessToken: initialLanSettings.lanAccessToken,
   });
+
+  // 시작 시 ready Claude 계정마다 `claude --remote-control` 세션 자동 시작 (기본 on).
+  // 폰(Claude 앱/웹)에서 각 계정 세션을 원격 조종. 창 생성을 막지 않도록 non-blocking.
+  try {
+    const { getRuntimeSettings } = await import("../../scripts/dashboard-runtime.mjs");
+    const rcSettings = await getRuntimeSettings();
+    if (rcSettings.remoteControlAutoStart !== false) void startRemoteControlSessions();
+  } catch {
+    /* best-effort — 원격제어 자동 시작 실패는 앱 실행을 막지 않는다 */
+  }
 
   mainWindow = new BrowserWindow({
     width: initialDims.width,
@@ -963,6 +959,89 @@ app.on("before-quit", () => {
   ptySessions.clear();
 });
 
+// ===== Claude Remote Control (계정별 `claude --remote-control`) =====
+// 앱 시작 시 ready Claude 계정마다 remote-control 세션을 node-pty 로 띄워 유지한다.
+// 폰(Claude 앱/웹)에서 각 세션을 원격 조종. 앱 종료 시 정리. LAN/방화벽 무관 —
+// Anthropic 자체 원격제어라 계정으로 어디서든 접속된다.
+const rcSessions = new Map(); // accountId -> { proc, name, sessionProfile, startedAt, status, exitCode, tail }
+
+async function startRemoteControlSessions() {
+  let accounts = [];
+  try {
+    const { listReadyClaudeAccounts } = await import("../../scripts/dashboard-runtime.mjs");
+    accounts = await listReadyClaudeAccounts();
+  } catch (error) {
+    return { ok: false, reason: `ready Claude 계정 조회 실패: ${error?.message || error}` };
+  }
+  if (accounts.length === 0) return { ok: true, started: 0, total: 0, reason: "ready 상태의 Claude 계정이 없습니다." };
+  const pty = await loadPtyModule();
+  if (!pty) return { ok: false, reason: "node-pty 로드 실패" };
+  const { buildRemoteControlSpec } = await import("../../scripts/worker-launch-adapter.mjs");
+  let started = 0;
+  for (const account of accounts) {
+    const accountId = String(account.id || "");
+    const existing = rcSessions.get(accountId);
+    if (existing && existing.status === "running") continue; // 이미 실행 중이면 스킵
+    const spec = await buildRemoteControlSpec(account);
+    if (spec.status !== "ready") {
+      rcSessions.set(accountId, { status: "blocked", name: accountId, reason: spec.reason });
+      continue;
+    }
+    try {
+      const proc = pty.spawn(spec.command, spec.args, {
+        name: "xterm-color",
+        cols: 100,
+        rows: 30,
+        cwd: spec.cwd,
+        env: { ...process.env, ...spec.env, TERM: "xterm-256color" },
+      });
+      const session = { proc, name: spec.name, sessionProfile: spec.sessionProfile, startedAt: Date.now(), status: "running", tail: "" };
+      proc.onData((data) => {
+        session.tail = (session.tail + String(data)).slice(-2000);
+        if (mainWindow && !mainWindow.isDestroyed() && !mainWindow.webContents.isDestroyed()) {
+          mainWindow.webContents.send("agentapp:remote-control-data", { accountId, data: String(data) });
+        }
+      });
+      proc.onExit(({ exitCode }) => {
+        session.status = "stopped";
+        session.exitCode = exitCode;
+        if (mainWindow && !mainWindow.isDestroyed() && !mainWindow.webContents.isDestroyed()) {
+          mainWindow.webContents.send("agentapp:remote-control-exit", { accountId, exitCode });
+        }
+      });
+      rcSessions.set(accountId, session);
+      started += 1;
+    } catch (error) {
+      rcSessions.set(accountId, { status: "error", name: spec.name, error: error?.message || String(error) });
+    }
+  }
+  return { ok: true, started, total: accounts.length };
+}
+
+function stopRemoteControlSessions() {
+  for (const session of rcSessions.values()) {
+    try { session.proc?.kill(); } catch { /* ignore */ }
+  }
+  rcSessions.clear();
+}
+
+function remoteControlStatus() {
+  return Array.from(rcSessions.entries()).map(([accountId, s]) => ({
+    accountId,
+    name: s.name || accountId,
+    status: s.status,
+    startedAt: s.startedAt || 0,
+    exitCode: s.exitCode,
+    reason: s.reason || s.error || "",
+  }));
+}
+
+ipcMain.handle("agentapp:get-remote-control", () => remoteControlStatus());
+ipcMain.handle("agentapp:remote-control-start", () => startRemoteControlSessions());
+ipcMain.handle("agentapp:remote-control-stop", () => { stopRemoteControlSessions(); return { ok: true }; });
+
+app.on("before-quit", () => { stopRemoteControlSessions(); });
+
 // ===== 클립보드 paste =====
 // prompt textarea 에서 이미지/엑셀 테이블을 Ctrl+V 로 붙여 넣었을 때 renderer
 // 가 호출. 이미지는 PNG 로 userData/clipboard-attachments/<runId-or-timestamp>.png
@@ -1184,10 +1263,7 @@ ipcMain.handle("agentapp:get-lan-access", async () => {
   const isLanBound = boundHost === "0.0.0.0" || boundHost === "::";
   const lanIps = isLanBound ? detectLanIps() : [];
   const token = String(runtimeSettings.lanAccessToken || "");
-  // manualEnabled = 사용자가 켠 lanAccessEnabled 설정 (체크박스 상태).
-  // enabled = 이번 실행에서 실제로 LAN 이 켜져 있는지 (수동 OR auto-rc 바인딩).
-  const manualEnabled = Boolean(runtimeSettings.lanAccessEnabled);
-  const enabledNow = isLanBound || manualEnabled;
+  const enabledNow = Boolean(runtimeSettings.lanAccessEnabled);
   // 각 IP 의 종류 (tailscale/lan/public) 까지 같이 내려 UI 에서 배지로 구분 가능하게.
   // urls 는 호환 위해 평탄한 string 배열로 유지, entries 가 풍부한 정보.
   const entries = isLanBound && token
@@ -1200,13 +1276,8 @@ ipcMain.handle("agentapp:get-lan-access", async () => {
     : [];
   return {
     enabled: enabledNow,
-    manualEnabled,
-    // Claude 세션 감지로 이번 실행에 자동 켜졌는지 (수동 설정은 off).
-    autoActivated: lanAutoActivated && isLanBound,
-    autoRcOnSession: runtimeSettings.autoRcOnSession !== false,
     boundLan: isLanBound,
-    // 수동으로 켰는데 아직 바인딩 안 된 경우만 재시작 안내 (auto-rc 는 이미 바인딩됨).
-    needsRestart: manualEnabled && !isLanBound,
+    needsRestart: enabledNow !== isLanBound,
     token,
     port,
     urls: entries.map((entry) => entry.url),
