@@ -2208,6 +2208,9 @@ function App() {
     checkForUpdates?: () => Promise<{ ok: boolean; reason?: string }>;
     getLanAccess?: () => Promise<{
       enabled: boolean;
+      manualEnabled?: boolean;
+      autoActivated?: boolean;
+      autoRcOnSession?: boolean;
       boundLan: boolean;
       needsRestart: boolean;
       token: string;
@@ -2256,6 +2259,9 @@ function App() {
   type LanEntry = { url: string; address: string; kind: string; interface: string };
   type LanState = {
     enabled: boolean;
+    manualEnabled?: boolean;
+    autoActivated?: boolean;
+    autoRcOnSession?: boolean;
     boundLan: boolean;
     needsRestart: boolean;
     token: string;
@@ -4658,7 +4664,7 @@ function App() {
             >
               <input
                 type="checkbox"
-                checked={Boolean(lanAccess?.enabled)}
+                checked={Boolean(lanAccess?.manualEnabled ?? lanAccess?.enabled)}
                 onChange={async (event) => {
                   const next = event.target.checked;
                   try {
@@ -4678,8 +4684,41 @@ function App() {
                   }
                 }}
               />
-              <span>같은 Wi-Fi 에서 접속 허용</span>
+              <span>같은 Wi-Fi 에서 접속 허용 (수동)</span>
             </label>
+            <label
+              style={{ display: "flex", alignItems: "center", gap: 8, fontSize: 13, cursor: "pointer" }}
+              title="앱을 켤 때 Claude 계정 세션이 살아있으면 모바일 접속(RC)을 자동으로 켭니다. 세션이 없으면 자동으로 꺼진 상태로 시작합니다. 수동 토글과 별개로 동작합니다."
+            >
+              <input
+                type="checkbox"
+                checked={lanAccess?.autoRcOnSession !== false}
+                onChange={async (event) => {
+                  const next = event.target.checked;
+                  try {
+                    await runtimeRequest("settings", { autoRcOnSession: next });
+                    await refreshLanAccess();
+                    setToast({
+                      kind: "info",
+                      message: next
+                        ? "Claude 세션이 살아있으면 다음 시작부터 모바일 접속이 자동으로 켜집니다."
+                        : "자동 켜기 해제. 이제 수동 토글로만 켜집니다.",
+                    });
+                  } catch (caught) {
+                    setToast({
+                      kind: "warn",
+                      message: caught instanceof Error ? caught.message : "설정 저장 실패",
+                    });
+                  }
+                }}
+              />
+              <span>Claude 세션 있으면 자동 켜기 (RC)</span>
+            </label>
+            {lanAccess?.autoActivated ? (
+              <small style={{ color: "#0369a1" }}>
+                🟢 Claude 세션 감지됨 → 이번 실행에 모바일 접속 자동 활성화. 아래 URL 로 폰에서 바로 접속하세요 (세션 없으면 다음 시작 때 자동으로 꺼짐).
+              </small>
+            ) : null}
             {lanAccess?.needsRestart ? (
               <small style={{ color: "#b45309" }}>
                 ⚠ 설정 변경됨 — 트레이 메뉴 → 종료 후 재실행해야 새 bind 가 적용됩니다.

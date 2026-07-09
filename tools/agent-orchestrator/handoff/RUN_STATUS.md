@@ -1,5 +1,21 @@
 # RUN_STATUS
 
+## 2026-06-20T_auto_rc_on_claude_session
+
+사용자 요청: 앱 시작 시 Claude 계정 세션을 체크해 살아있으면 모바일 원격 접속(RC/LAN)을 자동으로 켜라 — 모바일에서 Claude 세션 사용.
+
+구현:
+- `dashboard-runtime.mjs`: `normalizeSettings`에 `autoRcOnSession`(기본 on) 추가. `hasReadyClaudeSession()`(enabled Claude 계정 중 `detectAccountSession`=ready 있으면 true), `ensureLanAccessToken()`(lanAccessEnabled 무관하게 토큰 생성·영속) 추가.
+- `apps/desktop/main.mjs`: 시작 시 `effectiveLan = lanAccessEnabled || (autoRcOnSession && hasReadyClaudeSession())`. auto면 토큰 보장 후 0.0.0.0 바인딩. **lanAccessEnabled 설정은 안 바꿈** → 세션 없으면 다음 시작 때 자동으로 127.0.0.1. `get-lan-access`가 `enabled`(effective=바인딩됨), `manualEnabled`, `autoActivated`, `autoRcOnSession` 반환, `needsRestart`=수동 on & 미바인딩만.
+- `main.tsx` 모바일 패널: 수동 체크박스는 `manualEnabled` 반영, "Claude 세션 있으면 자동 켜기(RC)" 토글 + "자동 켜짐" 힌트 추가.
+- `scripts/validate-auto-rc.mjs`(6케이스) 추가, `pnpm validate` 체인 등록.
+
+동작: 앱 켤 때 Claude 세션 ready면 → 모바일 접속 자동 ON → 폰에서 토큰 URL 로 대시보드 접속해 Claude worker 구동. 세션 없으면 자동 OFF. 사용자가 자동 끄면 수동 토글로만.
+
+검증: pnpm dashboard:build 통과; validate-auto-rc 6/6, validate-integrations 11/11 (pnpm validate 체인 내); node --check 전체 통과. (validate-runtime-race 는 이 PC 사전 환경 플래키 — 무관.)
+
+Git: commit + main push + desktop 릴리즈(기능=minor).
+
 ## 2026-06-19T_external_tool_integration_eval
 
 사용자 요청: codebase-memory-mcp + Ponytail 두 OSS 를 AgentApp 에 붙일 수 있는지 평가/체크.

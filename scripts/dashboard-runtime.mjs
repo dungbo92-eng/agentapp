@@ -157,6 +157,9 @@ function normalizeSettings(raw) {
     : tokenValid
       ? tokenRaw
       : "";
+  // 시작 시 Claude 세션이 살아있으면 LAN(RC) 접속을 자동으로 켠다. 기본 on.
+  // 모바일에서 Claude 계정 세션을 바로 쓸 수 있게 하기 위한 편의 기능.
+  const autoRcOnSession = source.autoRcOnSession === undefined ? true : Boolean(source.autoRcOnSession);
   // 외부 도구 통합 (codebase-memory MCP / ponytail). 기본 전부 off (opt-in).
   // 설계: tools/agent-orchestrator/integrations/.
   const integrationsRaw = source.integrations && typeof source.integrations === "object" ? source.integrations : {};
@@ -188,6 +191,7 @@ function normalizeSettings(raw) {
     companyAccountPromptPreamble,
     lanAccessEnabled,
     lanAccessToken,
+    autoRcOnSession,
     integrations,
   };
 }
@@ -200,6 +204,17 @@ function generateLanAccessToken() {
     out += alphabet[Math.floor(Math.random() * alphabet.length)];
   }
   return out;
+}
+
+// LAN(RC) 접속 토큰을 보장한다. lanAccessEnabled 와 무관하게, 없으면 생성·영속 후 반환.
+// RC 자동 활성화(auto-rc)가 lanAccessEnabled=false 인 상태에서도 URL 토큰이 필요하다.
+export async function ensureLanAccessToken() {
+  const settings = await getRuntimeSettings();
+  const current = String(settings.lanAccessToken || "");
+  if (/^[A-Za-z0-9_-]{16,64}$/.test(current)) return current;
+  const token = generateLanAccessToken();
+  await updateRuntimeSettings({ lanAccessToken: token });
+  return token;
 }
 
 export async function getRuntimeSettings() {
@@ -1436,6 +1451,24 @@ export async function detectAccountSession(account) {
     ? `이 계정의 세션 폴더에 ${expected} 가 없습니다. '로그인' 버튼으로 격리 브라우저에서 OAuth 를 완료하세요.`
     : "세션 프로필이 비어 있습니다. '로그인' 버튼으로 격리 브라우저에서 인증을 완료하세요.";
   return { sessionStatus: "needs-login", reason: hint };
+}
+
+// 시작 시 RC 자동 활성화 판단용 — enabled Claude 계정 중 세션이 ready 인 게 하나라도
+// 있으면 true. detectAccountSession 은 CLI 존재 + 자격증명/토큰 파일 존재를 확인한다.
+export async function hasReadyClaudeSession() {
+  const runtime = await readRuntime();
+  const claudeAccounts = (runtime.accounts || []).filter(
+    (account) => account.enabled !== false && normalizeId(account.provider || "") === "claude",
+  );
+  for (const account of claudeAccounts) {
+    try {
+      const detection = await detectAccountSession(account);
+      if (detection.sessionStatus === "ready") return true;
+    } catch {
+      /* best-effort — 감지 실패는 not ready 로 간주 */
+    }
+  }
+  return false;
 }
 
 export async function runAccountLogin(accountId) {

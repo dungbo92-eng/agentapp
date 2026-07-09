@@ -9,6 +9,9 @@ let dashboardServer;
 let mainWindow;
 let tray;
 let windowMode = "full"; // "full" | "compact"
+// 이번 실행에서 RC(LAN)가 Claude 세션 감지로 자동 활성화됐는지. get-lan-access 가
+// UI 에 "자동 켜짐" 힌트를 내려주기 위해 사용.
+let lanAutoActivated = false;
 let isQuitting = false;
 let savedFullBounds = null;
 
@@ -211,13 +214,24 @@ async function createMainWindow() {
   // 안의 모바일/태블릿에서 토큰 URL 로 접근 가능. 토글 변경은 앱 재시작 후 적용
   // (이미 listen 한 서버의 bind 주소는 바꿀 수 없음).
   let initialLanSettings = { lanAccessEnabled: false, lanAccessToken: "" };
+  // RC 자동 활성화: lanAccessEnabled 가 꺼져 있어도 autoRcOnSession 이 켜져 있고
+  // Claude 세션이 살아있으면 이번 실행에서 LAN 바인딩을 켠다 (모바일에서 Claude
+  // 세션 사용). lanAccessEnabled 설정 자체는 바꾸지 않으므로, 세션이 없으면 다음
+  // 시작 때 자동으로 다시 127.0.0.1 로 돌아간다.
   try {
-    const { getRuntimeSettings } = await import("../../scripts/dashboard-runtime.mjs");
+    const { getRuntimeSettings, hasReadyClaudeSession, ensureLanAccessToken } =
+      await import("../../scripts/dashboard-runtime.mjs");
     const s = await getRuntimeSettings();
-    initialLanSettings = {
-      lanAccessEnabled: Boolean(s.lanAccessEnabled),
-      lanAccessToken: String(s.lanAccessToken || ""),
-    };
+    let effectiveLan = Boolean(s.lanAccessEnabled);
+    if (!effectiveLan && s.autoRcOnSession !== false && (await hasReadyClaudeSession())) {
+      effectiveLan = true;
+      lanAutoActivated = true;
+    }
+    let token = String(s.lanAccessToken || "");
+    if (effectiveLan && !/^[A-Za-z0-9_-]{16,64}$/.test(token)) {
+      token = await ensureLanAccessToken();
+    }
+    initialLanSettings = { lanAccessEnabled: effectiveLan, lanAccessToken: token };
   } catch {
     // settings 읽기 실패 시 안전 default (LAN off).
   }
@@ -1170,7 +1184,10 @@ ipcMain.handle("agentapp:get-lan-access", async () => {
   const isLanBound = boundHost === "0.0.0.0" || boundHost === "::";
   const lanIps = isLanBound ? detectLanIps() : [];
   const token = String(runtimeSettings.lanAccessToken || "");
-  const enabledNow = Boolean(runtimeSettings.lanAccessEnabled);
+  // manualEnabled = 사용자가 켠 lanAccessEnabled 설정 (체크박스 상태).
+  // enabled = 이번 실행에서 실제로 LAN 이 켜져 있는지 (수동 OR auto-rc 바인딩).
+  const manualEnabled = Boolean(runtimeSettings.lanAccessEnabled);
+  const enabledNow = isLanBound || manualEnabled;
   // 각 IP 의 종류 (tailscale/lan/public) 까지 같이 내려 UI 에서 배지로 구분 가능하게.
   // urls 는 호환 위해 평탄한 string 배열로 유지, entries 가 풍부한 정보.
   const entries = isLanBound && token
@@ -1183,8 +1200,13 @@ ipcMain.handle("agentapp:get-lan-access", async () => {
     : [];
   return {
     enabled: enabledNow,
+    manualEnabled,
+    // Claude 세션 감지로 이번 실행에 자동 켜졌는지 (수동 설정은 off).
+    autoActivated: lanAutoActivated && isLanBound,
+    autoRcOnSession: runtimeSettings.autoRcOnSession !== false,
     boundLan: isLanBound,
-    needsRestart: enabledNow !== isLanBound,
+    // 수동으로 켰는데 아직 바인딩 안 된 경우만 재시작 안내 (auto-rc 는 이미 바인딩됨).
+    needsRestart: manualEnabled && !isLanBound,
     token,
     port,
     urls: entries.map((entry) => entry.url),

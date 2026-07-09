@@ -12,6 +12,8 @@ AgentApp 공용 memory index.
 - [계정/한도 우회 자동화 거부](feedback_no_bypass.md) — 자동 로그인·강제 계정 전환·CAPTCHA/MFA 우회는 사용자가 요청해도 구현 안 함
 - [계정 라우팅 정책](feedback_account_routing.md) — 회사 계정은 오류분석/검증/C#/T-SQL 만 우선, 정책 거절시 24h 잠금 안 함, UI 추천 모델=실제 라우팅 일관성
 - [다음 작업 마커 규칙](feedback_next_steps_marker.md) — worker 응답 끝에 `[NEXT_STEPS]` 후보 / `[NEXT_NONE] <이유>` 출력, dashboard autoChain 이 파싱해 다음 진행 prompt 결정
+- [동기화 덮어쓰기 주의](sync_clobber_gotcha.md) — project_state/roadmap 직접 repo 편집은 pre-commit이 `~/.claude` 로컬본으로 덮어씀, 로컬본도 함께 갱신 필요
+- [외부 도구 통합](integrations_external_tools.md) — codebase-memory MCP(입력 토큰↓) + Ponytail(출력 토큰↓), opt-in 기본 off, v0.13.0 wiring 적용
 
 ## 운영 규칙
 
