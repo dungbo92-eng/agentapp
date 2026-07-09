@@ -2217,6 +2217,11 @@ function App() {
       ips: string[];
       hasTailscale?: boolean;
     }>;
+    remoteControl?: {
+      status: () => Promise<Array<{ accountId: string; name: string; status: string; startedAt: number; reason?: string }>>;
+      start: () => Promise<{ ok: boolean; started?: number; total?: number; reason?: string }>;
+      stop: () => Promise<{ ok: boolean }>;
+    };
     // 클립보드 paste — 이미지/엑셀 테이블을 prompt 에 첨부. main 에서 처리.
     clipboard?: {
       inspect: () => Promise<{
@@ -2274,6 +2279,24 @@ function App() {
     } catch {
       setLanAccess(null);
     }
+  }, [desktopApi]);
+  // 계정별 원격제어 실행 상태 (accountId -> status). 5초 폴링. 계정 카드에 📡 표시.
+  const [rcByAccount, setRcByAccount] = React.useState<Record<string, string>>({});
+  React.useEffect(() => {
+    if (!desktopApi?.remoteControl) return;
+    let stopped = false;
+    const refresh = async () => {
+      try {
+        const list = await desktopApi.remoteControl!.status();
+        if (stopped) return;
+        const map: Record<string, string> = {};
+        for (const s of list) map[s.accountId] = s.status;
+        setRcByAccount(map);
+      } catch { /* ignore */ }
+    };
+    void refresh();
+    const timer = window.setInterval(refresh, 5000);
+    return () => { stopped = true; window.clearInterval(timer); };
   }, [desktopApi]);
   React.useEffect(() => {
     if (!desktopApi) return;
@@ -3580,6 +3603,14 @@ function App() {
                         }}
                       />
                       <strong>{account.displayName || account.id}</strong>
+                      {rcByAccount[account.id] === "running" ? (
+                        <span
+                          title="원격제어 실행 중 — 폰 Claude 앱/웹에서 이 계정 세션을 조종할 수 있습니다"
+                          style={{ fontSize: 11, color: "#0369a1", fontWeight: 600 }}
+                        >
+                          📡 RC
+                        </span>
+                      ) : null}
                       {account.source === "config" ? (
                         <span className="badge example" title="usage-budget.example.json 의 예시 데이터입니다. 실제 본인 계정으로 사용하려면 사이드바에서 새 계정을 추가하세요.">예시</span>
                       ) : null}

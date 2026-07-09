@@ -805,6 +805,46 @@ async function resolveProjectPath(projectId) {
   return "";
 }
 
+// `claude --remote-control` 실행 스펙 (계정별). 각 계정의 CLAUDE_CONFIG_DIR 로 실행해
+// 세션이 분리되고, name 으로 폰(Claude 앱/웹)에서 구분한다.
+export async function buildRemoteControlSpec(account, options = {}) {
+  const command = process.env.AGENTAPP_CLAUDE_COMMAND || (await commandPathFor("claude"));
+  if (!command) return { status: "blocked", reason: "이 PC에서 Claude CLI 를 찾지 못했습니다." };
+  const accountId = String(account?.id || "default");
+  const sessionProfile = account?.sessionProfile || `claude-code-${accountId}`;
+  const sessionDir = buildSessionProfileDir("claude-code", sessionProfile);
+  await mkdir(sessionDir, { recursive: true });
+  const name = String(options.name || account?.loginLabel || account?.email || accountId).slice(0, 40);
+  const workspace = options.workspace || (isPackagedRuntime() ? safeSpawnCwd() : REPO_ROOT);
+  return {
+    status: "ready",
+    command,
+    args: ["--remote-control", name],
+    env: { CLAUDE_CONFIG_DIR: sessionDir, AGENTAPP_SESSION_PROFILE: sessionProfile, AGENTAPP_ACCOUNT_ID: accountId },
+    cwd: workspace,
+    sessionDir,
+    sessionProfile,
+    name,
+    accountId,
+  };
+}
+
+// 숨긴 콘솔(cmd /c)에서 claude --remote-control 을 실행한다. detached + windowsHide 로
+// 보이는 창 없이 TTY 를 확보 → Claude(Ink TUI)가 정상 기동해 원격제어에 연결된다.
+// node-pty 불필요 (win32 prebuilt 없이 동작). 반환: detached child (pid 로 tree-kill).
+export function spawnRemoteControlConsole(spec) {
+  const comspec = process.env.ComSpec || "cmd.exe";
+  const child = spawn(comspec, ["/c", spec.command, ...spec.args], {
+    cwd: spec.cwd,
+    env: { ...process.env, ...spec.env },
+    detached: true,
+    stdio: "ignore",
+    windowsHide: true,
+  });
+  child.unref();
+  return child;
+}
+
 async function resolveAdapter(run, files) {
   const sessionProfile = run.routing?.sessionProfile || `${run.workerId}-${run.routing?.accountId || "default"}`;
   const projectPath = await resolveProjectPath(run.projectId);

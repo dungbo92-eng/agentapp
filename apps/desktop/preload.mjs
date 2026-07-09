@@ -43,6 +43,12 @@ contextBridge.exposeInMainWorld("agentapp", {
   // 같은 Wi-Fi 의 폰/태블릿에서 대시보드 접속용. 현재 LAN bind 상태 + 적용된 token
   // + 추정 LAN IP 와 그로 만든 접속 URL 들. UI 는 이걸 받아 QR / 복사 버튼을 띄운다.
   getLanAccess: () => ipcRenderer.invoke("agentapp:get-lan-access"),
+  // Claude Remote Control — 계정별 `claude --remote-control` 세션 상태 + 수동 시작/중지.
+  remoteControl: {
+    status: () => ipcRenderer.invoke("agentapp:get-remote-control"),
+    start: () => ipcRenderer.invoke("agentapp:remote-control-start"),
+    stop: () => ipcRenderer.invoke("agentapp:remote-control-stop"),
+  },
   // 인앱 터미널 (node-pty 기반) — 다중 세션을 sessionId 로 구분.
   terminal: {
     create: (options) => ipcRenderer.invoke("agentapp:terminal-create", options || {}),

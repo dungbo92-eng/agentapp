@@ -1,5 +1,24 @@
 # RUN_STATUS
 
+## 2026-06-20T_rc_hidden_console_working
+
+사용자: "remote control 켜진거 맞냐? 안 켜졌는데" — v0.15.1 에서 내가 "상태등만"을 "기능 제거"로 과하게 해석해 실제로 꺼져 있었음. 정정하고 제대로 작동하게 붙임.
+
+근본 원인 확정: node-pty **win32 prebuilt 자체가 없음**(`prebuilds/win32-x64` 비어 있고 `build/Release` 없음) + Electron ABI + `npmRebuild:false` → 패키지에서 pty 못 뜸(= v0.15.0 conpty 크래시). `claude --remote-control` 은 Ink TUI라 TTY 필요, 파이프로 실행하면 `--print` 로 빠져 실패.
+
+해결 (node-pty 버리고 숨긴 콘솔):
+- worker-launch-adapter: `buildRemoteControlSpec` + `spawnRemoteControlConsole` — `cmd /c <claude.cmd> --remote-control <name>` 을 `detached + stdio:ignore + windowsHide:true` 로 실행 → **보이는 창 없이 TTY 확보** (node-pty 불필요).
+- dashboard-runtime: `remoteControlAutoStart`(기본 on), `listReadyClaudeAccounts` 복원.
+- main.mjs: 시작 시 ready Claude 계정마다 spawn, stop/quit 시 `taskkill /T` tree-kill, IPC get/start/stop. conpty 미사용 → 크래시 없음.
+- preload/main.tsx: `remoteControl` API + 계정 카드에 세션 상태등(🟢 ready/🟡 paused/🔴 needs-login) + 실행 중이면 📡 RC 표시.
+- `validate-remote-control`(10) 복원 + 체인 등록.
+
+**실계정 E2E 검증(핵심)**: 실 runtime(`AppData/Roaming/agent-app/data`) + 실 세션 프로필로 `listReadyClaudeAccounts`→spawn 을 돌려, ready Claude 2계정(dungbo92-gmail / leemg-hanilnetworks) 모두 `claude --remote-control` 세션이 **12초 생존(TTY 확보)** 함을 확인 후 정리. 콘솔 spawn 메커니즘은 별도로 3회(Start-Process hidden, node windowsHide 등) 재현.
+
+검증: pnpm dashboard:build 통과; validate-remote-control 10/10; node --check 전체; 실계정 spawn 2/2 생존. (validate-runtime-race 플래키 무관.)
+
+Git: commit + main push + desktop 릴리즈(patch).
+
 ## 2026-06-20T_rc_crash_fix_status_light
 
 사용자 보고: 설치 앱에서 `Cannot find module '../build/Release/conpty.node'` 오류. + "그냥 왼쪽 계정에 초록/빨강 상태등만 있어도 될듯".

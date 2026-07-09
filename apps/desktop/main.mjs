@@ -1,6 +1,7 @@
 import { app, BrowserWindow, clipboard, shell, globalShortcut, Tray, Menu, ipcMain, screen, nativeImage, Notification } from "electron";
 import { readFileSync, writeFileSync } from "node:fs";
 import { mkdir, writeFile } from "node:fs/promises";
+import { spawn as cpSpawn } from "node:child_process";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { networkInterfaces } from "node:os";
@@ -227,6 +228,16 @@ async function createMainWindow() {
     host: initialLanSettings.lanAccessEnabled ? "0.0.0.0" : "127.0.0.1",
     lanAccessToken: initialLanSettings.lanAccessToken,
   });
+
+  // 시작 시 ready Claude 계정마다 `claude --remote-control` 자동 실행 (기본 on).
+  // 숨긴 콘솔로 TTY 확보 (node-pty 안 씀 → conpty 크래시 없음). best-effort.
+  try {
+    const { getRuntimeSettings } = await import("../../scripts/dashboard-runtime.mjs");
+    const rcSettings = await getRuntimeSettings();
+    if (rcSettings.remoteControlAutoStart !== false) void startRemoteControlSessions();
+  } catch {
+    /* best-effort — 원격제어 자동 시작 실패는 앱 실행을 막지 않는다 */
+  }
 
   mainWindow = new BrowserWindow({
     width: initialDims.width,
@@ -948,6 +959,73 @@ app.on("before-quit", () => {
   }
   ptySessions.clear();
 });
+
+// ===== Claude Remote Control (계정별 `claude --remote-control`, 숨긴 콘솔) =====
+// node-pty 없이 detached + windowsHide 콘솔로 실행 → TTY 확보, 창 안 뜸. 앱 시작 시
+// ready Claude 계정마다 실행하고 폰(Claude 앱/웹)에서 원격 조종한다. 앱 종료 시 tree-kill.
+const rcSessions = new Map(); // accountId -> { pid, name, startedAt, status, reason }
+
+function killPidTree(pid) {
+  if (!pid) return;
+  try { cpSpawn("taskkill", ["/PID", String(pid), "/T", "/F"], { stdio: "ignore", windowsHide: true }); } catch { /* ignore */ }
+}
+
+async function startRemoteControlSessions() {
+  let accounts = [];
+  try {
+    const { listReadyClaudeAccounts } = await import("../../scripts/dashboard-runtime.mjs");
+    accounts = await listReadyClaudeAccounts();
+  } catch (error) {
+    return { ok: false, reason: `ready Claude 계정 조회 실패: ${error?.message || error}` };
+  }
+  if (accounts.length === 0) return { ok: true, started: 0, total: 0, reason: "ready 상태의 Claude 계정이 없습니다." };
+  const { buildRemoteControlSpec, spawnRemoteControlConsole } = await import("../../scripts/worker-launch-adapter.mjs");
+  let started = 0;
+  for (const account of accounts) {
+    const accountId = String(account.id || "");
+    const existing = rcSessions.get(accountId);
+    if (existing && existing.status === "running") continue; // 이미 실행 중이면 스킵
+    const spec = await buildRemoteControlSpec(account);
+    if (spec.status !== "ready") {
+      rcSessions.set(accountId, { status: "blocked", name: accountId, reason: spec.reason });
+      continue;
+    }
+    try {
+      const child = spawnRemoteControlConsole(spec);
+      const session = { pid: child.pid, name: spec.name, startedAt: Date.now(), status: "running" };
+      child.on("exit", () => { if (session.status === "running") session.status = "stopped"; });
+      child.on("error", (err) => { session.status = "error"; session.reason = err?.message || String(err); });
+      rcSessions.set(accountId, session);
+      started += 1;
+    } catch (error) {
+      rcSessions.set(accountId, { status: "error", name: spec.name, reason: error?.message || String(error) });
+    }
+  }
+  return { ok: true, started, total: accounts.length };
+}
+
+function stopRemoteControlSessions() {
+  for (const session of rcSessions.values()) {
+    killPidTree(session.pid);
+    session.status = "stopped";
+  }
+}
+
+function remoteControlStatus() {
+  return Array.from(rcSessions.entries()).map(([accountId, s]) => ({
+    accountId,
+    name: s.name || accountId,
+    status: s.status,
+    startedAt: s.startedAt || 0,
+    reason: s.reason || "",
+  }));
+}
+
+ipcMain.handle("agentapp:get-remote-control", () => remoteControlStatus());
+ipcMain.handle("agentapp:remote-control-start", () => startRemoteControlSessions());
+ipcMain.handle("agentapp:remote-control-stop", () => { stopRemoteControlSessions(); return { ok: true }; });
+
+app.on("before-quit", () => { stopRemoteControlSessions(); });
 
 // ===== 클립보드 paste =====
 // prompt textarea 에서 이미지/엑셀 테이블을 Ctrl+V 로 붙여 넣었을 때 renderer
