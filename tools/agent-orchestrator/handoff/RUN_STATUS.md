@@ -1,5 +1,25 @@
 # RUN_STATUS
 
+## 2026-07-10T_rc_false_ready_empty_token_profile
+
+사용자 증상: 회사 PC(다른 Windows 계정)에서 앱은 `📡 RC ×1` 로 켜졌다 하고 계정도 READY 인데 **폰에 세션이 안 뜸**. 반면 CMD 로 직접 띄운 `claude --remote-control` 은 **정상으로 폰에 뜸**. "집에서는 됐는데 설치 계정만 바뀌었는데 왜?"
+
+**근본 원인(실측 확정)**: 두 프로필의 `.credentials.json` 비교 —
+- 기본 `~/.claude` (수동 실행이 쓰는 것): accessToken(len 108)/refreshToken 존재, `expiresAt` = +5.6h → 정상 등록.
+- AgentApp 격리 프로필 `%APPDATA%\AgentApp\session-profiles\claude-code\claude-dungbo92-gmail.com`: **accessToken/refreshToken 빈 문자열, `expiresAt: 0`** → 미로그인.
+
+미로그인 프로필에서 `claude` 를 돌리면 claude 가 **토큰이 빈 껍데기 `.credentials.json`** 을 만든다. `hasSessionArtifacts` 는 "파일 존재 + size>0" 만 보므로 통과하고, `detectAccountSession` 의 만료 검사는 `if (expiresAt && ...)` 이라 **`expiresAt=0` 이 falsy → 검사 자체를 건너뛰고 `ready` 반환**(false-ready). 그 계정으로 RC 가 hidden 콘솔에 `claude --remote-control` 을 띄우면 **로그인 프롬프트에서 멈춰** 프로세스만 살아있고(→ `RC ×1`) 폰에는 영영 등록되지 않는다. 집 PC 프로필엔 실제 토큰이 있어 동작했고, 이 PC 프로필엔 없는데 false-ready 가 그것을 가렸다.
+
+**수정**:
+- `dashboard-runtime.mjs`: `readClaudeTokenExpiry` → `readClaudeCredentialState` + 순수 함수 `parseClaudeCredentialState` / `claudeCredentialRejectReason(cred, now)` 로 분리·export. 토큰 실제 존재 여부까지 검사해 needs-login 판정: (a) 토큰 둘 다 빔=로그인 미완료, (b) refreshTokenExpiresAt 만료, (c) refresh 없고 만료정보 없음, (d) refresh 없고 access 만료, (e) 만료 7일 초과(기존 grace 유지). refresh 토큰이 살아있으면 access 만료는 통과(claude 가 갱신).
+- `detectAccountSession` claude 분기가 위 판정을 사용 → false-ready 제거. `listReadyClaudeAccounts`/`listRemoteControlTargets` 가 자동으로 헛세션을 안 띄운다.
+
+**검증(실측)**: validate-remote-control 42/42 (신규 12 — 빈토큰 stub 회귀 가드 포함). `pnpm validate` 전체 통과. 실제 실패 프로필로 `detectAccountSession` → `needs-login`("OAuth 토큰이 없습니다 (로그인 미완료)"), `listReadyClaudeAccounts` 1→0, `listRemoteControlTargets` 1→0.
+
+**사용자 조치**: 앱에서 해당 Claude 계정 '로그인' 으로 격리 프로필에 실제 OAuth 를 완료해야 RC 가 폰에 뜬다. (`~/.claude` 토큰을 복사하지 말 것 — refresh 토큰 rotation 이 서로를 무효화한다.)
+
+참고: 앞선 세션의 RC 진단 #3("프로젝트 📱 토글 off")은 **그 Windows 계정의 런타임 기준**이라 이 계정 증상과는 별개 원인. 터미널 conpty 패키징 버그는 `ad0847a`(v0.17.2)에서 이미 해결됨 — 겹치는 파일 없음.
+
 ## 2026-07-10T_terminal_conpty_packaging_fix
 
 이어받기: 직전 세션(`1dc4d483`)이 **세션 한도**로 중단됨. 중단 시점 진단 워크플로우(`w71ql6174`)도 대부분 한도로 실패(7개 중 rc-phone-regression 1개만 완료). 새 세션에서 직접 조사해 이어감.

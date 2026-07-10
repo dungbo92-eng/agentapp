@@ -1396,19 +1396,64 @@ async function hasSessionArtifacts(provider, sessionProfile) {
   return false;
 }
 
-// Claude 세션 프로필의 .credentials.json 에서 OAuth 만료 시각(ms)을 읽는다. 없으면 0.
-// ready 오탐(파일은 있지만 토큰이 죽은 경우) 방지용.
-async function readClaudeTokenExpiry(sessionProfile) {
+// Claude 세션 프로필의 .credentials.json 에서 토큰 유효성 판단에 필요한 상태를 읽는다.
+// 파일이 없거나 claudeAiOauth 가 없으면 null.
+//
+// 중요: 미로그인 상태의 프로필에서 `claude` 를 실행하면 claude 가 accessToken/refreshToken
+// 이 빈 문자열이고 expiresAt=0 인 **껍데기 .credentials.json** 을 만들어 둔다. 파일 존재만
+// 보면(hasSessionArtifacts) ready 로 오탐하고, 그 계정으로 띄운 `claude --remote-control`
+// 은 숨긴 콘솔에서 로그인 프롬프트에 걸려 프로세스만 살아있고 폰에는 영영 등록되지 않는다.
+// 그래서 만료 시각뿐 아니라 토큰의 실제 존재 여부까지 함께 돌려준다.
+export async function readClaudeCredentialState(sessionProfile) {
   try {
     const { sharedSessionProfilesRoot } = await import("./worker-launch-adapter.mjs");
     const subdir = (PROVIDER_CLI.claude?.configSubdir || "claude-code").replace(/^session-profiles\//, "");
     const profileDir = path.join(sharedSessionProfilesRoot(), subdir, sanitizeSegment(sessionProfile));
     const raw = await readFile(path.join(profileDir, ".credentials.json"), "utf8");
-    const expiresAt = Number(JSON.parse(raw)?.claudeAiOauth?.expiresAt);
-    return Number.isFinite(expiresAt) ? expiresAt : 0;
+    return parseClaudeCredentialState(JSON.parse(raw));
   } catch {
-    return 0;
+    return null;
   }
+}
+
+// 순수 함수(테스트용). .credentials.json 의 파싱 결과 → 토큰 상태. 형식이 아니면 null.
+export function parseClaudeCredentialState(parsed) {
+  const oauth = parsed?.claudeAiOauth;
+  if (!oauth || typeof oauth !== "object") return null;
+  const asMs = (value) => (Number.isFinite(Number(value)) ? Number(value) : 0);
+  return {
+    hasAccessToken: Boolean(String(oauth.accessToken || "").trim()),
+    hasRefreshToken: Boolean(String(oauth.refreshToken || "").trim()),
+    expiresAt: asMs(oauth.expiresAt),
+    refreshTokenExpiresAt: asMs(oauth.refreshTokenExpiresAt),
+  };
+}
+
+// 토큰 상태 → needs-login 사유. 유효하면 "" 를 돌려준다.
+// now 를 인자로 받아 테스트에서 시각을 고정할 수 있게 한다.
+export function claudeCredentialRejectReason(cred, now = Date.now()) {
+  const relogin = "계정의 '로그인' 으로 다시 인증하세요.";
+  if (!cred) return `세션 프로필의 인증 파일을 읽을 수 없습니다. ${relogin}`;
+  // 토큰이 통째로 빈 껍데기 — 로그인이 완료된 적이 없다.
+  if (!cred.hasAccessToken && !cred.hasRefreshToken) {
+    return `세션 프로필에 OAuth 토큰이 없습니다 (로그인 미완료). ${relogin}`;
+  }
+  // refresh 토큰마저 만료됐으면 회복 불가.
+  if (cred.refreshTokenExpiresAt > 0 && now > cred.refreshTokenExpiresAt) {
+    return `refresh 토큰이 ${new Date(cred.refreshTokenExpiresAt).toLocaleString("ko-KR")} 에 만료됐습니다. ${relogin}`;
+  }
+  if (!cred.hasRefreshToken) {
+    // refresh 토큰이 없으면 access 토큰이 곧 전부다.
+    if (cred.expiresAt <= 0) return `저장된 토큰의 만료 정보가 없습니다. ${relogin}`;
+    if (now > cred.expiresAt) {
+      return `저장된 로그인 토큰이 ${new Date(cred.expiresAt).toLocaleString("ko-KR")} 에 만료됐고 refresh 토큰이 없습니다. ${relogin}`;
+    }
+  }
+  // refresh 가 계속 실패해 온 프로필 방어 — 만료된 지 7일이 넘으면 다시 로그인.
+  if (cred.expiresAt > 0 && now > cred.expiresAt + 7 * 24 * 60 * 60 * 1000) {
+    return `저장된 로그인 토큰이 ${new Date(cred.expiresAt).toLocaleString("ko-KR")} 에 만료됐습니다. ${relogin}`;
+  }
+  return "";
 }
 
 function sanitizeSegment(value) {
@@ -1434,16 +1479,12 @@ export async function detectAccountSession(account) {
   }
   const sessionProfile = account.sessionProfile || sessionProfileFor(provider, account.email, account.loginLabel);
   if (await hasSessionArtifacts(provider, sessionProfile)) {
-    // Claude OAuth 토큰 만료 검사 — 파일만 있고 토큰이 오래전에 죽은 경우(refresh 실패)
-    // 를 ready 오탐하지 않게 한다. 7일 넘게 만료된 토큰은 needs-login 으로 본다.
+    // Claude OAuth 토큰 검사 — .credentials.json 이 있어도 토큰이 비었거나(미로그인 껍데기)
+    // 죽었으면 ready 오탐하지 않는다. 오탐하면 `claude --remote-control` 이 숨긴 콘솔의
+    // 로그인 프롬프트에 걸려 프로세스만 살고 폰에는 세션이 뜨지 않는다.
     if (provider === "claude") {
-      const expiresAt = await readClaudeTokenExpiry(sessionProfile);
-      if (expiresAt && Date.now() > expiresAt + 7 * 24 * 60 * 60 * 1000) {
-        return {
-          sessionStatus: "needs-login",
-          reason: `저장된 로그인 토큰이 ${new Date(expiresAt).toLocaleString("ko-KR")} 에 만료됐습니다. 계정의 '로그인' 으로 다시 인증하세요.`,
-        };
-      }
+      const reason = claudeCredentialRejectReason(await readClaudeCredentialState(sessionProfile));
+      if (reason) return { sessionStatus: "needs-login", reason };
     }
     const expectedEmail = String(account.email || "").trim().toLowerCase();
     const actualEmail = await readActualIdentity(provider, sessionProfile);

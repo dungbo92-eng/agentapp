@@ -70,6 +70,49 @@ try {
   check("launch script quotes spaced arg", spaceScript.includes('"My Project"'));
   check("updateProject is exported", typeof rt.updateProject === "function");
 
+  // ---- Claude 자격증명 검사 (ready 오탐 방지) ----
+  // 미로그인 프로필에서 claude 를 실행하면 토큰이 빈 .credentials.json 이 생긴다.
+  // 이걸 ready 로 오탐하면 RC 가 숨긴 콘솔의 로그인 프롬프트에 걸려 폰에 세션이 안 뜬다.
+  check("readClaudeCredentialState is exported", typeof rt.readClaudeCredentialState === "function");
+  const NOW = 1_800_000_000_000; // 고정 시각
+  const HOUR = 3_600_000;
+  const DAY = 24 * HOUR;
+  const parse = rt.parseClaudeCredentialState;
+  const why = (cred) => rt.claudeCredentialRejectReason(cred, NOW);
+
+  check("parse null → null", parse(null) === null);
+  check("parse without claudeAiOauth → null", parse({ foo: 1 }) === null);
+
+  // 실제 버그 재현: accessToken/refreshToken 빈 문자열 + expiresAt 0.
+  const stub = parse({ claudeAiOauth: { accessToken: "", refreshToken: "", expiresAt: 0, scopes: ["user:inference"] } });
+  check("stub parsed: no tokens", stub.hasAccessToken === false && stub.hasRefreshToken === false && stub.expiresAt === 0);
+  check("REGRESSION: empty-token stub is rejected (was false-ready)", why(stub).includes("로그인 미완료"));
+
+  const valid = parse({ claudeAiOauth: { accessToken: "a".repeat(108), refreshToken: "r".repeat(108), expiresAt: NOW + HOUR } });
+  check("valid token → accepted", why(valid) === "");
+
+  // access 만료 + refresh 보유 → claude 가 갱신하므로 통과.
+  const refreshable = parse({ claudeAiOauth: { accessToken: "a", refreshToken: "r", expiresAt: NOW - HOUR } });
+  check("expired access with refresh token → accepted", why(refreshable) === "");
+
+  // refresh 없이 access 만료 → 회복 불가.
+  const deadNoRefresh = parse({ claudeAiOauth: { accessToken: "a", refreshToken: "", expiresAt: NOW - HOUR } });
+  check("expired access without refresh → rejected", why(deadNoRefresh).includes("refresh 토큰이 없습니다"));
+
+  // refresh 토큰 자체가 만료.
+  const deadRefresh = parse({ claudeAiOauth: { accessToken: "a", refreshToken: "r", expiresAt: NOW + HOUR, refreshTokenExpiresAt: NOW - DAY } });
+  check("expired refresh token → rejected", why(deadRefresh).includes("refresh 토큰이"));
+
+  // 만료 정보가 없고 refresh 도 없음.
+  const noExpiry = parse({ claudeAiOauth: { accessToken: "a", refreshToken: "", expiresAt: 0 } });
+  check("no expiry + no refresh → rejected", why(noExpiry).includes("만료 정보가 없습니다"));
+
+  // 7일 넘게 만료된 프로필은 refresh 가 있어도 재로그인 (기존 grace 유지).
+  const stale = parse({ claudeAiOauth: { accessToken: "a", refreshToken: "r", expiresAt: NOW - 8 * DAY } });
+  check("expired > 7d → rejected even with refresh", why(stale) !== "");
+
+  check("null cred → rejected", why(null).includes("읽을 수 없습니다"));
+
   // 폴더 신뢰 사전 처리 — 미신뢰 폴더에서 숨긴 RC 가 trust 대화상자에 걸려 폰 등록이
   // 안 되는 문제를 막는다. 키 형식은 claude 관측값(forward-slash + 드라이브 대문자)과 일치해야 한다.
   if (process.platform === "win32") {
