@@ -886,7 +886,11 @@ ipcMain.handle("agentapp:terminal-create", async (_event, options = {}) => {
   const pty = await loadPtyModule();
   if (!pty) return { ok: false, reason: "node-pty 로드 실패. native module 빌드를 확인하세요." };
   const sessionId = String(options?.sessionId || `pty-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`);
-  const cwd = String(options?.cwd || process.cwd());
+  // 패키지 앱에서 process.cwd() 는 설치 경로/System32 등 예측 불가하므로, 명시 cwd 가
+  // 없으면 사용자 홈으로 폴백(사용자마다 설치 경로가 달라도 안전한 시작 위치).
+  let fallbackCwd = process.cwd();
+  try { fallbackCwd = app.getPath("home") || fallbackCwd; } catch { /* ignore */ }
+  const cwd = String(options?.cwd || fallbackCwd);
   const cols = Number(options?.cols || 100);
   const rows = Number(options?.rows || 28);
   const shell = String(options?.shell || defaultShell());

@@ -1,5 +1,25 @@
 # RUN_STATUS
 
+## 2026-07-10T_terminal_conpty_packaging_fix
+
+이어받기: 직전 세션(`1dc4d483`)이 **세션 한도**로 중단됨. 중단 시점 진단 워크플로우(`w71ql6174`)도 대부분 한도로 실패(7개 중 rc-phone-regression 1개만 완료). 새 세션에서 직접 조사해 이어감.
+
+사용자 3대 증상 규명:
+1. **인앱 터미널 `Cannot find module '../build/Release/conpty.node'`** → 근본원인 = 순수 패키징 버그. `@homebridge/node-pty-prebuilt-multiarch` 는 N-API(node-addon-api ^7) 기반이라 ABI 무관(리빌드 불필요)인데, electron-builder 가 node_modules 수집 시 `build/Release/*.node` 를 통째로 드롭. `build.files` 화이트리스트에 node-pty 명시 포함이 없어서 winpty/conpty 바이너리가 asar 에 안 실림 → 설치앱에서 `require('../build/Release/conpty.node')` MODULE_NOT_FOUND. **설치앱 실측 확인**: `app.asar.unpacked/.../node-pty-prebuilt-multiarch` 에 `deps/`·`lib/`·`prebuilds/linux` 만 있고 `build/` 통째 부재.
+2. **`E:\agentApp` 하드코딩 경로 (사용자별 설치 경로 상이)** → shipped 코드는 이미 포터블: main.mjs 가 `AGENTAPP_DATA_DIR`/`AGENTAPP_HANDOFF_DIR` 를 `app.getPath("userData")` 로 세팅(L193-194), 코드 경로는 `import.meta.url`, dashboard-server 가 app.asar 감지 시 `process.cwd()` 폴백 + 스냅샷의 `X:\agentApp` 를 사용자 워크스페이스로 serve 시 치환. `E:\agentApp` 잔존은 문서/예시/스냅샷(비실행 or 치환됨)뿐 — **기능적 하드코딩 버그 없음**.
+3. **RC 세션 폰 미표시** → 런타임 데이터 실측: 주요 프로젝트 2개(agentApp, sytleOsjang) `remoteControl=false`(토글 off), RC 켠 건 D:\python(autoTr) 1개뿐. **코드 버그 아닌 프로젝트 토글 상태** — 사용자가 원하는 프로젝트의 📱 토글을 켜면 해결.
+
+수정(#1 실제 코드 변경):
+- **package.json `build.files`**: `node_modules/@homebridge/node-pty-prebuilt-multiarch/**/*` 명시 포함(→ electron-builder 가 build/Release 를 수집해 asar 인덱스에 unpacked 로 기록). `.pdb`(~28MB)·`.map`·`.test.js`·`src/`·`deps/`(winpty 빌드 소스, 런타임 불요) 제외로 경량화(node-pty 8.4M).
+- **scripts/after-pack.cjs**(신규 afterPack 훅): 팩 결과 unpacked 에 `conpty.node`/`pty.node` 없으면 **빌드 실패**시키는 릴리즈 가드 — 깨진 터미널 재릴리즈(v0.15~v0.17 회귀) 재발 차단. (`build/` 는 gitignore 라 추적되는 `scripts/` 에 배치.)
+- **apps/desktop/main.mjs**: 인앱 터미널 기본 cwd 를 packaged 시 예측불가한 `process.cwd()`(System32 등) 대신 `app.getPath("home")` 폴백.
+
+검증(실측): `electron-builder --dir --win --x64` 2회(훅 이동 전/후) → afterPack 가드 통과 + `app.asar.unpacked/.../build/Release/` 에 conpty.node(312832)/pty.node/winpty-agent.exe/winpty.dll 실파일 확인, `.pdb` 0개. node-pty 패키지 전체 asarUnpack 대상이라 `lib/windowsPtyAgent.js`(unpacked)에서 `../build/Release/conpty.node`(unpacked) 직접 로드 — asar 리다이렉트 불필요. `node --check` 전체, `pnpm validate` 통과(runtime-race 50/50, e2e-server 7/7 포함).
+
+Git: commit + main push + desktop 릴리즈(patch — 패키징 버그 수정).
+
+미검증(업데이트 후 사용자 확인): 실제 설치앱 재설치/자동업데이트 후 인앱 터미널 실행(N-API 라 Electron 42 에서 로드돼야 함).
+
 ## 2026-07-09T_rc_account_project_cross_product
 
 사용자 요청: 선택된 프로젝트가 2개면 계정을 나눠 총 2세션이 아니라, **각 계정이 프로젝트마다 세션을 열어야** 함(계정 2 × 프로젝트 2 = 계정마다 2세션, 총 4세션).
