@@ -894,13 +894,20 @@ ipcMain.handle("agentapp:terminal-create", async (_event, options = {}) => {
   const cols = Number(options?.cols || 100);
   const rows = Number(options?.rows || 28);
   const shell = String(options?.shell || defaultShell());
+  // 호출자가 준 추가 env (예: RC 매크로의 CLAUDE_CONFIG_DIR). 문자열/숫자 값만 통과시킨다.
+  const extraEnv = {};
+  if (options?.env && typeof options.env === "object") {
+    for (const [key, value] of Object.entries(options.env)) {
+      if (key && (typeof value === "string" || typeof value === "number")) extraEnv[key] = String(value);
+    }
+  }
   try {
     const proc = pty.spawn(shell, [], {
       name: "xterm-color",
       cols,
       rows,
       cwd,
-      env: { ...process.env, TERM: "xterm-256color" },
+      env: { ...process.env, TERM: "xterm-256color", ...extraEnv },
     });
     ptySessions.set(sessionId, proc);
     proc.onData((data) => {
@@ -914,7 +921,19 @@ ipcMain.handle("agentapp:terminal-create", async (_event, options = {}) => {
       }
       ptySessions.delete(sessionId);
     });
-    return { ok: true, sessionId, shell, cwd };
+    // 초기 명령(매크로). 셸 프롬프트가 뜬 뒤 사용자가 타이핑한 것처럼 밀어 넣는다 —
+    // 명령과 그 뒤의 모든 프롬프트/출력이 화면에 그대로 보인다.
+    const initialCommand = String(options?.initialCommand || "").trim();
+    if (initialCommand) {
+      setTimeout(() => {
+        try {
+          if (ptySessions.get(sessionId) === proc) proc.write(`${initialCommand}\r`);
+        } catch {
+          // 세션이 이미 죽었으면 무시.
+        }
+      }, 600);
+    }
+    return { ok: true, sessionId, shell, cwd, initialCommand };
   } catch (error) {
     return { ok: false, reason: error?.message || String(error) };
   }
@@ -1048,6 +1067,39 @@ function remoteControlStatus() {
 ipcMain.handle("agentapp:get-remote-control", () => remoteControlStatus());
 ipcMain.handle("agentapp:remote-control-start", () => startRemoteControlSessions());
 ipcMain.handle("agentapp:remote-control-stop", () => { stopRemoteControlSessions(); return { ok: true }; });
+
+// 보이는 사이드 터미널에서 `claude --remote-control` 을 직접 띄우기 위한 스펙.
+// 숨긴 콘솔과 같은 env(CLAUDE_CONFIG_DIR)/cwd(프로젝트 경로)/args 를 쓰되, 로그인·폴더신뢰·
+// 온보딩 프롬프트를 사용자가 눈으로 보고 응답할 수 있다. renderer 가 이 값으로 터미널 탭을 연다.
+ipcMain.handle("agentapp:remote-control-terminal-spec", async (_event, options = {}) => {
+  const accountId = String(options?.accountId || "");
+  const projectId = String(options?.projectId || "");
+  if (!accountId) return { ok: false, reason: "계정을 지정하세요." };
+  try {
+    const { readRuntime } = await import("../../scripts/dashboard-runtime.mjs");
+    const { buildRemoteControlSpec, buildRemoteControlTerminalCommand } = await import("../../scripts/worker-launch-adapter.mjs");
+    const runtime = await readRuntime();
+    const account = (runtime.accounts || []).find((item) => String(item.id) === accountId);
+    if (!account) return { ok: false, reason: "계정을 찾을 수 없습니다." };
+    const project = projectId ? (runtime.projects || []).find((item) => String(item.id) === projectId) : null;
+    if (projectId && !project) return { ok: false, reason: "프로젝트를 찾을 수 없습니다." };
+    const spec = await buildRemoteControlSpec(account, project ? { name: project.name, workspace: project.path } : {});
+    if (spec.status !== "ready") return { ok: false, reason: spec.reason || "원격제어 스펙을 만들 수 없습니다." };
+    const command = buildRemoteControlTerminalCommand(spec);
+    if (!command) return { ok: false, reason: "원격제어 명령을 만들지 못했습니다." };
+    return {
+      ok: true,
+      cwd: spec.cwd,
+      env: spec.env,
+      name: spec.name,
+      command,
+      // 인용 규칙을 확정하기 위해 Windows 에서는 PowerShell 로 고정한다(기본 셸은 cmd).
+      shell: process.platform === "win32" ? "powershell.exe" : undefined,
+    };
+  } catch (error) {
+    return { ok: false, reason: error?.message || String(error) };
+  }
+});
 
 app.on("before-quit", () => { stopRemoteControlSessions(); });
 

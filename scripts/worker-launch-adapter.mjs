@@ -902,6 +902,28 @@ export async function buildRemoteControlSpec(account, options = {}) {
   };
 }
 
+// 보이는 인앱 터미널(사이드 터미널)에 그대로 타이핑할 PowerShell 한 줄을 만든다.
+//
+// 숨긴 콘솔 RC 는 로그인/폴더신뢰/온보딩 프롬프트에 걸려도 사용자가 볼 수 없어, 프로세스만
+// 살아 "연결됨(📡 RC)"으로 보이면서 폰에는 영영 안 뜬다. OAuth 로그인은 본질적으로 사용자
+// 상호작용이 필요하므로 숨긴 콘솔로는 절대 넘길 수 없다. 이 명령을 보이는 터미널에서 실행하면
+// 사용자가 프롬프트를 직접 보고 응답할 수 있고 진행 상황도 확인된다.
+//
+// 숨긴 spawn 과 **같은 env/cwd/args** 를 쓰므로 동작이 갈리지 않는다. env 를 명령문에도
+// 실어 두어(스폰 env 와 중복이지만 무해) 사용자가 claude 종료 후 그대로 재실행할 수 있다.
+// spec 은 buildRemoteControlSpec 의 반환값(status === "ready").
+export function buildRemoteControlTerminalCommand(spec) {
+  if (!spec || spec.status !== "ready" || !spec.command) return "";
+  const parts = [];
+  for (const [key, value] of Object.entries(spec.env || {})) {
+    if (!key || value === undefined || value === null) continue;
+    parts.push(`$env:${key} = ${psSingleQuote(value)}`);
+  }
+  const args = (spec.args || []).map((arg) => psSingleQuote(arg)).join(" ");
+  parts.push(`& ${psSingleQuote(spec.command)}${args ? ` ${args}` : ""}`);
+  return parts.join("; ");
+}
+
 // PowerShell 값 리터럴로 안전하게 감싼다(작은따옴표 이스케이프).
 function psSingleQuote(value) {
   return `'${String(value ?? "").replace(/'/g, "''")}'`;

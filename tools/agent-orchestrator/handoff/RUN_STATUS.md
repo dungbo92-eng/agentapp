@@ -1,5 +1,33 @@
 # RUN_STATUS
 
+## 2026-07-10T_rc_false_ready_and_visible_terminal_macro
+
+사용자 보고: "아직도 안 됨. 연결완료 뜨는데 실제로 동작 안 함. agentapp 이 claude 로그인 제대로 안 되는 듯 — 헛세션 잡고 준비완료로 띄우는 듯. 상태확인 눌러도 준비완료. 차라리 사이드 터미널로 프로젝트 경로 들어가서 해당 계정 세션으로 RC 직접 띄우고, 그걸 매크로화하면 진행상황이라도 볼 수 있을 듯."
+
+**사용자 진단이 정확했다. 실측으로 남은 false-ready 경로를 특정:**
+
+격리 프로필 실제 인증 상태(토큰 값 미출력):
+- `claude-dungbo92-gmail.com`: accessToken/refreshToken **빈 문자열**, `expiresAt=0` (미로그인 껍데기)
+- `claude-dungdy92-gmail.com`: 유효 토큰 (만료 2026-07-10 15:24 KST)
+- `claude-leemg-hanilnetworks.com`: 토큰 만료(6/2)
+
+그런데 런타임은 dungbo92 를 **`ready`** 로 판정. 원인 = `detectAccountSession` 이 `account.credentialStatus === "stored"` 면 **세션 검사를 통째로 건너뛰고 즉시 `ready`** 를 반환(구 L1477-79). vault 의 비밀번호/API 키는 **로그인 창 자동입력용일 뿐 CLI 인증에 주입되지 않는다** — `worker-launch-adapter`·`electron-login-window` 어디서도 그 값을 읽지 않음(grep 확인). 즉 "암호 저장됨" 계정은 한 번도 로그인한 적 없어도 초록불이었고, 그 계정으로 띄운 hidden RC 가 로그인 프롬프트에 걸려 프로세스만 살아 `📡 RC`(연결됨)로 보이면서 폰엔 영영 안 떴다. **v0.17.3 의 토큰 검사가 이 분기 뒤에 있어 무력화돼 있었다.**
+
+수정:
+- **dashboard-runtime.mjs**: `credentialStatus === "stored"` → ready 우회 **제거**. 준비 판정은 항상 실제 세션 아티팩트(+claude 는 OAuth 토큰)로만. needs-login 사유에 "저장된 비밀번호/API 키는 로그인 창 자동입력용이며 CLI 세션이 아닙니다" 안내 추가.
+- **worker-launch-adapter.mjs**: `buildRemoteControlTerminalCommand(spec)` 신규(순수 함수) — 숨긴 spawn 과 **같은 env/cwd/args** 를 PowerShell 한 줄로 직렬화(`$env:CLAUDE_CONFIG_DIR = '...'; & 'claude.cmd' '--remote-control' '<프로젝트>'`). 작은따옴표 이스케이프.
+- **main.mjs**: `terminal-create` 가 `env`/`initialCommand`/`shell` 을 받음(초기 명령은 셸 프롬프트 후 600ms 에 타이핑하듯 write). 신규 IPC `agentapp:remote-control-terminal-spec` (accountId, projectId → cwd/env/command/shell). Windows 는 인용 규칙 확정을 위해 powershell 고정(기본 셸은 COMSPEC=cmd).
+- **preload.mjs**: `remoteControl.terminalSpec(accountId, projectId)`.
+- **main.tsx**: `ToolTab` 에 `initialEnv/initialCommand/initialShell`, `TerminalPanel` 이 전달. 계정 카드(claude·local)에 **프로젝트 선택 + `📱 RC 터미널`** 버튼 → `openRemoteControlTerminal()` 이 사이드 터미널 탭을 열고 매크로 실행.
+
+설계 근거: 3중 프롬프트(폴더신뢰 → 온보딩 → **OAuth 로그인**) 중 1·2 는 사전 처리(v0.17.0/v0.17.4)로 넘겼지만 **3 은 본질적으로 사용자 상호작용이 필요해 숨긴 콘솔로는 절대 못 넘긴다.** 보이는 터미널이 정답. (인앱 터미널은 v0.17.2 conpty 패키징 수정으로 이제 실제로 뜬다.)
+
+검증(실측): 수정 후 실데이터 `detectAccountSession` → dungbo92 `needs-login`("OAuth 토큰이 없습니다(로그인 미완료)"), dungdy92 `ready`. `listReadyClaudeAccounts` 2→1, `listRemoteControlTargets` 도 인증된 계정만. `buildRemoteControlTerminalCommand` 실계정 스펙으로 올바른 PowerShell 라인 생성 + `O''Brien` 이스케이프 확인. validate-remote-control **32/32**(신규 11), `pnpm validate` exit 0(runtime-race 50/50, e2e 7/7), `pnpm dashboard:build` 통과.
+
+Git: commit + main push + desktop 릴리즈(minor — RC 터미널 매크로 기능 추가).
+
+사용자 액션: dungbo92 계정은 이제 🔴 로 뜬다(정상 — 진짜 미로그인). 계정 카드에서 프로젝트 고르고 **`📱 RC 터미널`** → 보이는 터미널에서 로그인 완료 → 폰에 세션 등록.
+
 ## 2026-07-10T_rc_hidden_console_onboarding_prompt
 
 사용자: "v0.17.3 올려도 RC 안 켜짐, 토글해도 안 됨. 로그 봐라. 권한 OK 같은 거 처리 안 돼서 대기 중 아니냐."

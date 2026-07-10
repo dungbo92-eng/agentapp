@@ -368,6 +368,10 @@ type ToolTab = {
   initialPath?: string;
   initialUrl?: string;
   initialCwd?: string;
+  // terminal 매크로 — 열자마자 실행할 명령과 그때 쓸 env/셸 (예: RC 터미널).
+  initialEnv?: Record<string, string>;
+  initialCommand?: string;
+  initialShell?: string;
   label?: string;
 };
 function newTabId(kind: ToolTabKind) {
@@ -721,7 +725,19 @@ function BrowserPanel({ onClose, initialUrl }: { onClose?: () => void; initialUr
 
 // ===== 인앱 터미널 (xterm.js + node-pty 기반) =====
 // 사용자 시스템 셸을 그대로 띄움 — PowerShell (Windows), bash/zsh (macOS/Linux).
-function TerminalPanel({ onClose, initialCwd }: { onClose?: () => void; initialCwd?: string }) {
+function TerminalPanel({
+  onClose,
+  initialCwd,
+  initialEnv,
+  initialCommand,
+  initialShell,
+}: {
+  onClose?: () => void;
+  initialCwd?: string;
+  initialEnv?: Record<string, string>;
+  initialCommand?: string;
+  initialShell?: string;
+}) {
   const containerRef = React.useRef<HTMLDivElement | null>(null);
   const [status, setStatus] = React.useState<string>("초기화 중...");
   const [error, setError] = React.useState<string>("");
@@ -763,7 +779,14 @@ function TerminalPanel({ onClose, initialCwd }: { onClose?: () => void; initialC
       }
       const cols = term.cols || 100;
       const rows = term.rows || 28;
-      const result = await desktop.terminal.create({ cols, rows, cwd: initialCwd });
+      const result = await desktop.terminal.create({
+        cols,
+        rows,
+        cwd: initialCwd,
+        env: initialEnv,
+        initialCommand,
+        shell: initialShell,
+      });
       if (disposed) return;
       if (!result?.ok) {
         setError(`터미널 시작 실패: ${result?.reason || "unknown"}`);
@@ -2286,6 +2309,8 @@ function App() {
   // 실행 중인 프로젝트명 목록을 tooltip 용으로 모은다.
   const [rcByAccount, setRcByAccount] = React.useState<Record<string, string>>({});
   const [rcProjectsByAccount, setRcProjectsByAccount] = React.useState<Record<string, string[]>>({});
+  // 계정별로 'RC 터미널' 을 띄울 프로젝트 선택값 (accountId -> projectId, "" 면 기본 경로).
+  const [rcTerminalProject, setRcTerminalProject] = React.useState<Record<string, string>>({});
   React.useEffect(() => {
     if (!desktopApi?.remoteControl) return;
     let stopped = false;
@@ -2951,6 +2976,41 @@ function App() {
     }
   }
 
+  // 보이는 사이드 터미널에서 `claude --remote-control` 을 직접 실행하는 매크로.
+  //
+  // 앱이 자동으로 띄우는 숨긴 콘솔 RC 는 로그인·폴더신뢰·온보딩 프롬프트를 삼켜, 프로세스만
+  // 살아 "📡 RC(연결됨)" 로 보이면서 폰에는 영영 세션이 안 뜬다. OAuth 로그인은 본질적으로
+  // 사용자 상호작용이 필요해 숨긴 콘솔로는 넘길 수 없다. 이 매크로는 같은 계정 프로필
+  // (CLAUDE_CONFIG_DIR)과 같은 프로젝트 경로(cwd)로 명령을 보이는 터미널에 타이핑해,
+  // 사용자가 프롬프트를 직접 보고 응답하며 진행 상황을 확인할 수 있게 한다.
+  async function openRemoteControlTerminal(account: ManagedAccount, projectId: string) {
+    const desktop = typeof window !== "undefined" ? (window as any).agentapp : null;
+    if (!desktop?.remoteControl?.terminalSpec) {
+      setToast({ kind: "warn", message: "RC 터미널은 데스크탑 앱에서만 사용할 수 있습니다." });
+      return;
+    }
+    try {
+      const spec = await desktop.remoteControl.terminalSpec(account.id, projectId);
+      if (!spec?.ok) {
+        setToast({ kind: "warn", message: `RC 터미널을 열지 못했습니다: ${spec?.reason || "unknown"}` });
+        return;
+      }
+      addToolTab("terminal", {
+        initialCwd: spec.cwd,
+        initialEnv: spec.env,
+        initialCommand: spec.command,
+        initialShell: spec.shell,
+        label: `RC · ${spec.name}`,
+      });
+      setToast({
+        kind: "info",
+        message: `'${spec.name}' 원격제어를 터미널에서 실행합니다. 로그인이 필요하면 화면 안내대로 진행하세요.`,
+      });
+    } catch (caught) {
+      setToast({ kind: "warn", message: caught instanceof Error ? caught.message : "RC 터미널 실행 실패" });
+    }
+  }
+
   // 프로젝트별 모바일 원격제어(RC) 세션 on/off 토글. 앱 시작 시 on 인 프로젝트마다 세션이 뜬다.
   function toggleProjectRemoteControl(project: ManagedProject) {
     const next = project.remoteControl === false;
@@ -3174,13 +3234,27 @@ function App() {
     }
   }
 
-  function addToolTab(kind: ToolTabKind, opts: { initialPath?: string; initialUrl?: string; initialCwd?: string; label?: string } = {}) {
+  function addToolTab(
+    kind: ToolTabKind,
+    opts: {
+      initialPath?: string;
+      initialUrl?: string;
+      initialCwd?: string;
+      initialEnv?: Record<string, string>;
+      initialCommand?: string;
+      initialShell?: string;
+      label?: string;
+    } = {},
+  ) {
     const tab: ToolTab = {
       id: newTabId(kind),
       kind,
       initialPath: opts.initialPath,
       initialUrl: opts.initialUrl,
       initialCwd: opts.initialCwd,
+      initialEnv: opts.initialEnv,
+      initialCommand: opts.initialCommand,
+      initialShell: opts.initialShell,
       label: opts.label,
     };
     setToolTabs((prev) => [...prev, tab]);
@@ -3693,6 +3767,35 @@ function App() {
                         >
                           로그인 시작
                         </button>
+                      ) : null}
+                      {account.provider === "claude" && account.source === "local" ? (
+                        <>
+                          <select
+                            className="segButton"
+                            value={rcTerminalProject[account.id] || ""}
+                            title="원격제어 세션을 띄울 프로젝트 경로 (터미널의 작업 디렉터리)"
+                            onChange={(event) =>
+                              setRcTerminalProject((prev) => ({ ...prev, [account.id]: event.target.value }))
+                            }
+                          >
+                            <option value="">기본 경로</option>
+                            {projects
+                              .filter((project) => project.path)
+                              .map((project) => (
+                                <option key={project.id} value={project.id}>
+                                  {project.name || project.id}
+                                </option>
+                              ))}
+                          </select>
+                          <button
+                            className="segButton"
+                            type="button"
+                            title="사이드 터미널을 열어 이 계정 프로필로 `claude --remote-control` 을 직접 실행합니다. 숨긴 콘솔과 달리 로그인·폴더신뢰 프롬프트를 눈으로 보고 응답할 수 있습니다."
+                            onClick={() => void openRemoteControlTerminal(account, rcTerminalProject[account.id] || "")}
+                          >
+                            📱 RC 터미널
+                          </button>
+                        </>
                       ) : null}
                       <button
                         className="segButton"
@@ -4572,7 +4675,12 @@ function App() {
                       {tab.kind === "browser" ? (
                         <BrowserPanel initialUrl={tab.initialUrl} />
                       ) : tab.kind === "terminal" ? (
-                        <TerminalPanel initialCwd={tab.initialCwd} />
+                        <TerminalPanel
+                          initialCwd={tab.initialCwd}
+                          initialEnv={tab.initialEnv}
+                          initialCommand={tab.initialCommand}
+                          initialShell={tab.initialShell}
+                        />
                       ) : tab.kind === "code" ? (
                         <CodeReaderPanel
                           projectId={selectedProjectRecord.id}

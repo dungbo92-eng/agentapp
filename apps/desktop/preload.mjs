@@ -48,6 +48,10 @@ contextBridge.exposeInMainWorld("agentapp", {
     status: () => ipcRenderer.invoke("agentapp:get-remote-control"),
     start: () => ipcRenderer.invoke("agentapp:remote-control-start"),
     stop: () => ipcRenderer.invoke("agentapp:remote-control-stop"),
+    // 보이는 사이드 터미널에서 RC 를 직접 띄우기 위한 스펙(cwd/env/명령/셸).
+    // 숨긴 콘솔이 삼키는 로그인·신뢰·온보딩 프롬프트를 사용자가 직접 보고 응답할 수 있다.
+    terminalSpec: (accountId, projectId) =>
+      ipcRenderer.invoke("agentapp:remote-control-terminal-spec", { accountId, projectId }),
   },
   // 인앱 터미널 (node-pty 기반) — 다중 세션을 sessionId 로 구분.
   terminal: {

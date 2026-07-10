@@ -169,6 +169,40 @@ try {
   const onbSpec = await wl.buildRemoteControlSpec({ id: "onbacct", sessionProfile: "claude-code-onbacct" });
   const onbSpecJson = JSON.parse(await readFile(path.join(onbSpec.sessionDir, ".claude.json"), "utf8"));
   check("buildRemoteControlSpec seeds onboarding", onbSpecJson.hasCompletedOnboarding === true);
+
+  // ===== 보이는 터미널 RC 매크로 =====
+  // 숨긴 콘솔이 삼키는 로그인 프롬프트를 사용자가 직접 보려면, 같은 env/args 를
+  // PowerShell 한 줄로 그대로 타이핑할 수 있어야 한다.
+  check("buildRemoteControlTerminalCommand is exported", typeof wl.buildRemoteControlTerminalCommand === "function");
+  check("terminal command empty for non-ready spec", wl.buildRemoteControlTerminalCommand({ status: "blocked" }) === "");
+  check("terminal command empty for missing spec", wl.buildRemoteControlTerminalCommand(null) === "");
+  const termCmd = wl.buildRemoteControlTerminalCommand({
+    status: "ready",
+    command: "C:\\tools\\claude.cmd",
+    args: ["--remote-control", "My O'Brien Proj"],
+    env: { CLAUDE_CONFIG_DIR: "C:\\profiles\\a b", AGENTAPP_ACCOUNT_ID: "acc1" },
+  });
+  check("terminal command sets CLAUDE_CONFIG_DIR", termCmd.includes("$env:CLAUDE_CONFIG_DIR = 'C:\\profiles\\a b'"));
+  check("terminal command carries every env key", termCmd.includes("$env:AGENTAPP_ACCOUNT_ID = 'acc1'"));
+  check("terminal command invokes command with call operator", termCmd.includes("& 'C:\\tools\\claude.cmd'"));
+  check("terminal command passes --remote-control", termCmd.includes("'--remote-control'"));
+  check("terminal command escapes single quotes in args", termCmd.includes("'My O''Brien Proj'"));
+  check("terminal command is a single line", !termCmd.includes("\n"));
+
+  // ===== false-ready 회귀 가드 =====
+  // vault 에 저장된 비밀번호/API 키는 로그인 창 자동입력용일 뿐 CLI 세션 인증이 아니다
+  // (worker-launch-adapter 도 electron-login-window 도 그 값을 읽지 않는다). 예전엔
+  // credentialStatus === "stored" 만 보고 ready 를 돌려줘, 로그인한 적 없는 계정이 초록불로
+  // 뜨고 그 계정의 RC 가 숨긴 콘솔의 로그인 프롬프트에 걸려 폰에 영영 안 뜨는 버그가 있었다.
+  const storedVerdict = await rt.detectAccountSession({
+    id: "stored-acct",
+    provider: "claude",
+    email: "stored@example.com",
+    sessionProfile: "claude-code-stored-acct",
+    credentialStatus: "stored",
+  });
+  check("stored credential alone is not ready", storedVerdict.sessionStatus === "needs-login");
+  check("stored credential reason says vault is not a session", storedVerdict.reason.includes("CLI 세션이 아닙니다"));
 } finally {
   await rm(dataDir, { recursive: true, force: true });
   await rm(profDir, { recursive: true, force: true });

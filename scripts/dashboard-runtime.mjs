@@ -1474,9 +1474,13 @@ export async function detectAccountSession(account) {
   if (!cliPath) {
     return { sessionStatus: "needs-login", reason: `${config.command} CLI 가 PATH 에서 발견되지 않습니다. 설치 후 다시 감지하세요.` };
   }
-  if (account.credentialStatus === "stored") {
-    return { sessionStatus: "ready", reason: "저장된 자격증명을 사용합니다." };
-  }
+  // 주의: vault 에 저장된 비밀번호/API 키(`credentialStatus === "stored"`)는 로그인 창
+  // 자동입력용일 뿐 **CLI 세션 인증에 주입되지 않는다** (worker-launch-adapter 도
+  // electron-login-window 도 이 값을 읽지 않는다). 예전에는 여기서 곧장 ready 를 돌려줘,
+  // 한 번도 로그인한 적 없는 계정이 초록불로 뜨고 그 계정으로 띄운
+  // `claude --remote-control` 이 숨긴 콘솔의 로그인 프롬프트에 걸려 "연결됨"으로 보이면서
+  // 폰에는 영영 안 뜨는 false-ready 를 만들었다. 세션 준비 여부는 항상 실제 세션 아티팩트
+  // (+ claude 는 OAuth 토큰) 로만 판정한다.
   const sessionProfile = account.sessionProfile || sessionProfileFor(provider, account.email, account.loginLabel);
   if (await hasSessionArtifacts(provider, sessionProfile)) {
     // Claude OAuth 토큰 검사 — .credentials.json 이 있어도 토큰이 비었거나(미로그인 껍데기)
@@ -1508,7 +1512,11 @@ export async function detectAccountSession(account) {
   const hint = expected
     ? `이 계정의 세션 폴더에 ${expected} 가 없습니다. '로그인' 버튼으로 격리 브라우저에서 OAuth 를 완료하세요.`
     : "세션 프로필이 비어 있습니다. '로그인' 버튼으로 격리 브라우저에서 인증을 완료하세요.";
-  return { sessionStatus: "needs-login", reason: hint };
+  const storedHint =
+    account.credentialStatus === "stored"
+      ? " (저장된 비밀번호/API 키는 로그인 창 자동입력용이며 CLI 세션이 아닙니다.)"
+      : "";
+  return { sessionStatus: "needs-login", reason: `${hint}${storedHint}` };
 }
 
 // 세션이 ready 인 enabled Claude 계정 목록. `claude --remote-control` 대상 선택에 사용.
