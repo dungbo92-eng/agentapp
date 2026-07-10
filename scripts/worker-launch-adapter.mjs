@@ -846,6 +846,33 @@ export async function ensureClaudeFolderTrusted(configDir, normalizedCwd) {
   }
 }
 
+// 새 세션 프로필에서 interactive `claude` 를 처음 띄우면 온보딩 프롬프트
+// ("Let's get started. Choose the text style that looks best with your terminal") 가
+// 뜨고 키 입력을 기다린다. RC 세션은 창이 숨겨져 있어 여기에 응답할 수 없다 → 프로세스는
+// 살아 있어 배지에는 `📡 RC ×N` 으로 보이는데 세션이 폰에 **등록되지 않는다.**
+// PTY 실측: `hasCompletedOnboarding: true` 하나만 미리 심어도 프롬프트를 건너뛰고
+// 세션 프롬프트까지 진입한다. `remoteDialogSeen` 은 remote control 최초 사용 안내
+// 대화상자에 대한 예방책. best-effort — 실패해도 진행한다.
+export async function ensureClaudeOnboarded(configDir) {
+  if (!configDir) return false;
+  const file = path.join(configDir, ".claude.json");
+  let json = {};
+  try { json = JSON.parse(await readFile(file, "utf8")); } catch { json = {}; }
+  if (!json || typeof json !== "object") json = {};
+  if (json.hasCompletedOnboarding === true && json.remoteDialogSeen === true && Number(json.numStartups) >= 1) {
+    return true; // 이미 온보딩 완료 — 그대로 둔다.
+  }
+  json.hasCompletedOnboarding = true;
+  json.remoteDialogSeen = true;
+  json.numStartups = Math.max(1, Number(json.numStartups) || 0);
+  try {
+    await writeFile(file, JSON.stringify(json, null, 2));
+    return true;
+  } catch {
+    return false;
+  }
+}
+
 // `claude --remote-control` 실행 스펙 (계정별). 각 계정의 CLAUDE_CONFIG_DIR 로 실행해
 // 세션이 분리되고, name 으로 폰(Claude 앱/웹)에서 구분한다.
 export async function buildRemoteControlSpec(account, options = {}) {
@@ -860,6 +887,8 @@ export async function buildRemoteControlSpec(account, options = {}) {
   const workspace = normalizeClaudeCwd(rawWorkspace);
   // 숨긴 RC 세션이 신뢰 대화상자에 걸리지 않도록 이 폴더를 미리 신뢰 처리한다.
   await ensureClaudeFolderTrusted(sessionDir, workspace);
+  // 같은 이유로 첫 실행 온보딩(테마 선택) 프롬프트도 미리 완료 처리한다.
+  await ensureClaudeOnboarded(sessionDir);
   return {
     status: "ready",
     command,

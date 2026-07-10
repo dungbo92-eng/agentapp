@@ -4,7 +4,7 @@
 // 설정 기본값 + buildRemoteControlSpec(계정별 실행 스펙)만 결정적으로 검사한다.
 // spawnRemoteControlConsole 은 실제 claude 세션을 띄우므로 여기서 실행하지 않는다.
 
-import { mkdtemp, rm, readFile } from "node:fs/promises";
+import { mkdtemp, rm, readFile, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import path from "node:path";
 import { execPath } from "node:process";
@@ -125,9 +125,50 @@ try {
     check("trust written under exact claude key", cfgJson.projects["E:/agentApp"]?.hasTrustDialogAccepted === true);
     // 멱등성: 이미 신뢰된 폴더는 그대로 true 반환.
     check("ensureClaudeFolderTrusted idempotent", (await wl.ensureClaudeFolderTrusted(trustCfg, "E:/agentApp")) === true);
+
+    // ---- 온보딩 사전 완료 (숨긴 콘솔이 테마 프롬프트에서 멈추는 문제) ----
+    // PTY 실측: hasCompletedOnboarding 없이 띄우면 "Choose the text style" 에서 영구 대기.
+    check("ensureClaudeOnboarded is exported", typeof wl.ensureClaudeOnboarded === "function");
+    check("ensureClaudeOnboarded returns true", (await wl.ensureClaudeOnboarded(trustCfg)) === true);
+    const onbJson = JSON.parse(await readFile(path.join(trustCfg, ".claude.json"), "utf8"));
+    check("onboarding flag written", onbJson.hasCompletedOnboarding === true);
+    check("remote dialog flag written", onbJson.remoteDialogSeen === true);
+    check("numStartups >= 1", Number(onbJson.numStartups) >= 1);
+    // 신뢰 설정을 훼손하지 않아야 한다(같은 .claude.json 을 공유).
+    check("onboarding preserves trust entries", onbJson.projects["E:/agentApp"]?.hasTrustDialogAccepted === true);
+    check("ensureClaudeOnboarded idempotent", (await wl.ensureClaudeOnboarded(trustCfg)) === true);
+
+    // 이미 온보딩된 프로필의 numStartups 는 덮어쓰지 않는다.
+    const keepCfg = await mkdtemp(path.join(tmpdir(), "agentapp-rc-onb-"));
+    try {
+      await writeFile(
+        path.join(keepCfg, ".claude.json"),
+        JSON.stringify({ hasCompletedOnboarding: true, remoteDialogSeen: true, numStartups: 12 }),
+      );
+      await wl.ensureClaudeOnboarded(keepCfg);
+      const keepJson = JSON.parse(await readFile(path.join(keepCfg, ".claude.json"), "utf8"));
+      check("existing numStartups preserved", keepJson.numStartups === 12);
+    } finally {
+      await rm(keepCfg, { recursive: true, force: true });
+    }
+
+    // 빈 디렉터리(=.claude.json 없음)에서도 새로 만든다.
+    const freshCfg = await mkdtemp(path.join(tmpdir(), "agentapp-rc-fresh-"));
+    try {
+      check("ensureClaudeOnboarded creates .claude.json", (await wl.ensureClaudeOnboarded(freshCfg)) === true);
+      const freshJson = JSON.parse(await readFile(path.join(freshCfg, ".claude.json"), "utf8"));
+      check("fresh profile onboarded", freshJson.hasCompletedOnboarding === true && Number(freshJson.numStartups) >= 1);
+    } finally {
+      await rm(freshCfg, { recursive: true, force: true });
+    }
   } finally {
     await rm(trustCfg, { recursive: true, force: true });
   }
+
+  // buildRemoteControlSpec 가 spawn 전에 온보딩까지 처리했는지 (실제 세션 디렉터리 확인).
+  const onbSpec = await wl.buildRemoteControlSpec({ id: "onbacct", sessionProfile: "claude-code-onbacct" });
+  const onbSpecJson = JSON.parse(await readFile(path.join(onbSpec.sessionDir, ".claude.json"), "utf8"));
+  check("buildRemoteControlSpec seeds onboarding", onbSpecJson.hasCompletedOnboarding === true);
 } finally {
   await rm(dataDir, { recursive: true, force: true });
   await rm(profDir, { recursive: true, force: true });

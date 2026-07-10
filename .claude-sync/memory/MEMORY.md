@@ -14,6 +14,7 @@ AgentApp 공용 memory index.
 - [다음 작업 마커 규칙](feedback_next_steps_marker.md) — worker 응답 끝에 `[NEXT_STEPS]` 후보 / `[NEXT_NONE] <이유>` 출력, dashboard autoChain 이 파싱해 다음 진행 prompt 결정
 - [동기화 덮어쓰기 주의](sync_clobber_gotcha.md) — project_state/roadmap 직접 repo 편집은 pre-commit이 `~/.claude` 로컬본으로 덮어씀, 로컬본도 함께 갱신 필요
 - [외부 도구 통합](integrations_external_tools.md) — codebase-memory MCP(입력 토큰↓) + Ponytail(출력 토큰↓), opt-in 기본 off, v0.13.0 wiring 적용
+- [RC 격리 프로필 로그인](rc_isolated_profile_login.md) — RC는 격리 CLAUDE_CONFIG_DIR 사용, PC/계정마다 별도 로그인 필요. 미로그인 시 빈 토큰 stub → false-ready로 폰에 세션 미표시
 
 ## 운영 규칙
 

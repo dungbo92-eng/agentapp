@@ -1,5 +1,30 @@
 # RUN_STATUS
 
+## 2026-07-10T_rc_hidden_console_onboarding_prompt
+
+사용자: "v0.17.3 올려도 RC 안 켜짐, 토글해도 안 됨. 로그 봐라. 권한 OK 같은 거 처리 안 돼서 대기 중 아니냐."
+
+**실측 방법**: 앱은 hidden 콘솔의 stdout 을 버려서 로그가 없다. 로컬 node-pty 로 **진짜 PTY** 를 만들어 앱과 동일한 조건(`CLAUDE_CONFIG_DIR`=격리 프로필, cwd=D:/agentApp)으로 `claude --remote-control` 을 띄우고 화면을 캡처했다.
+
+**근본 원인 #1 (코드 버그, 확정)**: 캡처된 화면 —
+```
+Welcome to Claude Code v2.1.138
+Let's get started. Choose the text style that looks best with your terminal
+  1. Auto (match terminal)   ❯ 2. Dark mode ✔   3. Light mode ...
+```
+새 세션 프로필의 첫 interactive 실행은 **온보딩(테마 선택) 프롬프트**에서 키 입력을 기다린다. 숨긴 콘솔이라 아무도 답할 수 없어 **영구 대기** → 프로세스는 살아 배지엔 `📡 RC ×N`, 폰에는 **등록 안 됨**. (로그인 프롬프트는 이 다음 단계라 도달조차 못 함. 앞선 세션이 고친 trust 대화상자와는 **별개의 두 번째 프롬프트**.)
+기본 프로필이 멀쩡했던 이유: `~/.claude/settings.json` 에 `theme` 이 있고 `.claude.json` 에 `hasCompletedOnboarding: true` 가 있어 온보딩을 건너뛴다. 격리 프로필은 `settings.json`={} 이고 그 플래그가 없다.
+
+**최소 수정 집합(PTY A/B 실측)**: `hasCompletedOnboarding: true` **하나만** 심어도 테마 프롬프트를 건너뛰고 세션 프롬프트("? for shortcuts")까지 진입.
+
+**수정**: `worker-launch-adapter.mjs` 에 `ensureClaudeOnboarded(configDir)` 추가 — `.claude.json` 에 `hasCompletedOnboarding: true`, `remoteDialogSeen: true`(RC 최초 사용 안내 대화상자 예방), `numStartups: max(1, 기존)` 을 멱등 기록. 기존 `numStartups`/`projects`(신뢰) 는 보존. `buildRemoteControlSpec` 이 `ensureClaudeFolderTrusted` 직후 호출.
+
+**근본 원인 #2 (사용자 조치 필요)**: 그 격리 프로필은 **미로그인**. env 정리 후 `claude --print` → `Not logged in · Please run /login`. (앞선 검증에서 통과처럼 보였던 건 내 셸의 `ANTHROPIC_BASE_URL` 게이트웨이를 상속받아 인증된 착시였음 — 제거하고 재검증.) 따라서 v0.17.3 의 false-ready 판정은 **정확하며 회귀가 아니다**. 앱의 계정 '로그인' 버튼은 `claude auth login`(v2.1.138 에 실존, `--claudeai` 기본)을 격리 프로필로 실행하므로 정상 경로다.
+
+**검증**: validate-remote-control 51/51 (온보딩 9종 신규: 플래그 기록/멱등/기존 numStartups 보존/신뢰 보존/빈 디렉터리 생성/buildRemoteControlSpec 통합). `pnpm validate` 전체 통과. 사용자의 실제 격리 프로필에 시드 적용 확인(신뢰 키 3개 보존).
+
+**남은 사용자 조치**: 앱에서 해당 Claude 계정 '로그인' → 격리 프로필 OAuth 완료 → RC 세션이 폰에 등록됨.
+
 ## 2026-07-10T_rc_false_ready_empty_token_profile
 
 사용자 증상: 회사 PC(다른 Windows 계정)에서 앱은 `📡 RC ×1` 로 켜졌다 하고 계정도 READY 인데 **폰에 세션이 안 뜸**. 반면 CMD 로 직접 띄운 `claude --remote-control` 은 **정상으로 폰에 뜸**. "집에서는 됐는데 설치 계정만 바뀌었는데 왜?"
