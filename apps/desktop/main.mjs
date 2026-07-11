@@ -229,12 +229,14 @@ async function createMainWindow() {
     lanAccessToken: initialLanSettings.lanAccessToken,
   });
 
-  // 시작 시 ready Claude 계정마다 `claude --remote-control` 자동 실행 (기본 on).
-  // 숨긴 콘솔로 TTY 확보 (node-pty 안 씀 → conpty 크래시 없음). best-effort.
+  // RC 는 renderer 의 '보이는 RC 터미널' 자동 오픈으로 일원화한다(중복 세션 방지).
+  // 숨긴 콘솔 자동 실행은 로그인/폴더신뢰/온보딩 프롬프트를 삼켜 false-ready 를 유발하므로
+  // 기본 off. 명시적으로 `remoteControlHiddenAutoStart === true` 를 준 경우에만 숨긴 콘솔을
+  // 띄운다. 수동/레거시용 IPC(remote-control-start)는 그대로 유지한다. best-effort.
   try {
     const { getRuntimeSettings } = await import("../../scripts/dashboard-runtime.mjs");
     const rcSettings = await getRuntimeSettings();
-    if (rcSettings.remoteControlAutoStart !== false) void startRemoteControlSessions();
+    if (rcSettings.remoteControlHiddenAutoStart === true) void startRemoteControlSessions();
   } catch {
     /* best-effort — 원격제어 자동 시작 실패는 앱 실행을 막지 않는다 */
   }

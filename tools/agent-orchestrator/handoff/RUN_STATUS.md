@@ -1,5 +1,21 @@
 # RUN_STATUS
 
+## 2026-07-11T_rc_visible_terminal_auto_open
+
+사용자 요청: "프로젝트 remote control 토글 on 이면 해당 프로젝트 경로로, Claude 계정마다 RC 터미널이 각각 자동으로 열리게. 계정 2개 + 토글 on 이면 각각 2개. 토글 off 후 다시 on 하면 새로 열리게. AgentApp 실행 시 토글 on 프로젝트 있으면 자동으로 열리게. 사용자가 RC 터미널 버튼 안 눌러도 자동으로."
+
+결정(사용자 확인): (1) **보이는 RC 터미널로 일원화** — 숨긴 콘솔 자동 실행 off. (2) 대상 = **모든 로컬 Claude 계정**(미로그인 포함, 터미널에서 로그인 유도).
+
+수정:
+- **main.mjs**: 시작 시 숨긴 콘솔 RC 자동 실행 gate 를 `remoteControlAutoStart !== false` → `remoteControlHiddenAutoStart === true`(기본 off)로 변경. 계정×프로젝트당 세션이 보이는 터미널 하나뿐이라 폰에서 중복 안 됨. 수동/레거시 IPC(`remote-control-start`)는 유지.
+- **main.tsx**: `openRemoteControlTerminal(account, projectId, { silent? })` → 생성 tabId 반환 + silent 로 자동 오픈 토스트 억제. 신규 자동 오픈 effect(`rcAutoTabsRef`/`rcPrevOnRef`) — on 프로젝트 × 로컬 Claude 계정 교차곱마다 RC 터미널 자동 오픈, on→off 시 그 조합의 자동 터미널 닫기(다음 on 때 새로). 폴링 새 참조에도 ref 가드로 재오픈 방지. 토글 토스트 문구를 즉시 반영형으로 갱신.
+
+동작: 앱 시작 시 on 프로젝트 전부 자동 오픈, 토글 on 시 즉시 오픈, off→on 재토글 시 새 세션, 계정 2 × on-프로젝트 = 각각 자동 오픈.
+
+검증: `pnpm dashboard:build`(tsc -b + vite) 통과, `validate-remote-control` 14/14 통과. `remoteControlAutoStart` 기본값 테스트 영향 없음(설정은 유지, main.mjs 만 새 gate 사용). `pnpm validate` 는 `validate-runtime-race` 가 Windows 임시파일 rename **EPERM** 환경 flaky 로 실패(errorCount 5→2 로 매 실행 변동, 건드린 파일과 무관 — 기존 이슈).
+
+Git: commit + main push + desktop 릴리즈(minor — RC 터미널 자동 오픈 기능 추가).
+
 ## 2026-07-10T_rc_false_ready_and_visible_terminal_macro
 
 사용자 보고: "아직도 안 됨. 연결완료 뜨는데 실제로 동작 안 함. agentapp 이 claude 로그인 제대로 안 되는 듯 — 헛세션 잡고 준비완료로 띄우는 듯. 상태확인 눌러도 준비완료. 차라리 사이드 터미널로 프로젝트 경로 들어가서 해당 계정 세션으로 RC 직접 띄우고, 그걸 매크로화하면 진행상황이라도 볼 수 있을 듯."

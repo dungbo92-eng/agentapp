@@ -1,6 +1,6 @@
 {
-  "generated_at": "2026-07-10T06:17:01.568Z",
-  "repo_root": "D:\\agentApp",
+  "generated_at": "2026-07-11T00:53:54.187Z",
+  "repo_root": "E:\\agentApp",
   "progress": {
     "percent": 97,
     "done": 76,
@@ -630,7 +630,7 @@
     "spendable_before_reserve": 0,
     "recommended_today_budget_units": 0,
     "reset_day": "monday",
-    "days_to_reset": 3,
+    "days_to_reset": 2,
     "weekend_days_left": [
       "saturday",
       "sunday"

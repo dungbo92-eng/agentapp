@@ -2765,6 +2765,62 @@ function App() {
   const accounts = uniqById([...configuredAccounts, ...runtime.accounts]);
   const localAccounts = runtime.accounts;
   const usableLocalAccounts = localAccounts.filter(isAccountUsable);
+
+  // ===== RC 터미널 자동 오픈 =====
+  // 프로젝트의 remoteControl 토글이 on 인 동안, 모든 로컬 Claude 계정마다 '보이는 RC 터미널'을
+  // 자동으로 연다(계정×프로젝트 교차곱 — 계정 2 × on-프로젝트 1 = 터미널 2개).
+  //   (1) 앱 시작 시: on 인 프로젝트 전부에 대해 자동 오픈.
+  //   (2) off→on 토글 시: 그 프로젝트 × 계정 조합을 새로 오픈.
+  //   (3) on→off 토글 시: 자동으로 열었던 RC 터미널을 닫는다 → 다음 on 때 새 세션이 열린다.
+  // 사용자가 '📱 RC 터미널' 버튼을 직접 누르지 않아도 세션이 뜬다. 숨긴 콘솔 자동 실행은
+  // 껐으므로(main.mjs) 계정×프로젝트당 세션은 이 보이는 터미널 하나뿐이라 폰에서 중복되지 않는다.
+  const rcAutoTabsRef = React.useRef<Map<string, string>>(new Map()); // `${accountId}::${projectId}` -> tabId ("pending"=여는 중)
+  const rcPrevOnRef = React.useRef<Set<string>>(new Set());           // 직전 렌더에서 on 이던 projectId 집합
+  React.useEffect(() => {
+    const desktop = typeof window !== "undefined" ? (window as any).agentapp : null;
+    if (!desktop?.remoteControl?.terminalSpec) return; // 데스크탑 앱에서만 동작
+    const claudeAccounts = localAccounts.filter(
+      (account) => account.provider === "claude" && account.source === "local" && account.enabled !== false,
+    );
+    if (claudeAccounts.length === 0) return;
+    const onProjects = runtime.projects.filter(
+      (project) =>
+        project
+        && project.remoteControl !== false
+        && typeof project.path === "string"
+        && project.path.trim(),
+    );
+    const onIds = new Set(onProjects.map((project) => project.id));
+
+    // on→off 로 바뀐 프로젝트 → 자동으로 열었던 RC 터미널 닫기(다음 on 때 새로 열리게).
+    for (const projectId of rcPrevOnRef.current) {
+      if (onIds.has(projectId)) continue;
+      for (const account of claudeAccounts) {
+        const key = `${account.id}::${projectId}`;
+        const tabId = rcAutoTabsRef.current.get(key);
+        if (tabId && tabId !== "pending") closeToolTab(tabId);
+        rcAutoTabsRef.current.delete(key);
+      }
+    }
+
+    // on 인 프로젝트 × Claude 계정 → 아직 안 연 조합이면 RC 터미널 자동 오픈.
+    for (const project of onProjects) {
+      for (const account of claudeAccounts) {
+        const key = `${account.id}::${project.id}`;
+        if (rcAutoTabsRef.current.has(key)) continue; // 이미 열림/여는 중이면 스킵(중복 방지)
+        rcAutoTabsRef.current.set(key, "pending");
+        void (async () => {
+          const tabId = await openRemoteControlTerminal(account, project.id, { silent: true });
+          if (tabId) rcAutoTabsRef.current.set(key, tabId);
+          else rcAutoTabsRef.current.delete(key); // 실패 시 키 해제 → 다음 기회에 재시도
+        })();
+      }
+    }
+
+    rcPrevOnRef.current = onIds;
+    // runtime.projects/localAccounts 는 폴링마다 새 참조지만, rcAutoTabsRef 가드가 재오픈을 막는다.
+  }, [runtime.projects, localAccounts]);
+
   // 프로젝트 최근 사용 이력 (lastWorker / lastModel) 을 라우팅 힌트로 전달
   // 해서 UI 미리보기와 백엔드 startRun 의 실제 라우팅이 같은 후보를 고르도록.
   const selectedProjectRow = runtime.projects.find((project) => project.id === selectedProject);
@@ -2983,31 +3039,41 @@ function App() {
   // 사용자 상호작용이 필요해 숨긴 콘솔로는 넘길 수 없다. 이 매크로는 같은 계정 프로필
   // (CLAUDE_CONFIG_DIR)과 같은 프로젝트 경로(cwd)로 명령을 보이는 터미널에 타이핑해,
   // 사용자가 프롬프트를 직접 보고 응답하며 진행 상황을 확인할 수 있게 한다.
-  async function openRemoteControlTerminal(account: ManagedAccount, projectId: string) {
+  // opts.silent: 자동 오픈(앱 시작/토글 on)에서 계정×프로젝트마다 토스트가 쏟아지지 않게 억제.
+  // 반환: 생성된 터미널 탭 id(성공) 또는 null(실패) — 자동 오픈 로직이 탭을 추적/닫기 위해 사용.
+  async function openRemoteControlTerminal(
+    account: ManagedAccount,
+    projectId: string,
+    opts: { silent?: boolean } = {},
+  ): Promise<string | null> {
     const desktop = typeof window !== "undefined" ? (window as any).agentapp : null;
     if (!desktop?.remoteControl?.terminalSpec) {
-      setToast({ kind: "warn", message: "RC 터미널은 데스크탑 앱에서만 사용할 수 있습니다." });
-      return;
+      if (!opts.silent) setToast({ kind: "warn", message: "RC 터미널은 데스크탑 앱에서만 사용할 수 있습니다." });
+      return null;
     }
     try {
       const spec = await desktop.remoteControl.terminalSpec(account.id, projectId);
       if (!spec?.ok) {
-        setToast({ kind: "warn", message: `RC 터미널을 열지 못했습니다: ${spec?.reason || "unknown"}` });
-        return;
+        if (!opts.silent) setToast({ kind: "warn", message: `RC 터미널을 열지 못했습니다: ${spec?.reason || "unknown"}` });
+        return null;
       }
-      addToolTab("terminal", {
+      const tabId = addToolTab("terminal", {
         initialCwd: spec.cwd,
         initialEnv: spec.env,
         initialCommand: spec.command,
         initialShell: spec.shell,
         label: `RC · ${spec.name}`,
       });
-      setToast({
-        kind: "info",
-        message: `'${spec.name}' 원격제어를 터미널에서 실행합니다. 로그인이 필요하면 화면 안내대로 진행하세요.`,
-      });
+      if (!opts.silent) {
+        setToast({
+          kind: "info",
+          message: `'${spec.name}' 원격제어를 터미널에서 실행합니다. 로그인이 필요하면 화면 안내대로 진행하세요.`,
+        });
+      }
+      return tabId;
     } catch (caught) {
-      setToast({ kind: "warn", message: caught instanceof Error ? caught.message : "RC 터미널 실행 실패" });
+      if (!opts.silent) setToast({ kind: "warn", message: caught instanceof Error ? caught.message : "RC 터미널 실행 실패" });
+      return null;
     }
   }
 
@@ -3017,7 +3083,9 @@ function App() {
     void updateRuntime(runtimeRequest("projects/update", { id: project.id, remoteControl: next }));
     setToast({
       kind: "info",
-      message: `'${project.name}' 모바일 세션 ${next ? "켜짐" : "꺼짐"} — 앱 재시작 또는 원격제어 재시작 시 반영됩니다.`,
+      message: next
+        ? `'${project.name}' 모바일 세션 켜짐 — Claude 계정마다 RC 터미널을 자동으로 엽니다.`
+        : `'${project.name}' 모바일 세션 꺼짐 — 자동으로 열린 RC 터미널을 닫습니다.`,
     });
   }
 
