@@ -2707,6 +2707,63 @@ function App() {
   const usageFlashKey = useFlashOnChange(liveUsageRaw.remaining);
   const environmentFlashKey = useFlashOnChange(environmentPercentRaw);
 
+  // ===== RC 터미널 자동 오픈 =====
+  // 프로젝트의 remoteControl 토글이 on 인 동안, 모든 로컬 Claude 계정마다 '보이는 RC 터미널'을
+  // 자동으로 연다(계정×프로젝트 교차곱 — 계정 2 × on-프로젝트 1 = 터미널 2개).
+  //   (1) 앱 시작 시: on 인 프로젝트 전부에 대해 자동 오픈.
+  //   (2) off→on 토글 시: 그 프로젝트 × 계정 조합을 새로 오픈.
+  //   (3) on→off 토글 시: 자동으로 열었던 RC 터미널을 닫는다 → 다음 on 때 새 세션이 열린다.
+  // 사용자가 '📱 RC 터미널' 버튼을 직접 누르지 않아도 세션이 뜬다. 숨긴 콘솔 자동 실행은
+  // 껐으므로(main.mjs) 계정×프로젝트당 세션은 이 보이는 터미널 하나뿐이라 폰에서 중복되지 않는다.
+  // 훅 규칙: 이 훅들은 반드시 아래 early return(error/!snapshot) 보다 위에서 호출돼야 한다.
+  // (아래에 두면 snapshot 로드 전후로 훅 개수가 달라져 React #310 로 앱이 통째로 크래시했다.)
+  const rcAutoTabsRef = React.useRef<Map<string, string>>(new Map()); // `${accountId}::${projectId}` -> tabId ("pending"=여는 중)
+  const rcPrevOnRef = React.useRef<Set<string>>(new Set());           // 직전 렌더에서 on 이던 projectId 집합
+  React.useEffect(() => {
+    const desktop = typeof window !== "undefined" ? (window as any).agentapp : null;
+    if (!desktop?.remoteControl?.terminalSpec) return; // 데스크탑 앱에서만 동작
+    const claudeAccounts = runtime.accounts.filter(
+      (account) => account.provider === "claude" && account.source === "local" && account.enabled !== false,
+    );
+    if (claudeAccounts.length === 0) return;
+    const onProjects = runtime.projects.filter(
+      (project) =>
+        project
+        && project.remoteControl !== false
+        && typeof project.path === "string"
+        && project.path.trim(),
+    );
+    const onIds = new Set(onProjects.map((project) => project.id));
+
+    // on→off 로 바뀐 프로젝트 → 자동으로 열었던 RC 터미널 닫기(다음 on 때 새로 열리게).
+    for (const projectId of rcPrevOnRef.current) {
+      if (onIds.has(projectId)) continue;
+      for (const account of claudeAccounts) {
+        const key = `${account.id}::${projectId}`;
+        const tabId = rcAutoTabsRef.current.get(key);
+        if (tabId && tabId !== "pending") closeToolTab(tabId);
+        rcAutoTabsRef.current.delete(key);
+      }
+    }
+
+    // on 인 프로젝트 × Claude 계정 → 아직 안 연 조합이면 RC 터미널 자동 오픈.
+    for (const project of onProjects) {
+      for (const account of claudeAccounts) {
+        const key = `${account.id}::${project.id}`;
+        if (rcAutoTabsRef.current.has(key)) continue; // 이미 열림/여는 중이면 스킵(중복 방지)
+        rcAutoTabsRef.current.set(key, "pending");
+        void (async () => {
+          const tabId = await openRemoteControlTerminal(account, project.id, { silent: true });
+          if (tabId) rcAutoTabsRef.current.set(key, tabId);
+          else rcAutoTabsRef.current.delete(key); // 실패 시 키 해제 → 다음 기회에 재시도
+        })();
+      }
+    }
+
+    rcPrevOnRef.current = onIds;
+    // runtime.projects/runtime.accounts 는 폴링마다 새 참조지만, rcAutoTabsRef 가드가 재오픈을 막는다.
+  }, [runtime.projects, runtime.accounts]);
+
   if (error) {
     return (
       <main className="shell">
@@ -2765,61 +2822,6 @@ function App() {
   const accounts = uniqById([...configuredAccounts, ...runtime.accounts]);
   const localAccounts = runtime.accounts;
   const usableLocalAccounts = localAccounts.filter(isAccountUsable);
-
-  // ===== RC 터미널 자동 오픈 =====
-  // 프로젝트의 remoteControl 토글이 on 인 동안, 모든 로컬 Claude 계정마다 '보이는 RC 터미널'을
-  // 자동으로 연다(계정×프로젝트 교차곱 — 계정 2 × on-프로젝트 1 = 터미널 2개).
-  //   (1) 앱 시작 시: on 인 프로젝트 전부에 대해 자동 오픈.
-  //   (2) off→on 토글 시: 그 프로젝트 × 계정 조합을 새로 오픈.
-  //   (3) on→off 토글 시: 자동으로 열었던 RC 터미널을 닫는다 → 다음 on 때 새 세션이 열린다.
-  // 사용자가 '📱 RC 터미널' 버튼을 직접 누르지 않아도 세션이 뜬다. 숨긴 콘솔 자동 실행은
-  // 껐으므로(main.mjs) 계정×프로젝트당 세션은 이 보이는 터미널 하나뿐이라 폰에서 중복되지 않는다.
-  const rcAutoTabsRef = React.useRef<Map<string, string>>(new Map()); // `${accountId}::${projectId}` -> tabId ("pending"=여는 중)
-  const rcPrevOnRef = React.useRef<Set<string>>(new Set());           // 직전 렌더에서 on 이던 projectId 집합
-  React.useEffect(() => {
-    const desktop = typeof window !== "undefined" ? (window as any).agentapp : null;
-    if (!desktop?.remoteControl?.terminalSpec) return; // 데스크탑 앱에서만 동작
-    const claudeAccounts = localAccounts.filter(
-      (account) => account.provider === "claude" && account.source === "local" && account.enabled !== false,
-    );
-    if (claudeAccounts.length === 0) return;
-    const onProjects = runtime.projects.filter(
-      (project) =>
-        project
-        && project.remoteControl !== false
-        && typeof project.path === "string"
-        && project.path.trim(),
-    );
-    const onIds = new Set(onProjects.map((project) => project.id));
-
-    // on→off 로 바뀐 프로젝트 → 자동으로 열었던 RC 터미널 닫기(다음 on 때 새로 열리게).
-    for (const projectId of rcPrevOnRef.current) {
-      if (onIds.has(projectId)) continue;
-      for (const account of claudeAccounts) {
-        const key = `${account.id}::${projectId}`;
-        const tabId = rcAutoTabsRef.current.get(key);
-        if (tabId && tabId !== "pending") closeToolTab(tabId);
-        rcAutoTabsRef.current.delete(key);
-      }
-    }
-
-    // on 인 프로젝트 × Claude 계정 → 아직 안 연 조합이면 RC 터미널 자동 오픈.
-    for (const project of onProjects) {
-      for (const account of claudeAccounts) {
-        const key = `${account.id}::${project.id}`;
-        if (rcAutoTabsRef.current.has(key)) continue; // 이미 열림/여는 중이면 스킵(중복 방지)
-        rcAutoTabsRef.current.set(key, "pending");
-        void (async () => {
-          const tabId = await openRemoteControlTerminal(account, project.id, { silent: true });
-          if (tabId) rcAutoTabsRef.current.set(key, tabId);
-          else rcAutoTabsRef.current.delete(key); // 실패 시 키 해제 → 다음 기회에 재시도
-        })();
-      }
-    }
-
-    rcPrevOnRef.current = onIds;
-    // runtime.projects/localAccounts 는 폴링마다 새 참조지만, rcAutoTabsRef 가드가 재오픈을 막는다.
-  }, [runtime.projects, localAccounts]);
 
   // 프로젝트 최근 사용 이력 (lastWorker / lastModel) 을 라우팅 힌트로 전달
   // 해서 UI 미리보기와 백엔드 startRun 의 실제 라우팅이 같은 후보를 고르도록.

@@ -1,5 +1,19 @@
 # RUN_STATUS
 
+## 2026-07-11T_blank_screen_hooks_violation_v0190
+
+사용자: 최신(v0.19.0) 업데이트 후 **앱이 빈 화면**만 뜸.
+
+**진단(브라우저 실측)**: 대시보드를 빌드해 static 서버로 띄우고 in-app 브라우저로 로드 → `#root` childCount=0(React 미마운트). 번들 재-import 로 에러 캡처 → **Minified React error #310**. vite dev(비압축)로 재현하니 컴포넌트 `App`, 훅 순서가 **#79 에서 어긋남**(이전 렌더 undefined → 다음 렌더 useRef). = 훅 규칙 위반.
+
+**근본 원인**: v0.19.0(`4fe025f`)이 추가한 'RC 터미널 자동 오픈' 훅(`rcAutoTabsRef`/`rcPrevOnRef` `useRef` + `useEffect`)이 `App` 의 early return(`if (error) return` L2710 / `if (!snapshot) return` L2721) **아래**(L2777)에 있었다. snapshot 로드 전엔 early return 으로 훅 78개, 로드 후엔 79개 → React #310 → App 통째 크래시 → 빈 화면. (설치앱은 minified 라 에러 없이 흰 화면만.)
+
+**수정**: 세 훅 블록을 early return **위**(usageFlashKey/environmentFlashKey 직후)로 이동. 이펙트가 참조하던 `localAccounts`(L2766, early return 뒤에 정의)를 조기 사용 가능한 `runtime.accounts` 로 교체(dep 배열 포함). `openRemoteControlTerminal`(함수 선언, 호이스팅)·`closeToolTab` 은 이펙트 실행 시점(렌더 후)엔 이미 바인딩되므로 클로저 안전.
+
+**검증(브라우저 실측)**: 프로덕션 빌드 재로드 → `#root` childCount=1, 본문 정상 렌더("AgentApp/통합 에이전트 콘솔/…"), **React 에러 0, 콘솔 에러 0**. `pnpm validate` 전체 통과(runtime-race 50/50, e2e 7/7). dashboard:build 통과.
+
+주의: 이 빈화면 버그는 다른 세션(sillybear92)이 올린 v0.18.0/v0.19.0 렌더러 변경에서 유입. 두 세션이 동시에 같은 앱을 릴리즈 중 — HEAD 가 자주 앞서가니 커밋 전 `git fetch` 로 확인할 것.
+
 ## 2026-07-11T_rc_visible_terminal_auto_open
 
 사용자 요청: "프로젝트 remote control 토글 on 이면 해당 프로젝트 경로로, Claude 계정마다 RC 터미널이 각각 자동으로 열리게. 계정 2개 + 토글 on 이면 각각 2개. 토글 off 후 다시 on 하면 새로 열리게. AgentApp 실행 시 토글 on 프로젝트 있으면 자동으로 열리게. 사용자가 RC 터미널 버튼 안 눌러도 자동으로."
